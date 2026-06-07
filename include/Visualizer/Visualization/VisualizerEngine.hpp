@@ -12,6 +12,12 @@ struct Vec2 {
     float y = 0.0f;
 };
 
+struct Vec3 {
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+};
+
 struct ColorRGBA {
     float r = 1.0f;
     float g = 1.0f;
@@ -48,12 +54,39 @@ struct Polyline {
     bool closed = false;
 };
 
+enum class Object3DKind {
+    Polyhedron,
+    Shard,
+    Ribbon,
+    Node,
+    Link,
+    Plate,
+    TunnelRib,
+    Particle
+};
+
+struct Object3D {
+    Object3DKind kind = Object3DKind::Polyhedron;
+    Vec3 position{};
+    Vec3 rotation{};
+    Vec3 scale{1.0f, 1.0f, 1.0f};
+    Vec3 velocity{};
+    Vec3 target{};
+    float depth = 0.0f;
+    float glow = 0.0f;
+    ColorRGBA color{};
+};
+
 struct GeometryFrame {
     ColorRGBA background{0.01f, 0.012f, 0.018f, 1.0f};
     std::vector<Ring> rings;
     std::vector<Beam> beams;
     std::vector<Particle> particles;
     std::vector<Polyline> polylines;
+    std::vector<Object3D> objects3D;
+    std::string_view scene3DName = "Flat Geometry";
+    float cameraDepth = 0.0f;
+    float objectDepthRange = 0.0f;
     float flash = 0.0f;
 };
 
@@ -104,6 +137,10 @@ struct VisualSettings {
     float hueShift = 0.0f;
     float depth3D = 0.55f;
     float colorImpact = 0.65f;
+    float objectDensity3D = 0.65f;
+    float interactionDepth = 0.65f;
+    float lightingGlow = 0.62f;
+    float scenePersonality = 0.5f;
     float complexity = 1.0f;
     float intensity = 1.0f;
     float speed = 1.0f;

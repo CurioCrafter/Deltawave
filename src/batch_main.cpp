@@ -39,8 +39,12 @@ void printUsage()
         << "  --trails           Keep decaying geometry trails in frame output\n"
         << "  --no-trails        Render crisp frames with a full background clear each frame\n"
         << "  --hue-shift N      Shift palette hue from 0.0 to 1.0, default 0.0\n"
-        << "  --depth-3d N       Faux-3D perspective/parallax strength from 0.0 flat to 1.0 deep\n"
+        << "  --depth-3d N       True 3D camera depth from 0.0 flat to 1.0 deep\n"
+        << "  --object-density-3d N  3D object density from 0.0 sparse to 1.0 packed\n"
+        << "  --interaction-depth N  Mouse/depth interaction strength from 0.0 off to 1.0 strong\n"
+        << "  --lighting-glow N  3D lighting and glow strength from 0.0 matte to 1.0 luminous\n"
         << "  --color-impact N   Palette personality strength from 0.0 subtle to 1.0 intense\n"
+        << "  --scene-personality N  Scene personality/motion bias from 0.0 restrained to 1.0 extreme\n"
         << "  --complexity N     Geometry density from 0.35 sparse to 1.8 dense, default 1.0\n"
         << "  --look NAME        Apply a built-in curated look; use VisualizerExport --list-looks\n"
         << "  --user-preset NAME Apply a user preset from profiles/presets or --preset-library\n"
@@ -174,10 +178,22 @@ int main(int argc, char** argv)
             options.settings.depth3D = std::clamp(static_cast<float>(parseDouble(value, options.settings.depth3D)),
                                                   0.0f,
                                                   1.0f);
+        } else if ((arg == "--object-density-3d" || arg == "--objects") && nextValue(i, argc, argv, value)) {
+            options.settings.objectDensity3D =
+                std::clamp(static_cast<float>(parseDouble(value, options.settings.objectDensity3D)), 0.0f, 1.0f);
+        } else if ((arg == "--interaction-depth" || arg == "--mouse-depth") && nextValue(i, argc, argv, value)) {
+            options.settings.interactionDepth =
+                std::clamp(static_cast<float>(parseDouble(value, options.settings.interactionDepth)), 0.0f, 1.0f);
+        } else if ((arg == "--lighting-glow" || arg == "--glow") && nextValue(i, argc, argv, value)) {
+            options.settings.lightingGlow =
+                std::clamp(static_cast<float>(parseDouble(value, options.settings.lightingGlow)), 0.0f, 1.0f);
         } else if ((arg == "--color-impact" || arg == "--color") && nextValue(i, argc, argv, value)) {
             options.settings.colorImpact = std::clamp(static_cast<float>(parseDouble(value, options.settings.colorImpact)),
                                                       0.0f,
                                                       1.0f);
+        } else if ((arg == "--scene-personality" || arg == "--personality") && nextValue(i, argc, argv, value)) {
+            options.settings.scenePersonality =
+                std::clamp(static_cast<float>(parseDouble(value, options.settings.scenePersonality)), 0.0f, 1.0f);
         } else if (arg == "--complexity" && nextValue(i, argc, argv, value)) {
             options.settings.complexity = std::clamp(static_cast<float>(parseDouble(value, options.settings.complexity)),
                                                      0.35f,

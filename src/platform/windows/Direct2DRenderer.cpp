@@ -176,7 +176,7 @@ void Direct2DRenderer::render(const GeometryFrame& frame,
     if (settings.showHud) {
         if (settings.trails) {
             brush_->SetColor(D2D1::ColorF(frame.background.r, frame.background.g, frame.background.b, 0.82f));
-            renderTarget_->FillRectangle(D2D1::RectF(0.0f, 0.0f, renderSize.width, 160.0f), brush_);
+            renderTarget_->FillRectangle(D2D1::RectF(0.0f, 0.0f, renderSize.width, 190.0f), brush_);
         }
         drawHud(metrics, settings, performance, inspector, status, recording, recordedFrames);
         drawControlPanel(settings, recording);
@@ -264,8 +264,13 @@ void Direct2DRenderer::drawHud(const AudioMetrics& metrics,
          << L"  Speed " << settings.speed
          << L"  Hue " << std::setprecision(0) << (settings.hueShift * 360.0f)
          << L"  Depth " << (settings.depth3D * 100.0f) << L"%"
+         << L"  Obj " << (settings.objectDensity3D * 100.0f) << L"%"
+         << L"  Mouse3D " << (settings.interactionDepth * 100.0f) << L"%"
+         << L"  Glow " << (settings.lightingGlow * 100.0f) << L"%"
          << L"  Color " << (settings.colorImpact * 100.0f) << L"%"
-         << L"  Complexity " << std::setprecision(2) << settings.complexity
+         << L"  Persona " << (settings.scenePersonality * 100.0f) << L"%"
+         << L"\n";
+    text << L"Complexity " << std::setprecision(2) << settings.complexity
          << L"  Flux " << std::setprecision(2) << metrics.spectralFlux
          << L"  Drop " << metrics.dropIntensity
          << L"  Beat " << metrics.beatPhase
@@ -306,7 +311,7 @@ void Direct2DRenderer::drawHud(const AudioMetrics& metrics,
     renderTarget_->DrawTextW(output.c_str(),
                              static_cast<UINT32>(output.size()),
                              textFormat_,
-                             D2D1::RectF(16.0f, 14.0f, size.width - 16.0f, 178.0f),
+                             D2D1::RectF(16.0f, 14.0f, size.width - 16.0f, 208.0f),
                              brush_);
 }
 

@@ -1258,6 +1258,10 @@ void WindowsApp::applyPanelControl(const PanelItem& item, int x)
     case PanelControl::SpeedSlider:
     case PanelControl::HueShiftSlider:
     case PanelControl::DepthSlider:
+    case PanelControl::ObjectDensitySlider:
+    case PanelControl::InteractionDepthSlider:
+    case PanelControl::LightingGlowSlider:
+    case PanelControl::ScenePersonalitySlider:
     case PanelControl::ColorImpactSlider:
     case PanelControl::ComplexitySlider:
     case PanelControl::QualitySlider:
@@ -1315,9 +1319,25 @@ void WindowsApp::applyPanelSlider(PanelControl control, int x)
         } else if (control == PanelControl::DepthSlider) {
             settings_.depth3D = unit;
             setStatus(L"3D depth: " + std::to_wstring(static_cast<int>(std::round(settings_.depth3D * 100.0f))) + L"%");
+        } else if (control == PanelControl::ObjectDensitySlider) {
+            settings_.objectDensity3D = unit;
+            setStatus(L"3D objects: " +
+                      std::to_wstring(static_cast<int>(std::round(settings_.objectDensity3D * 100.0f))) + L"%");
+        } else if (control == PanelControl::InteractionDepthSlider) {
+            settings_.interactionDepth = unit;
+            setStatus(L"Mouse 3D: " +
+                      std::to_wstring(static_cast<int>(std::round(settings_.interactionDepth * 100.0f))) + L"%");
+        } else if (control == PanelControl::LightingGlowSlider) {
+            settings_.lightingGlow = unit;
+            setStatus(L"3D glow: " +
+                      std::to_wstring(static_cast<int>(std::round(settings_.lightingGlow * 100.0f))) + L"%");
         } else if (control == PanelControl::ColorImpactSlider) {
             settings_.colorImpact = unit;
             setStatus(L"Color impact: " + std::to_wstring(static_cast<int>(std::round(settings_.colorImpact * 100.0f))) + L"%");
+        } else if (control == PanelControl::ScenePersonalitySlider) {
+            settings_.scenePersonality = unit;
+            setStatus(L"Scene personality: " +
+                      std::to_wstring(static_cast<int>(std::round(settings_.scenePersonality * 100.0f))) + L"%");
         } else if (control == PanelControl::ComplexitySlider) {
             settings_.complexity = 0.35f + unit * (1.8f - 0.35f);
             setStatus(L"Complexity: " + std::to_wstring(settings_.complexity));

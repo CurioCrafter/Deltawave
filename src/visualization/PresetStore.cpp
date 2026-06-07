@@ -71,7 +71,11 @@ VisualPreset makeCuratedPreset(std::string name,
                                bool trails = true,
                                bool autoScene = false,
                                float depth3D = 0.65f,
-                               float colorImpact = 0.75f)
+                               float colorImpact = 0.75f,
+                               float objectDensity3D = 0.65f,
+                               float interactionDepth = 0.65f,
+                               float lightingGlow = 0.62f,
+                               float scenePersonality = 0.5f)
 {
     VisualPreset preset;
     preset.name = std::move(name);
@@ -80,6 +84,10 @@ VisualPreset makeCuratedPreset(std::string name,
     preset.settings.hueShift = hueShift;
     preset.settings.depth3D = depth3D;
     preset.settings.colorImpact = colorImpact;
+    preset.settings.objectDensity3D = objectDensity3D;
+    preset.settings.interactionDepth = interactionDepth;
+    preset.settings.lightingGlow = lightingGlow;
+    preset.settings.scenePersonality = scenePersonality;
     preset.settings.complexity = complexity;
     preset.settings.intensity = intensity;
     preset.settings.speed = speed;
@@ -509,6 +517,10 @@ bool savePreset(const std::filesystem::path& path,
     output << "hueShift=" << preset.settings.hueShift << "\n";
     output << "depth3D=" << preset.settings.depth3D << "\n";
     output << "colorImpact=" << preset.settings.colorImpact << "\n";
+    output << "objectDensity3D=" << preset.settings.objectDensity3D << "\n";
+    output << "interactionDepth=" << preset.settings.interactionDepth << "\n";
+    output << "lightingGlow=" << preset.settings.lightingGlow << "\n";
+    output << "scenePersonality=" << preset.settings.scenePersonality << "\n";
     output << "complexity=" << preset.settings.complexity << "\n";
     output << "intensity=" << preset.settings.intensity << "\n";
     output << "speed=" << preset.settings.speed << "\n";
@@ -571,6 +583,22 @@ std::optional<VisualPreset> loadPreset(const std::filesystem::path& path, std::s
     }
     if (const auto it = values.find("colorimpact"); it != values.end()) {
         preset.settings.colorImpact = std::clamp(parseFloat(it->second, preset.settings.colorImpact), 0.0f, 1.0f);
+    }
+    if (const auto it = values.find("objectdensity3d"); it != values.end()) {
+        preset.settings.objectDensity3D =
+            std::clamp(parseFloat(it->second, preset.settings.objectDensity3D), 0.0f, 1.0f);
+    }
+    if (const auto it = values.find("interactiondepth"); it != values.end()) {
+        preset.settings.interactionDepth =
+            std::clamp(parseFloat(it->second, preset.settings.interactionDepth), 0.0f, 1.0f);
+    }
+    if (const auto it = values.find("lightingglow"); it != values.end()) {
+        preset.settings.lightingGlow =
+            std::clamp(parseFloat(it->second, preset.settings.lightingGlow), 0.0f, 1.0f);
+    }
+    if (const auto it = values.find("scenepersonality"); it != values.end()) {
+        preset.settings.scenePersonality =
+            std::clamp(parseFloat(it->second, preset.settings.scenePersonality), 0.0f, 1.0f);
     }
     if (const auto it = values.find("complexity"); it != values.end()) {
         preset.settings.complexity = std::clamp(parseFloat(it->second, preset.settings.complexity), 0.35f, 1.8f);

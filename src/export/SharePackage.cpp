@@ -138,6 +138,22 @@ bool writeShareManifest(const OfflineExportOptions& options,
            << std::clamp(options.settings.colorImpact, 0.0f, 1.0f) << ",\n";
     output << "  \"finalColorImpact\": " << std::fixed << std::setprecision(3)
            << std::clamp(result.finalColorImpact, 0.0f, 1.0f) << ",\n";
+    output << "  \"objectDensity3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.objectDensity3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalObjectDensity3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalObjectDensity3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"interactionDepth\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.interactionDepth, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalInteractionDepth\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalInteractionDepth, 0.0f, 1.0f) << ",\n";
+    output << "  \"lightingGlow\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.lightingGlow, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalLightingGlow\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalLightingGlow, 0.0f, 1.0f) << ",\n";
+    output << "  \"scenePersonality\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.scenePersonality, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalScenePersonality\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalScenePersonality, 0.0f, 1.0f) << ",\n";
     output << "  \"minimumHueShift\": " << std::fixed << std::setprecision(3)
            << std::clamp(result.minimumHueShift, 0.0f, 1.0f) << ",\n";
     output << "  \"maximumHueShift\": " << std::fixed << std::setprecision(3)
@@ -248,8 +264,16 @@ bool writeSharePage(const OfflineExportOptions& options,
     stat("Final Hue Shift", std::to_string(result.finalHueShift));
     stat("Depth 3D", std::to_string(options.settings.depth3D));
     stat("Final Depth 3D", std::to_string(result.finalDepth3D));
+    stat("3D Objects", std::to_string(options.settings.objectDensity3D));
+    stat("Final 3D Objects", std::to_string(result.finalObjectDensity3D));
+    stat("Mouse 3D", std::to_string(options.settings.interactionDepth));
+    stat("Final Mouse 3D", std::to_string(result.finalInteractionDepth));
+    stat("3D Glow", std::to_string(options.settings.lightingGlow));
+    stat("Final 3D Glow", std::to_string(result.finalLightingGlow));
     stat("Color Impact", std::to_string(options.settings.colorImpact));
     stat("Final Color Impact", std::to_string(result.finalColorImpact));
+    stat("Scene Personality", std::to_string(options.settings.scenePersonality));
+    stat("Final Scene Personality", std::to_string(result.finalScenePersonality));
     stat("Complexity", std::to_string(options.settings.complexity));
     stat("Duration", std::to_string(result.durationSeconds) + " sec");
     stat("Frames", std::to_string(result.framesWritten));

@@ -90,6 +90,22 @@ bool writeManifest(const OfflineExportOptions& options,
            << std::clamp(options.settings.colorImpact, 0.0f, 1.0f) << "\n";
     output << "finalColorImpact=" << std::fixed << std::setprecision(3)
            << std::clamp(result.finalColorImpact, 0.0f, 1.0f) << "\n";
+    output << "objectDensity3D=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.objectDensity3D, 0.0f, 1.0f) << "\n";
+    output << "finalObjectDensity3D=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalObjectDensity3D, 0.0f, 1.0f) << "\n";
+    output << "interactionDepth=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.interactionDepth, 0.0f, 1.0f) << "\n";
+    output << "finalInteractionDepth=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalInteractionDepth, 0.0f, 1.0f) << "\n";
+    output << "lightingGlow=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.lightingGlow, 0.0f, 1.0f) << "\n";
+    output << "finalLightingGlow=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalLightingGlow, 0.0f, 1.0f) << "\n";
+    output << "scenePersonality=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.scenePersonality, 0.0f, 1.0f) << "\n";
+    output << "finalScenePersonality=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalScenePersonality, 0.0f, 1.0f) << "\n";
     output << "minimumHueShift=" << std::fixed << std::setprecision(3)
            << std::clamp(result.minimumHueShift, 0.0f, 1.0f) << "\n";
     output << "maximumHueShift=" << std::fixed << std::setprecision(3)
@@ -283,6 +299,10 @@ bool exportAudioToFrames(const OfflineExportOptions& options,
         result.finalHueShift = renderSettings.hueShift;
         result.finalDepth3D = renderSettings.depth3D;
         result.finalColorImpact = renderSettings.colorImpact;
+        result.finalObjectDensity3D = renderSettings.objectDensity3D;
+        result.finalInteractionDepth = renderSettings.interactionDepth;
+        result.finalLightingGlow = renderSettings.lightingGlow;
+        result.finalScenePersonality = renderSettings.scenePersonality;
         result.minimumHueShift = std::min(result.minimumHueShift, renderSettings.hueShift);
         result.maximumHueShift = std::max(result.maximumHueShift, renderSettings.hueShift);
         if (metrics.beat) {

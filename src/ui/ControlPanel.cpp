@@ -91,6 +91,26 @@ ControlPanelLayout buildControlPanelLayout(float width,
                 thirdActive);
         advance();
     };
+    const auto addSliderPair = [&](PanelControl leftControl,
+                                   std::string leftLabel,
+                                   float leftValue,
+                                   PanelControl rightControl,
+                                   std::string rightLabel,
+                                   float rightValue) {
+        const float half = (innerWidth - gap) * 0.5f;
+        addItem(layout, leftControl, innerLeft, y, half, itemHeight, std::move(leftLabel), false, true, leftValue);
+        addItem(layout,
+                rightControl,
+                innerLeft + half + gap,
+                y,
+                half,
+                itemHeight,
+                std::move(rightLabel),
+                false,
+                true,
+                rightValue);
+        advance();
+    };
 
     addPair(PanelControl::OpenAudio, "Open Audio", false, PanelControl::Loopback, "Loopback", false);
     addFull(PanelControl::ResetAudioProfiles, "Reset Audio AI", false);
@@ -164,72 +184,36 @@ ControlPanelLayout buildControlPanelLayout(float width,
     addFull(PanelControl::PaletteOceanicPulse, "Oceanic", settings.palette == Palette::OceanicPulse);
 
     y += 6.0f;
-    addItem(layout,
-            PanelControl::IntensitySlider,
-            innerLeft,
-            y,
-            innerWidth,
-            itemHeight,
-            "Intensity",
-            false,
-            true,
-            settingToUnit(settings.intensity, 0.15f, 4.0f));
-    advance();
-    addItem(layout,
-            PanelControl::SpeedSlider,
-            innerLeft,
-            y,
-            innerWidth,
-            itemHeight,
-            "Speed",
-            false,
-            true,
-            settingToUnit(settings.speed, 0.1f, 4.0f));
-    advance();
-    addItem(layout,
-            PanelControl::HueShiftSlider,
-            innerLeft,
-            y,
-            innerWidth,
-            itemHeight,
-            "Hue Shift",
-            false,
-            true,
-            std::clamp(settings.hueShift, 0.0f, 1.0f));
-    advance();
-    addItem(layout,
-            PanelControl::DepthSlider,
-            innerLeft,
-            y,
-            innerWidth,
-            itemHeight,
-            "Depth 3D",
-            false,
-            true,
-            std::clamp(settings.depth3D, 0.0f, 1.0f));
-    advance();
-    addItem(layout,
-            PanelControl::ColorImpactSlider,
-            innerLeft,
-            y,
-            innerWidth,
-            itemHeight,
-            "Color Impact",
-            false,
-            true,
-            std::clamp(settings.colorImpact, 0.0f, 1.0f));
-    advance();
-    addItem(layout,
-            PanelControl::ComplexitySlider,
-            innerLeft,
-            y,
-            innerWidth,
-            itemHeight,
-            "Complexity",
-            false,
-            true,
-            settingToUnit(settings.complexity, 0.35f, 1.8f));
-    advance();
+    addSliderPair(PanelControl::IntensitySlider,
+                  "Intensity",
+                  settingToUnit(settings.intensity, 0.15f, 4.0f),
+                  PanelControl::SpeedSlider,
+                  "Speed",
+                  settingToUnit(settings.speed, 0.1f, 4.0f));
+    addSliderPair(PanelControl::HueShiftSlider,
+                  "Hue",
+                  std::clamp(settings.hueShift, 0.0f, 1.0f),
+                  PanelControl::DepthSlider,
+                  "Depth 3D",
+                  std::clamp(settings.depth3D, 0.0f, 1.0f));
+    addSliderPair(PanelControl::ObjectDensitySlider,
+                  "Obj 3D",
+                  std::clamp(settings.objectDensity3D, 0.0f, 1.0f),
+                  PanelControl::InteractionDepthSlider,
+                  "Mouse 3D",
+                  std::clamp(settings.interactionDepth, 0.0f, 1.0f));
+    addSliderPair(PanelControl::LightingGlowSlider,
+                  "Glow",
+                  std::clamp(settings.lightingGlow, 0.0f, 1.0f),
+                  PanelControl::ColorImpactSlider,
+                  "Color",
+                  std::clamp(settings.colorImpact, 0.0f, 1.0f));
+    addSliderPair(PanelControl::ScenePersonalitySlider,
+                  "Persona",
+                  std::clamp(settings.scenePersonality, 0.0f, 1.0f),
+                  PanelControl::ComplexitySlider,
+                  "Complex",
+                  settingToUnit(settings.complexity, 0.35f, 1.8f));
     addItem(layout,
             PanelControl::QualitySlider,
             innerLeft,

@@ -160,6 +160,22 @@ bool writeManifest(const CapturePackage& package,
            << std::clamp(package.requestedSettings.colorImpact, 0.0f, 1.0f) << ",\n";
     output << "  \"finalColorImpact\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.finalSettings.colorImpact, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedObjectDensity3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.requestedSettings.objectDensity3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalObjectDensity3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.finalSettings.objectDensity3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedInteractionDepth\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.requestedSettings.interactionDepth, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalInteractionDepth\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.finalSettings.interactionDepth, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedLightingGlow\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.requestedSettings.lightingGlow, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalLightingGlow\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.finalSettings.lightingGlow, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedScenePersonality\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.requestedSettings.scenePersonality, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalScenePersonality\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.finalSettings.scenePersonality, 0.0f, 1.0f) << ",\n";
     output << "  \"requestedComplexity\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.requestedSettings.complexity, 0.35f, 1.8f) << ",\n";
     output << "  \"finalComplexity\": " << std::fixed << std::setprecision(3)
@@ -262,7 +278,11 @@ bool writePage(const CapturePackage& package,
     stat("Final Mode", std::string(toString(package.finalSettings.mode)));
     stat("Final Palette", std::string(toString(package.finalSettings.palette)));
     stat("Depth 3D", std::to_string(package.finalSettings.depth3D));
+    stat("3D Objects", std::to_string(package.finalSettings.objectDensity3D));
+    stat("Mouse 3D", std::to_string(package.finalSettings.interactionDepth));
+    stat("3D Glow", std::to_string(package.finalSettings.lightingGlow));
     stat("Color Impact", std::to_string(package.finalSettings.colorImpact));
+    stat("Scene Personality", std::to_string(package.finalSettings.scenePersonality));
     stat("Complexity", std::to_string(package.finalSettings.complexity));
     stat("Frames", std::to_string(package.framesWritten));
     stat("Preview Frames", std::to_string(preview.previewFramesUsed));

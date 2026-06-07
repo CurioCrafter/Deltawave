@@ -12,12 +12,13 @@ Visualizer is a C++20 Windows music-visualization application built around inten
 - Real-time RMS, peak, bass/mid/treble, spectrum, spectral flux, per-band onset, beat, beat phase, four-beat bar phase, downbeat confidence, 16-beat phrase phase, phrase-boundary confidence, build tension, BPM, drop, phrase, arrangement section, stereo-width, chroma/key, harmonic-energy, and style metrics.
 - Source-adaptive audio profiles that learn style centroids plus beat/section sync sensitivity, with portable `.vizaudio` and `.vizsync` files under `profiles/sources/`.
 - Keyboard customization for curated looks, visual mode, palette, hue shift, 3D depth, color impact, complexity, intensity, speed, HUD, fullscreen, source profile reset, and recording.
-- Engine-wide faux-3D depth pass with perspective scaling, vanishing-point parallax, music-reactive camera drift, depth fog, and guide shells layered over every procedural mode.
+- True 3D object scene layer with x/y/z transforms, perspective camera projection, depth sorting, lighting/fog cues, and projected wire objects layered into every procedural mode.
+- Five distinct 3D scene personalities: Techno Machine, Crystal Storm, Neural Space, Dimensional Tunnel, and Cymatic Sculpture, each using different object silhouettes and music reactions.
 - Stronger palette personality pass that makes hue shift affect the whole frame with harmonic/key steering, saturation/contrast lift, accent colors, and background tinting.
-- Mouse-reactive geometric field that bends rings, particles, beams, and line meshes around pointer movement/clicks.
+- Mouse-reactive geometric field that bends rings, particles, beams, and line meshes, plus depth-aware 3D object lifting and click impulses around the pointer.
 - Environment-reactive visual layer that shifts ambient geometry from local time-of-day and pointer-motion context.
 - Built-in curated looks, an app-managed user preset library under `profiles/presets/`, and arbitrary `.vizpreset` file save/load for reusable visual settings.
-- Clickable Direct2D control panel for source, source profile reset, mode, palette, hue shift, 3D depth, color impact, complexity, sliders, curated/user presets, recording, HUD, and interaction controls.
+- Clickable Direct2D control panel for source, source profile reset, mode, palette, hue shift, 3D depth, 3D object density, mouse depth, glow, color impact, scene personality, complexity, curated/user presets, recording, HUD, and interaction controls.
 - Persistent in-window inspector for current source, file playback progress, active look, source profile files, decoded format, and capture status.
 - Runtime FPS/frame-time telemetry with analysis, geometry, Direct2D presentation, and recording timing breakdowns plus adaptive geometry quality scaling for smoother high-resolution playback.
 - Auto Scene director that uses detected style, BPM, arrangement sections, drops, phrase phase, build tension, stereo width, and tonal key confidence to adapt mode, palette, hue shift, 3D depth, color impact, speed, and intensity with beat-synced morph overlays during scene switches.
@@ -54,12 +55,12 @@ Render an audio file into a deterministic PPM frame sequence and optional MP4:
 
 ```powershell
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\offline --width 1920 --height 1080 --fps 60 --look "Acid Geometry" --trails
-.\build\vs2022\Release\VisualizerExport.exe --input song.mp3 --output captures\offline --mp4 captures\visualizer.mp4 --share --width 1920 --height 1080 --fps 60 --auto-scene --depth-3d 1.0 --color-impact 1.0
+.\build\vs2022\Release\VisualizerExport.exe --input song.mp3 --output captures\offline --mp4 captures\visualizer.mp4 --share --width 1920 --height 1080 --fps 60 --auto-scene --depth-3d 1.0 --object-density-3d 0.9 --lighting-glow 0.85 --color-impact 1.0 --scene-personality 0.9
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\calibrated --sync-profile profiles\sources\live_loopback.vizsync --style-profile profiles\sources\live_loopback.vizaudio
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\library_look --user-preset "Late Set" --share
 ```
 
-The exporter writes `frame_000000.ppm` files plus `export_manifest.txt` and `analysis_timeline.csv`. Manifests include depth/color settings, final Auto Scene settings, and a track-intelligence summary with downbeats, phrase boundaries, average bar/phrase lock, drop/phrase/build-tension peaks, dominant style, harmonic energy, and peak primitive count. When `--mp4` is provided, it also invokes FFmpeg to encode a shareable H.264 MP4. Add `--share` to write a browsable `index.html`, `preview.bmp` contact sheet, and machine-readable `share_manifest.json` beside the frame sequence.
+The exporter writes `frame_000000.ppm` files plus `export_manifest.txt` and `analysis_timeline.csv`. Manifests include depth, 3D object density, mouse depth, lighting glow, color/personality settings, final Auto Scene settings, and a track-intelligence summary with downbeats, phrase boundaries, average bar/phrase lock, drop/phrase/build-tension peaks, dominant style, harmonic energy, and peak primitive count. When `--mp4` is provided, it also invokes FFmpeg to encode a shareable H.264 MP4. Add `--share` to write a browsable `index.html`, `preview.bmp` contact sheet, and machine-readable `share_manifest.json` beside the frame sequence.
 Use `--style-profile` and `--sync-profile` to reproduce a learned live calibration during deterministic offline export.
 
 Batch-render a folder of tracks into a browsable gallery:
@@ -122,7 +123,7 @@ The benchmark reports average analyzer/geometry time, separate analysis and geom
 - `F11`: fullscreen
 - `Esc`: quit
 
-The on-screen control panel exposes the same core controls with buttons and sliders, including depth/color sliders, previous/next curated look buttons, and user preset library save/cycle buttons. On wide windows, a right-side inspector keeps source, active look, user preset count, profile, decoded-format, playback-progress, and capture metadata visible while visuals run.
+The on-screen control panel exposes the same core controls with buttons and sliders, including 3D depth, object density, mouse depth, glow, color impact, scene personality, previous/next curated look buttons, and user preset library save/cycle buttons. On wide windows, a right-side inspector keeps source, active look, user preset count, profile, decoded-format, playback-progress, and capture metadata visible while visuals run.
 
 ## Capture
 

@@ -19,7 +19,7 @@ double smooth(double previous, double next, bool initialized)
 
 int countPrimitives(const GeometryFrame& frame)
 {
-    int count = static_cast<int>(frame.rings.size() + frame.beams.size() + frame.particles.size());
+    int count = static_cast<int>(frame.rings.size() + frame.beams.size() + frame.particles.size() + frame.objects3D.size());
     for (const Polyline& line : frame.polylines) {
         count += static_cast<int>(line.points.size());
     }

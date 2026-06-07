@@ -245,6 +245,14 @@ bool writeManifest(const BatchExportOptions& options,
            << std::clamp(options.settings.depth3D, 0.0f, 1.0f) << ",\n";
     output << "  \"colorImpact\": " << std::fixed << std::setprecision(3)
            << std::clamp(options.settings.colorImpact, 0.0f, 1.0f) << ",\n";
+    output << "  \"objectDensity3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.objectDensity3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"interactionDepth\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.interactionDepth, 0.0f, 1.0f) << ",\n";
+    output << "  \"lightingGlow\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.lightingGlow, 0.0f, 1.0f) << ",\n";
+    output << "  \"scenePersonality\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.scenePersonality, 0.0f, 1.0f) << ",\n";
     output << "  \"width\": " << options.width << ",\n";
     output << "  \"height\": " << options.height << ",\n";
     output << "  \"frameRate\": " << options.frameRate << ",\n";
@@ -357,7 +365,11 @@ bool writeIndex(const BatchExportOptions& options,
     output << "<p>Look: " << escapeHtml(options.lookName.empty() ? "Custom" : options.lookName)
            << " | Mode: " << escapeHtml(std::string(toString(options.settings.mode)))
            << " | Depth: " << escapeHtml(formatFloat(options.settings.depth3D, 2))
+           << " | Objects: " << escapeHtml(formatFloat(options.settings.objectDensity3D, 2))
+           << " | Mouse 3D: " << escapeHtml(formatFloat(options.settings.interactionDepth, 2))
+           << " | Glow: " << escapeHtml(formatFloat(options.settings.lightingGlow, 2))
            << " | Color: " << escapeHtml(formatFloat(options.settings.colorImpact, 2))
+           << " | Persona: " << escapeHtml(formatFloat(options.settings.scenePersonality, 2))
            << " | Resolution: " << options.width << " x " << options.height
            << " | FPS: " << options.frameRate << "</p>\n";
     output << "<p><a href=\"batch_manifest.json\">batch_manifest.json</a> contains machine-readable export metadata.</p>\n";

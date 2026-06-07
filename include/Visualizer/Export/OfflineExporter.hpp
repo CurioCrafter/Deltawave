@@ -53,6 +53,10 @@ struct OfflineExportResult {
     float finalHueShift = 0.0f;
     float finalDepth3D = 0.0f;
     float finalColorImpact = 0.0f;
+    float finalObjectDensity3D = 0.0f;
+    float finalInteractionDepth = 0.0f;
+    float finalLightingGlow = 0.0f;
+    float finalScenePersonality = 0.0f;
     float minimumHueShift = 1.0f;
     float maximumHueShift = 0.0f;
     float keyConfidence = 0.0f;

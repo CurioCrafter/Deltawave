@@ -27,7 +27,7 @@
 - `T`: toggle decaying trails for live display and recorded frames.
 - `C`: cycle palette.
 - `U`: advance the current palette hue shift by one semitone-like color step.
-- `D`: increase the faux-3D depth pass for stronger perspective, parallax, and depth fog.
+- `D`: increase true 3D camera depth for stronger object projection, parallax, and depth fog.
 - `F`: increase color impact for stronger palette steering, saturation, contrast, and whole-frame tint.
 - `X`: increase geometry complexity for denser procedural forms.
 - `I`: toggle mouse-reactive interaction field.
@@ -41,4 +41,4 @@
 - `F11`: toggle fullscreen.
 - `Esc`: quit.
 
-The on-screen panel mirrors the core controls with clickable buttons and sliders, including source profile reset, previous/next curated look buttons, user preset save/cycle buttons, Auto Scene, Environment, Trails, HUD, interaction, and adaptive quality toggles. Slider drags adjust intensity, speed, hue shift, 3D depth, color impact, complexity, and manual quality directly. The HUD includes beat, bar, phrase, build-tension, depth, and color-impact state. On wide windows, the right-side inspector shows the current source, file playback progress, active look, user preset count, style/sync profile files, decoded audio format, and recording folder.
+The on-screen panel mirrors the core controls with clickable buttons and sliders, including source profile reset, previous/next curated look buttons, user preset save/cycle buttons, Auto Scene, Environment, Trails, HUD, interaction, and adaptive quality toggles. Slider drags adjust intensity, speed, hue shift, 3D depth, 3D object density, mouse depth interaction, lighting/glow, color impact, scene personality, complexity, and manual quality directly. The HUD includes beat, bar, phrase, build-tension, depth, object density, mouse depth, glow, color-impact, and scene-personality state. On wide windows, the right-side inspector shows the current source, file playback progress, active look, user preset count, style/sync profile files, decoded audio format, and recording folder.
