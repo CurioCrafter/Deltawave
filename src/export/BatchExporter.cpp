@@ -253,6 +253,8 @@ bool writeManifest(const BatchExportOptions& options,
            << std::clamp(options.settings.lightingGlow, 0.0f, 1.0f) << ",\n";
     output << "  \"scenePersonality\": " << std::fixed << std::setprecision(3)
            << std::clamp(options.settings.scenePersonality, 0.0f, 1.0f) << ",\n";
+    output << "  \"response3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.response3D, 0.0f, 1.0f) << ",\n";
     output << "  \"width\": " << options.width << ",\n";
     output << "  \"height\": " << options.height << ",\n";
     output << "  \"frameRate\": " << options.frameRate << ",\n";
@@ -370,6 +372,7 @@ bool writeIndex(const BatchExportOptions& options,
            << " | Glow: " << escapeHtml(formatFloat(options.settings.lightingGlow, 2))
            << " | Color: " << escapeHtml(formatFloat(options.settings.colorImpact, 2))
            << " | Persona: " << escapeHtml(formatFloat(options.settings.scenePersonality, 2))
+           << " | React: " << escapeHtml(formatFloat(options.settings.response3D, 2))
            << " | Resolution: " << options.width << " x " << options.height
            << " | FPS: " << options.frameRate << "</p>\n";
     output << "<p><a href=\"batch_manifest.json\">batch_manifest.json</a> contains machine-readable export metadata.</p>\n";

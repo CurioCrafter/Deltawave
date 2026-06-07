@@ -211,20 +211,15 @@ ControlPanelLayout buildControlPanelLayout(float width,
     addSliderPair(PanelControl::ScenePersonalitySlider,
                   "Persona",
                   std::clamp(settings.scenePersonality, 0.0f, 1.0f),
-                  PanelControl::ComplexitySlider,
+                  PanelControl::Response3DSlider,
+                  "React 3D",
+                  std::clamp(settings.response3D, 0.0f, 1.0f));
+    addSliderPair(PanelControl::ComplexitySlider,
                   "Complex",
-                  settingToUnit(settings.complexity, 0.35f, 1.8f));
-    addItem(layout,
-            PanelControl::QualitySlider,
-            innerLeft,
-            y,
-            innerWidth,
-            itemHeight,
-            "Quality",
-            settings.adaptiveQuality,
-            true,
-            settingToUnit(settings.qualityScale, 0.45f, 1.0f));
-    advance();
+                  settingToUnit(settings.complexity, 0.35f, 1.8f),
+                  PanelControl::QualitySlider,
+                  "Quality",
+                  settingToUnit(settings.qualityScale, 0.45f, 1.0f));
 
     y += 6.0f;
     addPair(PanelControl::ToggleInteraction,

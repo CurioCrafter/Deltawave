@@ -106,6 +106,10 @@ bool writeManifest(const OfflineExportOptions& options,
            << std::clamp(options.settings.scenePersonality, 0.0f, 1.0f) << "\n";
     output << "finalScenePersonality=" << std::fixed << std::setprecision(3)
            << std::clamp(result.finalScenePersonality, 0.0f, 1.0f) << "\n";
+    output << "response3D=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.response3D, 0.0f, 1.0f) << "\n";
+    output << "finalResponse3D=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalResponse3D, 0.0f, 1.0f) << "\n";
     output << "minimumHueShift=" << std::fixed << std::setprecision(3)
            << std::clamp(result.minimumHueShift, 0.0f, 1.0f) << "\n";
     output << "maximumHueShift=" << std::fixed << std::setprecision(3)
@@ -303,6 +307,7 @@ bool exportAudioToFrames(const OfflineExportOptions& options,
         result.finalInteractionDepth = renderSettings.interactionDepth;
         result.finalLightingGlow = renderSettings.lightingGlow;
         result.finalScenePersonality = renderSettings.scenePersonality;
+        result.finalResponse3D = renderSettings.response3D;
         result.minimumHueShift = std::min(result.minimumHueShift, renderSettings.hueShift);
         result.maximumHueShift = std::max(result.maximumHueShift, renderSettings.hueShift);
         if (metrics.beat) {

@@ -12,10 +12,12 @@
 #include "Visualizer/Visualization/VisualizerEngine.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -145,6 +147,57 @@ bool containsObjectKind(const GeometryFrame& frame, Object3DKind kind)
     });
 }
 
+bool containsAnyObjectKind(const GeometryFrame& frame, std::initializer_list<Object3DKind> kinds)
+{
+    return std::any_of(kinds.begin(), kinds.end(), [&frame](Object3DKind kind) {
+        return containsObjectKind(frame, kind);
+    });
+}
+
+int objectKindIndex(Object3DKind kind)
+{
+    switch (kind) {
+    case Object3DKind::Polyhedron:
+        return 0;
+    case Object3DKind::Shard:
+        return 1;
+    case Object3DKind::Ribbon:
+        return 2;
+    case Object3DKind::Node:
+        return 3;
+    case Object3DKind::Link:
+        return 4;
+    case Object3DKind::Plate:
+        return 5;
+    case Object3DKind::TunnelRib:
+        return 6;
+    case Object3DKind::Particle:
+        return 7;
+    case Object3DKind::DepthPlane:
+        return 8;
+    case Object3DKind::Column:
+        return 9;
+    case Object3DKind::Cage:
+        return 10;
+    case Object3DKind::WaveSurface:
+        return 11;
+    case Object3DKind::Orbiter:
+        return 12;
+    case Object3DKind::Anchor:
+        return 13;
+    }
+    return 0;
+}
+
+std::array<int, 14> objectKindSignature(const GeometryFrame& frame)
+{
+    std::array<int, 14> signature{};
+    for (const Object3D& object : frame.objects3D) {
+        ++signature[static_cast<std::size_t>(objectKindIndex(object.kind))];
+    }
+    return signature;
+}
+
 float averageObjectZ(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -153,6 +206,30 @@ float averageObjectZ(const GeometryFrame& frame)
     float total = 0.0f;
     for (const Object3D& object : frame.objects3D) {
         total += object.position.z;
+    }
+    return total / static_cast<float>(frame.objects3D.size());
+}
+
+float averageObjectScale(const GeometryFrame& frame)
+{
+    if (frame.objects3D.empty()) {
+        return 0.0f;
+    }
+    float total = 0.0f;
+    for (const Object3D& object : frame.objects3D) {
+        total += (object.scale.x + object.scale.y + object.scale.z) / 3.0f;
+    }
+    return total / static_cast<float>(frame.objects3D.size());
+}
+
+float averageObjectGlow(const GeometryFrame& frame)
+{
+    if (frame.objects3D.empty()) {
+        return 0.0f;
+    }
+    float total = 0.0f;
+    for (const Object3D& object : frame.objects3D) {
+        total += object.glow;
     }
     return total / static_cast<float>(frame.objects3D.size());
 }
@@ -655,6 +732,7 @@ void liveCapturePackageWritesShareMetadata()
     settings.interactionDepth = 0.69f;
     settings.lightingGlow = 0.83f;
     settings.scenePersonality = 0.61f;
+    settings.response3D = 0.74f;
     settings.autoScene = true;
     const AudioMetrics metrics = syntheticMetrics();
     const GeometryFrame frame = engine.buildFrame(metrics, settings, 96.0f, 54.0f, 1.0);
@@ -685,6 +763,7 @@ void liveCapturePackageWritesShareMetadata()
     package.finalSettings.interactionDepth = 0.77f;
     package.finalSettings.lightingGlow = 0.91f;
     package.finalSettings.scenePersonality = 0.79f;
+    package.finalSettings.response3D = 0.96f;
     package.width = 96;
     package.height = 54;
     package.framesWritten = recorder.frameCount();
@@ -769,6 +848,10 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture manifest should include requested scene personality");
         require(manifestText.find("\"finalScenePersonality\": 0.790") != std::string::npos,
                 "live capture manifest should include final scene personality");
+        require(manifestText.find("\"requestedResponse3D\": 0.740") != std::string::npos,
+                "live capture manifest should include requested 3D response");
+        require(manifestText.find("\"finalResponse3D\": 0.960") != std::string::npos,
+                "live capture manifest should include final 3D response");
         require(manifestText.find("\"dominantSection\": \"Drop\"") != std::string::npos,
                 "live capture manifest should include dominant section");
         require(manifestText.find("\"sectionConfidence\": 0.880") != std::string::npos,
@@ -832,6 +915,8 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture page should summarize color impact");
         require(pageText.find("Scene Personality") != std::string::npos,
                 "live capture page should summarize scene personality");
+        require(pageText.find("3D Response") != std::string::npos,
+                "live capture page should summarize 3D response");
         require(pageText.find("Complexity") != std::string::npos,
                 "live capture page should summarize complexity");
         require(pageText.find("Section") != std::string::npos,
@@ -1011,21 +1096,28 @@ void depth3DProjectsGeometryIntoPerspectiveSpace()
             "3D depth should project polyline points through perspective space");
 }
 
-void object3DScenesProduceDistinctProfiles()
+void object3DModesProduceDistinctSignatures()
 {
-    struct ExpectedScene {
+    struct ExpectedMode {
         VisualMode mode;
         std::string_view name;
-        Object3DKind primary;
-        Object3DKind secondary;
+        std::initializer_list<Object3DKind> requiredKinds;
     };
 
-    const ExpectedScene scenes[] = {
-        {VisualMode::TechnoMandala, "Techno Machine", Object3DKind::TunnelRib, Object3DKind::Polyhedron},
-        {VisualMode::SpectralOrigami, "Crystal Storm", Object3DKind::Shard, Object3DKind::Shard},
-        {VisualMode::NeuralConstellation, "Neural Space", Object3DKind::Node, Object3DKind::Link},
-        {VisualMode::QuantumTunnel, "Dimensional Tunnel", Object3DKind::TunnelRib, Object3DKind::Polyhedron},
-        {VisualMode::CymaticInterference, "Cymatic Sculpture", Object3DKind::Plate, Object3DKind::Particle}
+    const ExpectedMode modes[] = {
+        {VisualMode::QuantumTunnel, "Quantum Tunnel Volume", {Object3DKind::DepthPlane, Object3DKind::Orbiter}},
+        {VisualMode::TechnoMandala, "Techno Mandala Machine", {Object3DKind::Column, Object3DKind::Cage}},
+        {VisualMode::LissajousMesh, "Lissajous Ribbon Mesh", {Object3DKind::Ribbon}},
+        {VisualMode::FrequencyBloom, "Frequency Bloom Sculpture", {Object3DKind::WaveSurface}},
+        {VisualMode::FractalCathedral, "Fractal Cathedral Vault", {Object3DKind::Column, Object3DKind::Cage}},
+        {VisualMode::PolyrhythmLattice, "Polyrhythm Lattice Rig", {Object3DKind::Column}},
+        {VisualMode::SpectralOrigami, "Spectral Origami Storm", {Object3DKind::DepthPlane, Object3DKind::Shard}},
+        {VisualMode::ChromaKaleidoscope, "Chroma Kaleidoscope Prism", {Object3DKind::Cage}},
+        {VisualMode::HyperspacePolytope, "Hyperspace Polytope Cage", {Object3DKind::Cage}},
+        {VisualMode::PhaseWeave, "Phase Weave Current", {Object3DKind::Ribbon}},
+        {VisualMode::ResonanceTessellation, "Resonance Tessellation Field", {Object3DKind::DepthPlane}},
+        {VisualMode::NeuralConstellation, "Neural Constellation Depth", {Object3DKind::Anchor}},
+        {VisualMode::CymaticInterference, "Cymatic Interference Sculpture", {Object3DKind::WaveSurface}}
     };
 
     VisualizerEngine engine;
@@ -1034,37 +1126,152 @@ void object3DScenesProduceDistinctProfiles()
     settings.objectDensity3D = 0.9f;
     settings.lightingGlow = 0.86f;
     settings.scenePersonality = 0.82f;
+    settings.response3D = 1.0f;
     settings.interactiveField = false;
     settings.environmentReactive = false;
     settings.qualityScale = 0.92f;
 
     AudioMetrics metrics = syntheticMetrics();
+    metrics.rms = 0.66f;
     metrics.beat = true;
-    metrics.beatConfidence = 0.9f;
-    metrics.barConfidence = 0.82f;
-    metrics.downbeatConfidence = 0.88f;
-    metrics.dropIntensity = 0.7f;
-    metrics.phraseIntensity = 0.62f;
-    metrics.buildTension = 0.74f;
-    metrics.harmonicEnergy = 0.78f;
-    metrics.treble = 0.76f;
-    metrics.stereoWidth = 0.64f;
+    metrics.beatConfidence = 0.94f;
+    metrics.barConfidence = 0.86f;
+    metrics.downbeat = true;
+    metrics.downbeatConfidence = 0.9f;
+    metrics.dropIntensity = 0.82f;
+    metrics.phraseIntensity = 0.74f;
+    metrics.phraseBoundary = true;
+    metrics.buildTension = 0.8f;
+    metrics.harmonicEnergy = 0.82f;
+    metrics.keyConfidence = 0.78f;
+    metrics.treble = 0.78f;
+    metrics.stereoWidth = 0.72f;
+    metrics.spectralFlux = 0.55f;
 
     std::vector<std::string_view> names;
-    for (std::size_t i = 0; i < std::size(scenes); ++i) {
-        settings.mode = scenes[i].mode;
+    std::vector<std::array<int, 14>> signatures;
+    for (std::size_t i = 0; i < std::size(modes); ++i) {
+        settings.mode = modes[i].mode;
         const GeometryFrame frame = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 2.0 + static_cast<double>(i));
-        require(frame.scene3DName == scenes[i].name, "mode should resolve to the expected 3D scene profile");
+        require(frame.scene3DName == modes[i].name, "each visual mode should resolve to its own 3D scene identity");
         require(std::find(names.begin(), names.end(), frame.scene3DName) == names.end(),
-                "3D scene profiles should be visibly distinct, not aliases of one scene");
+                "all visual modes should expose distinct 3D scene names");
         names.push_back(frame.scene3DName);
-        require(frame.objects3D.size() >= 8U, "3D scene should emit a real object set");
-        require(containsObjectKind(frame, scenes[i].primary), "3D scene should include its primary object kind");
-        require(containsObjectKind(frame, scenes[i].secondary), "3D scene should include its secondary object kind");
+        require(frame.objects3D.size() >= 10U, "each mode should emit meaningful 3D object content");
+        require(containsAnyObjectKind(frame, modes[i].requiredKinds),
+                "each mode should include its expected mode-specific 3D object kind");
         require(!frame.polylines.empty() || !frame.particles.empty(),
-                "3D objects should render into projected geometry primitives");
-        require(frame.cameraDepth > 0.0f, "3D scene should report camera depth");
-        require(frame.objectDepthRange > 1.0f, "3D scene should occupy a measurable z range");
+                "3D mode objects should project into visible geometry primitives");
+        require(frame.cameraDepth > 0.0f, "each 3D mode should report camera depth");
+        require(frame.objectDepthRange > 1.0f, "each 3D mode should occupy a measurable z range");
+
+        const std::array<int, 14> signature = objectKindSignature(frame);
+        require(std::find(signatures.begin(), signatures.end(), signature) == signatures.end(),
+                "mode-specific 3D signatures should not collapse to identical object-kind mixes");
+        signatures.push_back(signature);
+    }
+}
+
+void object3DRespondsStronglyToMusicAcrossModes()
+{
+    const VisualMode modes[] = {
+        VisualMode::QuantumTunnel,
+        VisualMode::TechnoMandala,
+        VisualMode::LissajousMesh,
+        VisualMode::FrequencyBloom,
+        VisualMode::FractalCathedral,
+        VisualMode::PolyrhythmLattice,
+        VisualMode::SpectralOrigami,
+        VisualMode::ChromaKaleidoscope,
+        VisualMode::HyperspacePolytope,
+        VisualMode::PhaseWeave,
+        VisualMode::ResonanceTessellation,
+        VisualMode::NeuralConstellation,
+        VisualMode::CymaticInterference
+    };
+
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.78f;
+    settings.lightingGlow = 0.82f;
+    settings.scenePersonality = 0.74f;
+    settings.response3D = 1.0f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.9f;
+
+    AudioMetrics calm = syntheticMetrics();
+    calm.rms = 0.04f;
+    calm.peak = 0.08f;
+    calm.bass = 0.03f;
+    calm.lowMid = 0.02f;
+    calm.mid = 0.02f;
+    calm.highMid = 0.02f;
+    calm.treble = 0.02f;
+    calm.stereoWidth = 0.04f;
+    calm.spectralFlux = 0.01f;
+    calm.onset = 0.0f;
+    calm.beat = false;
+    calm.beatConfidence = 0.02f;
+    calm.downbeat = false;
+    calm.downbeatConfidence = 0.0f;
+    calm.dropIntensity = 0.0f;
+    calm.phraseIntensity = 0.0f;
+    calm.phraseBoundary = false;
+    calm.phraseConfidence = 0.0f;
+    calm.buildTension = 0.0f;
+    calm.harmonicEnergy = 0.02f;
+    calm.keyConfidence = 0.0f;
+    calm.bandOnsets = {};
+
+    AudioMetrics intense = syntheticMetrics();
+    intense.rms = 0.82f;
+    intense.peak = 1.0f;
+    intense.bass = 0.92f;
+    intense.lowMid = 0.7f;
+    intense.mid = 0.58f;
+    intense.highMid = 0.74f;
+    intense.treble = 0.86f;
+    intense.stereoWidth = 0.88f;
+    intense.spectralFlux = 0.74f;
+    intense.onset = 0.82f;
+    intense.beat = true;
+    intense.beatConfidence = 0.96f;
+    intense.beatPhase = 0.12f;
+    intense.downbeat = true;
+    intense.downbeatConfidence = 0.92f;
+    intense.dropIntensity = 0.9f;
+    intense.phraseIntensity = 0.86f;
+    intense.phraseBoundary = true;
+    intense.phrasePhase = 0.9f;
+    intense.phraseConfidence = 0.84f;
+    intense.buildTension = 0.88f;
+    intense.harmonicEnergy = 0.84f;
+    intense.keyConfidence = 0.82f;
+    intense.bandOnsets = {0.85f, 0.65f, 0.42f, 0.7f, 0.58f};
+
+    for (std::size_t i = 0; i < std::size(modes); ++i) {
+        settings.mode = modes[i];
+        const double time = 3.5 + static_cast<double>(i) * 0.17;
+        const GeometryFrame calmFrame = engine.buildFrame(calm, settings, 1280.0f, 720.0f, time);
+        const GeometryFrame intenseFrame = engine.buildFrame(intense, settings, 1280.0f, 720.0f, time);
+
+        require(!calmFrame.objects3D.empty(), "calm music should keep a sparse 3D scaffold");
+        require(!intenseFrame.objects3D.empty(), "intense music should emit 3D objects");
+        require(intenseFrame.objects3D.size() >= calmFrame.objects3D.size(),
+                "intense music should preserve or increase 3D object count");
+
+        const bool countMoved = intenseFrame.objects3D.size() > calmFrame.objects3D.size();
+        const bool glowMoved = averageObjectGlow(intenseFrame) > averageObjectGlow(calmFrame) + 0.04f;
+        const bool scaleMoved = std::fabs(averageObjectScale(intenseFrame) - averageObjectScale(calmFrame)) > 0.35f;
+        const bool zMoved = std::fabs(averageObjectZ(intenseFrame) - averageObjectZ(calmFrame)) > 8.0f;
+        const bool depthMoved = std::fabs(intenseFrame.objectDepthRange - calmFrame.objectDepthRange) > 8.0f;
+        const bool cameraMoved = std::fabs(intenseFrame.cameraDepth - calmFrame.cameraDepth) > 8.0f;
+        const bool primitiveMoved = countPrimitives(intenseFrame) > countPrimitives(calmFrame) + 4;
+
+        require(countMoved || glowMoved || scaleMoved || zMoved || depthMoved || cameraMoved || primitiveMoved,
+                "every mode's 3D layer should materially react to intense music metrics");
     }
 }
 
@@ -1516,6 +1723,7 @@ void presetRoundTripsSettings()
     preset.settings.interactionDepth = 0.64f;
     preset.settings.lightingGlow = 0.82f;
     preset.settings.scenePersonality = 0.57f;
+    preset.settings.response3D = 0.93f;
     preset.settings.complexity = 1.42f;
     preset.settings.intensity = 2.35f;
     preset.settings.speed = 1.7f;
@@ -1575,6 +1783,8 @@ void presetRoundTripsSettings()
             "3D lighting glow should round-trip");
     require(loaded->settings.scenePersonality > 0.56f && loaded->settings.scenePersonality < 0.58f,
             "scene personality should round-trip");
+    require(loaded->settings.response3D > 0.92f && loaded->settings.response3D < 0.94f,
+            "3D response should round-trip");
     require(loaded->settings.complexity > 1.41f && loaded->settings.complexity < 1.43f,
             "complexity should round-trip");
     require(loaded->settings.intensity > 2.3f && loaded->settings.intensity < 2.4f, "intensity should round-trip");
@@ -1670,6 +1880,8 @@ void curatedPresetBankProvidesRenderableLooks()
                 "curated lighting glow should be normalized");
         require(preset.settings.scenePersonality >= 0.0f && preset.settings.scenePersonality <= 1.0f,
                 "curated scene personality should be normalized");
+        require(preset.settings.response3D >= 0.0f && preset.settings.response3D <= 1.0f,
+                "curated 3D response should be normalized");
         require(preset.settings.complexity >= 0.35f && preset.settings.complexity <= 1.8f,
                 "curated complexity should stay in supported range");
         require(preset.settings.intensity >= 0.15f && preset.settings.intensity <= 4.0f,
@@ -1728,6 +1940,7 @@ void userPresetLibrarySavesScansAndLoads()
     preset.settings.interactionDepth = 0.68f;
     preset.settings.lightingGlow = 0.81f;
     preset.settings.scenePersonality = 0.62f;
+    preset.settings.response3D = 0.91f;
     preset.settings.complexity = 1.6f;
     preset.settings.intensity = 2.2f;
     preset.settings.speed = 1.4f;
@@ -1792,6 +2005,8 @@ void userPresetLibrarySavesScansAndLoads()
             "loaded user preset should preserve 3D lighting glow");
     require(loaded->settings.scenePersonality > 0.61f && loaded->settings.scenePersonality < 0.63f,
             "loaded user preset should preserve scene personality");
+    require(loaded->settings.response3D > 0.90f && loaded->settings.response3D < 0.92f,
+            "loaded user preset should preserve 3D response");
     require(!loaded->settings.trails, "loaded user preset should preserve trails");
     require(loaded->settings.autoScene, "loaded user preset should preserve Auto Scene");
 
@@ -1811,6 +2026,7 @@ void controlPanelHitTestsButtonsAndSliders()
     settings.interactionDepth = 0.66f;
     settings.lightingGlow = 0.88f;
     settings.scenePersonality = 0.58f;
+    settings.response3D = 0.91f;
 
     const ControlPanelLayout layout = buildControlPanelLayout(1280.0f, 720.0f, settings, true);
     require(!layout.items.empty(), "control panel should build interactive items");
@@ -1826,6 +2042,7 @@ void controlPanelHitTestsButtonsAndSliders()
     bool foundLightingGlow = false;
     bool foundColorImpact = false;
     bool foundScenePersonality = false;
+    bool foundResponse3D = false;
     bool foundComplexity = false;
     bool foundAutoScene = false;
     bool foundTrails = false;
@@ -1900,6 +2117,11 @@ void controlPanelHitTestsButtonsAndSliders()
             require(item.value > 0.57f && item.value < 0.59f, "scene personality slider should reflect settings");
             foundScenePersonality = true;
         }
+        if (item.control == PanelControl::Response3DSlider) {
+            require(item.slider, "3D response control should be a slider");
+            require(item.value > 0.90f && item.value < 0.92f, "3D response slider should reflect settings");
+            foundResponse3D = true;
+        }
         if (item.control == PanelControl::ComplexitySlider) {
             require(item.slider, "complexity control should be a slider");
             require(item.rect.bottom <= layout.panel.bottom, "complexity slider should fit inside the panel");
@@ -1966,6 +2188,7 @@ void controlPanelHitTestsButtonsAndSliders()
     require(foundLightingGlow, "3D lighting glow slider should exist");
     require(foundColorImpact, "color impact slider should exist");
     require(foundScenePersonality, "scene personality slider should exist");
+    require(foundResponse3D, "3D response slider should exist");
     require(foundComplexity, "complexity slider should exist");
     require(foundAutoScene, "auto scene control should exist");
     require(foundTrails, "trails control should exist");
@@ -2013,6 +2236,8 @@ void runtimeInspectorFormatsSourceProfileAndCaptureState()
             "runtime inspector should include style profile");
     require(std::find(liveLines.begin(), liveLines.end(), "Sync live_loopback.vizsync") != liveLines.end(),
             "runtime inspector should include sync profile");
+    require(std::find(liveLines.begin(), liveLines.end(), "Capture idle - recording off") != liveLines.end(),
+            "runtime inspector should clarify that capture idle only means recording is off");
 
     RuntimeInspectorState file;
     file.fileSource = true;
@@ -2164,6 +2389,7 @@ void offlineExporterWritesDeterministicFrames()
     options.settings.interactionDepth = 0.67f;
     options.settings.lightingGlow = 0.82f;
     options.settings.scenePersonality = 0.59f;
+    options.settings.response3D = 0.94f;
     options.settings.complexity = 1.33f;
     options.syncProfile = syncProfilePath;
 
@@ -2218,6 +2444,10 @@ void offlineExporterWritesDeterministicFrames()
                 "offline manifest should include scene personality");
         require(manifestText.find("finalScenePersonality=0.590") != std::string::npos,
                 "offline manifest should include final scene personality");
+        require(manifestText.find("response3D=0.940") != std::string::npos,
+                "offline manifest should include 3D response");
+        require(manifestText.find("finalResponse3D=0.940") != std::string::npos,
+                "offline manifest should include final 3D response");
         require(manifestText.find("complexity=1.330") != std::string::npos,
                 "offline manifest should include complexity");
         require(manifestText.find("dominantSection=") != std::string::npos,
@@ -2248,8 +2478,8 @@ void offlineExporterWritesDeterministicFrames()
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
         require(timelineText.find("frame,timeSeconds,mode,palette") != std::string::npos,
                 "timeline should include a CSV header");
-        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,complexity") != std::string::npos,
-                "timeline should include 3D depth, object, glow, color, and personality columns");
+        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,complexity") != std::string::npos,
+                "timeline should include 3D depth, object, glow, color, personality, and response columns");
         require(timelineText.find("\"Quantum Tunnel\"") != std::string::npos,
                 "timeline should include rendered visual mode");
         require(timelineText.find("section,sectionConfidence,sectionProgress") != std::string::npos,
@@ -2290,6 +2520,7 @@ void offlineExporterWritesSharePackage()
     options.settings.interactionDepth = 0.62f;
     options.settings.lightingGlow = 0.84f;
     options.settings.scenePersonality = 0.69f;
+    options.settings.response3D = 0.92f;
     options.settings.complexity = 1.25f;
     options.environmentTimeOfDay = 0.25f;
     options.sharePackage = true;
@@ -2351,6 +2582,10 @@ void offlineExporterWritesSharePackage()
                 "share manifest should include scene personality");
         require(manifestText.find("\"finalScenePersonality\": 0.690") != std::string::npos,
                 "share manifest should include final scene personality");
+        require(manifestText.find("\"response3D\": 0.920") != std::string::npos,
+                "share manifest should include 3D response");
+        require(manifestText.find("\"finalResponse3D\": 0.920") != std::string::npos,
+                "share manifest should include final 3D response");
         require(manifestText.find("\"complexity\": 1.250") != std::string::npos,
                 "share manifest should include complexity");
         require(manifestText.find("\"dominantSection\":") != std::string::npos,
@@ -2404,6 +2639,8 @@ void offlineExporterWritesSharePackage()
                 "share page should summarize color impact");
         require(pageText.find("Scene Personality") != std::string::npos,
                 "share page should summarize scene personality");
+        require(pageText.find("3D Response") != std::string::npos,
+                "share page should summarize 3D response");
         require(pageText.find("Complexity") != std::string::npos,
                 "share page should summarize complexity");
         require(pageText.find("Bar Lock") != std::string::npos,
@@ -2449,6 +2686,7 @@ void batchExporterWritesGalleryForAudioDirectory()
     options.settings.interactionDepth = 0.63f;
     options.settings.lightingGlow = 0.85f;
     options.settings.scenePersonality = 0.7f;
+    options.settings.response3D = 0.95f;
     options.lookName = "Batch Tessellation";
     options.sharePackage = true;
 
@@ -2498,6 +2736,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch manifest should include configured 3D glow");
         require(manifestText.find("\"scenePersonality\": 0.700") != std::string::npos,
                 "batch manifest should include configured scene personality");
+        require(manifestText.find("\"response3D\": 0.950") != std::string::npos,
+                "batch manifest should include configured 3D response");
         require(manifestText.find("\"trackIntelligence\":") != std::string::npos,
                 "batch manifest should include per-track intelligence");
         require(manifestText.find("\"dominantStyle\":") != std::string::npos,
@@ -2520,6 +2760,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch index should link per-track share pages");
         require(indexText.find("batch_manifest.json") != std::string::npos,
                 "batch index should link machine-readable metadata");
+        require(indexText.find("React: 0.95") != std::string::npos,
+                "batch index should summarize 3D response");
         require(indexText.find("<th>Preview</th><th>Input</th>") != std::string::npos,
                 "batch index should expose a preview column");
         require(indexText.find("<th>Style</th><th>Sync</th>") != std::string::npos,
@@ -2534,8 +2776,8 @@ void batchExporterWritesGalleryForAudioDirectory()
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
         require(timelineText.find("\"Resonance Tessellation\"") != std::string::npos,
                 "batch timeline should contain rendered mode name");
-        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,complexity") != std::string::npos,
-                "batch timeline should contain 3D object, glow, color, and personality columns");
+        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,complexity") != std::string::npos,
+                "batch timeline should contain 3D object, glow, color, personality, and response columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "batch timeline should contain phrase structure columns");
     }
@@ -2609,7 +2851,8 @@ int main()
         {"environmentStateAddsVisualContext", viz::tests::environmentStateAddsVisualContext},
         {"hueShiftChangesRenderedPalette", viz::tests::hueShiftChangesRenderedPalette},
         {"depth3DProjectsGeometryIntoPerspectiveSpace", viz::tests::depth3DProjectsGeometryIntoPerspectiveSpace},
-        {"object3DScenesProduceDistinctProfiles", viz::tests::object3DScenesProduceDistinctProfiles},
+        {"object3DModesProduceDistinctSignatures", viz::tests::object3DModesProduceDistinctSignatures},
+        {"object3DRespondsStronglyToMusicAcrossModes", viz::tests::object3DRespondsStronglyToMusicAcrossModes},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"objectDensity3DControlsObjectCount", viz::tests::objectDensity3DControlsObjectCount},

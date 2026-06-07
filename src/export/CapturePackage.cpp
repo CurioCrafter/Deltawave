@@ -176,6 +176,10 @@ bool writeManifest(const CapturePackage& package,
            << std::clamp(package.requestedSettings.scenePersonality, 0.0f, 1.0f) << ",\n";
     output << "  \"finalScenePersonality\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.finalSettings.scenePersonality, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedResponse3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.requestedSettings.response3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalResponse3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.finalSettings.response3D, 0.0f, 1.0f) << ",\n";
     output << "  \"requestedComplexity\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.requestedSettings.complexity, 0.35f, 1.8f) << ",\n";
     output << "  \"finalComplexity\": " << std::fixed << std::setprecision(3)
@@ -283,6 +287,7 @@ bool writePage(const CapturePackage& package,
     stat("3D Glow", std::to_string(package.finalSettings.lightingGlow));
     stat("Color Impact", std::to_string(package.finalSettings.colorImpact));
     stat("Scene Personality", std::to_string(package.finalSettings.scenePersonality));
+    stat("3D Response", std::to_string(package.finalSettings.response3D));
     stat("Complexity", std::to_string(package.finalSettings.complexity));
     stat("Frames", std::to_string(package.framesWritten));
     stat("Preview Frames", std::to_string(preview.previewFramesUsed));

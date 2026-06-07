@@ -1262,6 +1262,7 @@ void WindowsApp::applyPanelControl(const PanelItem& item, int x)
     case PanelControl::InteractionDepthSlider:
     case PanelControl::LightingGlowSlider:
     case PanelControl::ScenePersonalitySlider:
+    case PanelControl::Response3DSlider:
     case PanelControl::ColorImpactSlider:
     case PanelControl::ComplexitySlider:
     case PanelControl::QualitySlider:
@@ -1338,6 +1339,10 @@ void WindowsApp::applyPanelSlider(PanelControl control, int x)
             settings_.scenePersonality = unit;
             setStatus(L"Scene personality: " +
                       std::to_wstring(static_cast<int>(std::round(settings_.scenePersonality * 100.0f))) + L"%");
+        } else if (control == PanelControl::Response3DSlider) {
+            settings_.response3D = unit;
+            setStatus(L"3D response: " +
+                      std::to_wstring(static_cast<int>(std::round(settings_.response3D * 100.0f))) + L"%");
         } else if (control == PanelControl::ComplexitySlider) {
             settings_.complexity = 0.35f + unit * (1.8f - 0.35f);
             setStatus(L"Complexity: " + std::to_wstring(settings_.complexity));

@@ -42,6 +42,7 @@ void printUsage()
         << "  --lighting-glow N  3D lighting and glow strength from 0.0 matte to 1.0 luminous\n"
         << "  --color-impact N   Palette personality strength from 0.0 subtle to 1.0 intense\n"
         << "  --scene-personality N  Scene personality/motion bias from 0.0 restrained to 1.0 extreme\n"
+        << "  --response-3d N    Music-to-3D response gain from 0.0 restrained to 1.0 intense\n"
         << "  --complexity N     Geometry density from 0.35 sparse to 1.8 dense, default 1.0\n"
         << "  --look NAME        Apply a built-in curated look; use --list-looks to inspect names\n"
         << "  --list-looks       Print built-in curated looks and exit\n"
@@ -66,6 +67,7 @@ void printCuratedLooks()
                   << " | glow " << preset.settings.lightingGlow
                   << " | color " << preset.settings.colorImpact
                   << " | persona " << preset.settings.scenePersonality
+                  << " | react " << preset.settings.response3D
                   << " | complexity " << preset.settings.complexity
                   << " | intensity " << preset.settings.intensity
                   << " | speed " << preset.settings.speed
@@ -210,6 +212,10 @@ int main(int argc, char** argv)
         } else if ((arg == "--scene-personality" || arg == "--personality") && nextValue(i, argc, argv, value)) {
             options.settings.scenePersonality =
                 std::clamp(static_cast<float>(parseDouble(value, options.settings.scenePersonality)), 0.0f, 1.0f);
+        } else if ((arg == "--response-3d" || arg == "--response" || arg == "--reactivity") &&
+                   nextValue(i, argc, argv, value)) {
+            options.settings.response3D =
+                std::clamp(static_cast<float>(parseDouble(value, options.settings.response3D)), 0.0f, 1.0f);
         } else if (arg == "--complexity" && nextValue(i, argc, argv, value)) {
             options.settings.complexity = std::clamp(static_cast<float>(parseDouble(value, options.settings.complexity)),
                                                      0.35f,

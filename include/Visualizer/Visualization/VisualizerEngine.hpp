@@ -62,7 +62,13 @@ enum class Object3DKind {
     Link,
     Plate,
     TunnelRib,
-    Particle
+    Particle,
+    DepthPlane,
+    Column,
+    Cage,
+    WaveSurface,
+    Orbiter,
+    Anchor
 };
 
 struct Object3D {
@@ -141,6 +147,7 @@ struct VisualSettings {
     float interactionDepth = 0.65f;
     float lightingGlow = 0.62f;
     float scenePersonality = 0.5f;
+    float response3D = 1.0f;
     float complexity = 1.0f;
     float intensity = 1.0f;
     float speed = 1.0f;

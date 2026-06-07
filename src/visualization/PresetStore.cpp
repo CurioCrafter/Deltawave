@@ -75,7 +75,8 @@ VisualPreset makeCuratedPreset(std::string name,
                                float objectDensity3D = 0.65f,
                                float interactionDepth = 0.65f,
                                float lightingGlow = 0.62f,
-                               float scenePersonality = 0.5f)
+                               float scenePersonality = 0.5f,
+                               float response3D = 1.0f)
 {
     VisualPreset preset;
     preset.name = std::move(name);
@@ -88,6 +89,7 @@ VisualPreset makeCuratedPreset(std::string name,
     preset.settings.interactionDepth = interactionDepth;
     preset.settings.lightingGlow = lightingGlow;
     preset.settings.scenePersonality = scenePersonality;
+    preset.settings.response3D = response3D;
     preset.settings.complexity = complexity;
     preset.settings.intensity = intensity;
     preset.settings.speed = speed;
@@ -521,6 +523,7 @@ bool savePreset(const std::filesystem::path& path,
     output << "interactionDepth=" << preset.settings.interactionDepth << "\n";
     output << "lightingGlow=" << preset.settings.lightingGlow << "\n";
     output << "scenePersonality=" << preset.settings.scenePersonality << "\n";
+    output << "response3D=" << preset.settings.response3D << "\n";
     output << "complexity=" << preset.settings.complexity << "\n";
     output << "intensity=" << preset.settings.intensity << "\n";
     output << "speed=" << preset.settings.speed << "\n";
@@ -599,6 +602,9 @@ std::optional<VisualPreset> loadPreset(const std::filesystem::path& path, std::s
     if (const auto it = values.find("scenepersonality"); it != values.end()) {
         preset.settings.scenePersonality =
             std::clamp(parseFloat(it->second, preset.settings.scenePersonality), 0.0f, 1.0f);
+    }
+    if (const auto it = values.find("response3d"); it != values.end()) {
+        preset.settings.response3D = std::clamp(parseFloat(it->second, preset.settings.response3D), 0.0f, 1.0f);
     }
     if (const auto it = values.find("complexity"); it != values.end()) {
         preset.settings.complexity = std::clamp(parseFloat(it->second, preset.settings.complexity), 0.35f, 1.8f);

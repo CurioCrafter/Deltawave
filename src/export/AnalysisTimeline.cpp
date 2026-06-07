@@ -46,7 +46,7 @@ bool AnalysisTimelineWriter::open(const std::filesystem::path& path, std::string
 
     path_ = path;
     output_ << "frame,timeSeconds,mode,palette,hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,"
-            << "colorImpact,scenePersonality,complexity,intensity,speed,qualityScale,"
+            << "colorImpact,scenePersonality,response3D,complexity,intensity,speed,qualityScale,"
             << "rms,peak,bass,lowMid,mid,highMid,treble,spectralFlux,onset,"
             << "beat,beatConfidence,beatPhase,barPhase,barConfidence,downbeat,downbeatConfidence,bpm,dropIntensity,phraseIntensity,"
             << "phraseBoundary,phrasePhase,phraseConfidence,buildTension,"
@@ -82,6 +82,7 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << std::setprecision(3) << std::clamp(settings.lightingGlow, 0.0f, 1.0f) << ","
             << std::setprecision(3) << std::clamp(settings.colorImpact, 0.0f, 1.0f) << ","
             << std::setprecision(3) << std::clamp(settings.scenePersonality, 0.0f, 1.0f) << ","
+            << std::setprecision(3) << std::clamp(settings.response3D, 0.0f, 1.0f) << ","
             << std::setprecision(3) << std::clamp(settings.complexity, 0.35f, 1.8f) << ","
             << std::setprecision(3) << std::clamp(settings.intensity, 0.15f, 4.0f) << ","
             << std::setprecision(3) << std::clamp(settings.speed, 0.1f, 4.0f) << ","

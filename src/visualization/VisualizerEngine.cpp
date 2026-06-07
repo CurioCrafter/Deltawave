@@ -76,6 +76,11 @@ Vec3 add(Vec3 a, Vec3 b)
     return Vec3{a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
+Vec2 add(Vec2 a, Vec2 b)
+{
+    return Vec2{a.x + b.x, a.y + b.y};
+}
+
 Vec3 subtract(Vec3 a, Vec3 b)
 {
     return Vec3{a.x - b.x, a.y - b.y, a.z - b.z};
@@ -151,6 +156,28 @@ float lightingGlowOf(const VisualSettings& settings)
 float scenePersonalityOf(const VisualSettings& settings)
 {
     return std::clamp(settings.scenePersonality, 0.0f, 1.0f);
+}
+
+float response3DOf(const VisualSettings& settings)
+{
+    return std::clamp(settings.response3D, 0.0f, 1.0f);
+}
+
+float musicResponse3D(const AudioMetrics& metrics, const VisualSettings& settings)
+{
+    const float userGain = 0.35f + response3DOf(settings) * 1.85f;
+    const float transient = (metrics.beat ? 0.38f : 0.0f) +
+                            metrics.dropIntensity * 0.9f +
+                            metrics.phraseIntensity * 0.36f +
+                            metrics.buildTension * 0.42f;
+    const float tonal = metrics.harmonicEnergy * 0.28f + metrics.keyConfidence * 0.16f;
+    const float bandDrive = metrics.rms * 0.8f +
+                            metrics.bass * 0.72f +
+                            metrics.treble * 0.48f +
+                            metrics.stereoWidth * 0.34f +
+                            metrics.spectralFlux * 0.4f +
+                            metrics.onset * 0.36f;
+    return std::clamp(0.18f + (bandDrive + transient + tonal) * userGain, 0.18f, 3.2f);
 }
 
 float environmentDrive(const VisualSettings& settings, const EnvironmentState& environment)
@@ -500,6 +527,7 @@ struct Camera3D {
     float cameraDistance = 1000.0f;
     float yaw = 0.0f;
     float pitch = 0.0f;
+    float roll = 0.0f;
 };
 
 Scene3DProfile profileForMode(VisualMode mode)
@@ -544,6 +572,39 @@ std::string_view scene3DName(Scene3DProfile profile)
     return "3D Scene";
 }
 
+std::string_view mode3DName(VisualMode mode)
+{
+    switch (mode) {
+    case VisualMode::QuantumTunnel:
+        return "Quantum Tunnel Volume";
+    case VisualMode::TechnoMandala:
+        return "Techno Mandala Machine";
+    case VisualMode::LissajousMesh:
+        return "Lissajous Ribbon Mesh";
+    case VisualMode::FrequencyBloom:
+        return "Frequency Bloom Sculpture";
+    case VisualMode::FractalCathedral:
+        return "Fractal Cathedral Vault";
+    case VisualMode::PolyrhythmLattice:
+        return "Polyrhythm Lattice Rig";
+    case VisualMode::SpectralOrigami:
+        return "Spectral Origami Storm";
+    case VisualMode::ChromaKaleidoscope:
+        return "Chroma Kaleidoscope Prism";
+    case VisualMode::HyperspacePolytope:
+        return "Hyperspace Polytope Cage";
+    case VisualMode::PhaseWeave:
+        return "Phase Weave Current";
+    case VisualMode::ResonanceTessellation:
+        return "Resonance Tessellation Field";
+    case VisualMode::NeuralConstellation:
+        return "Neural Constellation Depth";
+    case VisualMode::CymaticInterference:
+        return "Cymatic Interference Sculpture";
+    }
+    return "Mode 3D Scene";
+}
+
 Camera3D makeCamera3D(const VisualSettings& settings,
                       const AudioMetrics& metrics,
                       float width,
@@ -554,19 +615,26 @@ Camera3D makeCamera3D(const VisualSettings& settings,
     const float depth = depth3DOf(settings);
     const float minimumDimension = std::min(width, height);
     const float phase = static_cast<float>(time) * speed;
+    const float response = musicResponse3D(metrics, settings);
+    const float rush = metrics.dropIntensity * response + metrics.bass * 0.35f * response;
     return Camera3D{
         Vec2{width * 0.5f, height * 0.5f},
-        minimumDimension * (0.82f + depth * 0.82f),
-        minimumDimension * (1.05f + depth * 1.85f + metrics.bass * 0.35f + metrics.dropIntensity * 0.4f),
-        std::sin(phase * 0.22f + metrics.phrasePhase * kPi) * (0.12f + metrics.stereoWidth * 0.14f + depth * 0.1f),
-        std::cos(phase * 0.17f + metrics.buildTension) * (0.07f + metrics.phraseIntensity * 0.08f)
+        minimumDimension * (0.78f + depth * 0.94f + metrics.stereoWidth * 0.18f),
+        std::max(minimumDimension * 0.72f,
+                 minimumDimension * (1.18f + depth * 1.72f - rush * 0.22f + metrics.phraseIntensity * 0.12f)),
+        std::sin(phase * 0.22f + metrics.phrasePhase * kPi) *
+            (0.12f + metrics.stereoWidth * 0.2f + depth * 0.12f + response * 0.025f),
+        std::cos(phase * 0.17f + metrics.buildTension * kPi) *
+            (0.07f + metrics.phraseIntensity * 0.12f + metrics.buildTension * 0.08f),
+        std::sin(phase * 0.12f + metrics.beatPhase * kPi * 2.0f) *
+            (metrics.stereoWidth * 0.08f + metrics.dropIntensity * 0.04f + response * 0.01f)
     };
 }
 
 Projected3D projectPoint3D(Vec3 world, const Camera3D& camera)
 {
     Vec3 cameraPoint = world;
-    cameraPoint = rotate3D(cameraPoint, Vec3{-camera.pitch, -camera.yaw, 0.0f});
+    cameraPoint = rotate3D(cameraPoint, Vec3{-camera.pitch, -camera.yaw, -camera.roll});
     const float depth = cameraPoint.z + camera.cameraDistance;
     if (depth <= 24.0f) {
         return Projected3D{{camera.center.x, camera.center.y}, depth, 1.0f, false};
@@ -629,6 +697,13 @@ void addProjectedLine(GeometryFrame& frame,
         return;
     }
     const float width = strokeWidth * std::clamp((pa.perspective + pb.perspective) * 0.5f, 0.24f, 2.8f);
+    const Vec2 shadowOffset{std::clamp(width * 1.25f, 1.0f, 4.0f), std::clamp(width * 1.6f, 1.0f, 5.0f)};
+    frame.polylines.push_back(Polyline{
+        {add(pa.point, shadowOffset), add(pb.point, shadowOffset)},
+        width * 1.35f,
+        ColorRGBA{0.0f, 0.0f, 0.0f, color.a * 0.18f},
+        closed
+    });
     frame.polylines.push_back(Polyline{{pa.point, pb.point}, width, color, closed});
 }
 
@@ -654,9 +729,22 @@ void addProjectedPolyline(GeometryFrame& frame,
         return;
     }
     perspective /= static_cast<float>(projected.size());
+    const float width = strokeWidth * std::clamp(perspective, 0.22f, 2.8f);
+    std::vector<Vec2> shadow;
+    shadow.reserve(projected.size());
+    const Vec2 shadowOffset{std::clamp(width * 1.15f, 1.0f, 4.0f), std::clamp(width * 1.45f, 1.0f, 5.0f)};
+    for (Vec2 point : projected) {
+        shadow.push_back(add(point, shadowOffset));
+    }
+    frame.polylines.push_back(Polyline{
+        std::move(shadow),
+        width * 1.25f,
+        ColorRGBA{0.0f, 0.0f, 0.0f, color.a * 0.16f},
+        closed
+    });
     frame.polylines.push_back(Polyline{
         std::move(projected),
-        strokeWidth * std::clamp(perspective, 0.22f, 2.8f),
+        width,
         color,
         closed
     });
@@ -723,25 +811,140 @@ void renderWireObject3D(GeometryFrame& frame,
         return;
     }
 
-    if (object.kind == Object3DKind::Node || object.kind == Object3DKind::Particle) {
+    if (object.kind == Object3DKind::DepthPlane) {
+        const int grid = 4;
+        for (int i = -grid; i <= grid; ++i) {
+            const float u = static_cast<float>(i) / static_cast<float>(grid);
+            addProjectedLine(frame,
+                             camera,
+                             world(Vec3{-1.0f, u, 0.0f}),
+                             world(Vec3{1.0f, u, 0.0f}),
+                             withAlpha(color, color.a * 0.34f),
+                             stroke * 0.42f);
+            addProjectedLine(frame,
+                             camera,
+                             world(Vec3{u, -1.0f, 0.0f}),
+                             world(Vec3{u, 1.0f, 0.0f}),
+                             withAlpha(color, color.a * 0.28f),
+                             stroke * 0.38f);
+        }
+        addProjectedPolyline(frame,
+                             camera,
+                             {world(Vec3{-1.0f, -1.0f, 0.0f}),
+                              world(Vec3{1.0f, -1.0f, 0.0f}),
+                              world(Vec3{1.0f, 1.0f, 0.0f}),
+                              world(Vec3{-1.0f, 1.0f, 0.0f})},
+                             withAlpha(color, color.a * 0.74f),
+                             stroke * 0.82f,
+                             true);
+        return;
+    }
+
+    if (object.kind == Object3DKind::Column) {
+        const int sides = 6;
+        std::vector<Vec3> top;
+        std::vector<Vec3> bottom;
+        top.reserve(sides);
+        bottom.reserve(sides);
+        for (int i = 0; i < sides; ++i) {
+            const float angle = (static_cast<float>(i) / static_cast<float>(sides)) * 2.0f * kPi;
+            top.push_back(world(Vec3{std::cos(angle), -1.0f, std::sin(angle)}));
+            bottom.push_back(world(Vec3{std::cos(angle), 1.0f, std::sin(angle)}));
+        }
+        addProjectedPolyline(frame, camera, top, color, stroke * 0.72f, true);
+        addProjectedPolyline(frame, camera, bottom, withAlpha(color, color.a * 0.72f), stroke * 0.6f, true);
+        for (int i = 0; i < sides; ++i) {
+            addProjectedLine(frame, camera, top[static_cast<std::size_t>(i)], bottom[static_cast<std::size_t>(i)], color, stroke * 0.7f);
+        }
+        return;
+    }
+
+    if (object.kind == Object3DKind::Cage) {
+        const std::vector<Vec3> vertices = {
+            world(Vec3{-1.0f, -1.0f, -1.0f}),
+            world(Vec3{1.0f, -1.0f, -1.0f}),
+            world(Vec3{1.0f, 1.0f, -1.0f}),
+            world(Vec3{-1.0f, 1.0f, -1.0f}),
+            world(Vec3{-1.0f, -1.0f, 1.0f}),
+            world(Vec3{1.0f, -1.0f, 1.0f}),
+            world(Vec3{1.0f, 1.0f, 1.0f}),
+            world(Vec3{-1.0f, 1.0f, 1.0f})
+        };
+        static constexpr int cageEdges[][2] = {
+            {0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4},
+            {0, 4}, {1, 5}, {2, 6}, {3, 7}, {0, 6}, {1, 7}, {2, 4}, {3, 5}
+        };
+        for (const auto& edge : cageEdges) {
+            addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], color, stroke * 0.86f);
+        }
+        return;
+    }
+
+    if (object.kind == Object3DKind::WaveSurface) {
+        constexpr int rows = 5;
+        constexpr int columns = 10;
+        for (int y = -rows; y <= rows; y += 2) {
+            std::vector<Vec3> line;
+            line.reserve(columns + 1);
+            for (int x = 0; x <= columns; ++x) {
+                const float u = (static_cast<float>(x) / static_cast<float>(columns)) * 2.0f - 1.0f;
+                const float v = static_cast<float>(y) / static_cast<float>(rows);
+                const float wave = std::sin((u * 2.6f + v * 1.8f + object.rotation.z) * kPi) * 0.18f;
+                line.push_back(world(Vec3{u, v, wave}));
+            }
+            addProjectedPolyline(frame, camera, line, withAlpha(color, color.a * 0.68f), stroke * 0.52f, false);
+        }
+        for (int x = -columns; x <= columns; x += 4) {
+            std::vector<Vec3> line;
+            line.reserve(rows + 1);
+            for (int y = 0; y <= rows; ++y) {
+                const float u = static_cast<float>(x) / static_cast<float>(columns);
+                const float v = (static_cast<float>(y) / static_cast<float>(rows)) * 2.0f - 1.0f;
+                const float wave = std::cos((u * 1.7f - v * 2.2f + object.rotation.y) * kPi) * 0.14f;
+                line.push_back(world(Vec3{u, v, wave}));
+            }
+            addProjectedPolyline(frame, camera, line, withAlpha(color, color.a * 0.48f), stroke * 0.42f, false);
+        }
+        return;
+    }
+
+    if (object.kind == Object3DKind::Node ||
+        object.kind == Object3DKind::Particle ||
+        object.kind == Object3DKind::Orbiter ||
+        object.kind == Object3DKind::Anchor) {
         const Projected3D projected = projectPoint3D(object.position, camera);
         if (!projected.visible) {
             return;
         }
         frame.particles.push_back(Particle{
             projected.point,
-            std::max(1.0f, object.scale.x * projected.perspective * (object.kind == Object3DKind::Node ? 1.8f : 1.0f)),
+            std::max(1.0f,
+                     object.scale.x * projected.perspective *
+                         (object.kind == Object3DKind::Anchor ? 2.4f :
+                          object.kind == Object3DKind::Node ? 1.8f :
+                          object.kind == Object3DKind::Orbiter ? 1.45f : 1.0f)),
             color
         });
-        if (object.kind == Object3DKind::Node) {
+        if (object.kind == Object3DKind::Node || object.kind == Object3DKind::Orbiter || object.kind == Object3DKind::Anchor) {
             frame.rings.push_back(Ring{
                 projected.point,
-                std::max(2.0f, object.scale.x * projected.perspective * 2.4f),
-                18,
+                std::max(2.0f,
+                         object.scale.x * projected.perspective *
+                             (object.kind == Object3DKind::Anchor ? 5.4f :
+                              object.kind == Object3DKind::Orbiter ? 3.6f : 2.4f)),
+                object.kind == Object3DKind::Anchor ? 4 : 18,
                 object.rotation.z,
                 stroke * 0.7f,
                 withAlpha(color, color.a * 0.48f)
             });
+            if (object.kind == Object3DKind::Anchor) {
+                addProjectedLine(frame,
+                                 camera,
+                                 object.position,
+                                 add(object.position, Vec3{object.scale.x * 2.2f, 0.0f, 0.0f}),
+                                 withAlpha(color, color.a * 0.42f),
+                                 stroke * 0.5f);
+            }
         }
         return;
     }
@@ -837,39 +1040,44 @@ void addTechnoMachineObjects(std::vector<Object3D>& objects,
                              float density,
                              float intensity,
                              float personality,
+                             float response,
                              double time)
 {
     const float phase = static_cast<float>(time);
-    const int ribs = scaledCount(10, density);
+    const int ribs = scaledCount(10, density * (0.86f + response * 0.16f));
     for (int i = 0; i < ribs; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(ribs);
-        const float z = unit * minimumDimension * (2.2f + metrics.dropIntensity * 0.7f) - minimumDimension * 0.55f;
+        const float z = unit * minimumDimension * (2.2f + metrics.dropIntensity * response * 0.78f) -
+                        minimumDimension * (0.55f + metrics.bass * response * 0.16f);
         objects.push_back(makeObject3D(Object3DKind::TunnelRib,
                                        Vec3{0.0f, 0.0f, z},
-                                       Vec3{minimumDimension * (0.22f + unit * 0.12f + metrics.bass * 0.035f),
-                                            minimumDimension * (0.14f + unit * 0.08f + metrics.bass * 0.025f),
+                                       Vec3{minimumDimension * (0.22f + unit * 0.12f + metrics.bass * response * 0.04f),
+                                            minimumDimension * (0.14f + unit * 0.08f + metrics.bass * response * 0.032f),
                                             0.5f + unit},
-                                       Vec3{0.0f, 0.0f, phase * (0.35f + unit) + metrics.beatPhase * kPi},
+                                       Vec3{metrics.dropIntensity * response * 0.14f,
+                                            metrics.stereoWidth * response * 0.12f,
+                                            phase * (0.35f + unit + response * 0.04f) + metrics.beatPhase * kPi},
                                        withAlpha(colors[i % 4], 0.28f + metrics.beatConfidence * 0.22f),
-                                       0.34f + metrics.bass * 0.8f));
+                                       0.34f + metrics.bass * response * 0.82f + metrics.dropIntensity * 0.28f));
     }
 
-    const int machines = scaledCount(12, density * (0.8f + personality * 0.55f));
+    const int machines = scaledCount(12, density * (0.8f + personality * 0.55f + response * 0.16f));
     for (int i = 0; i < machines; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(machines);
-        const float angle = unit * 2.0f * kPi + phase * 0.42f;
-        const float radius = minimumDimension * (0.18f + metrics.stereoWidth * 0.12f + personality * 0.08f);
-        const float size = minimumDimension * (0.035f + metrics.bass * 0.018f + intensity * 0.004f);
+        const float angle = unit * 2.0f * kPi + phase * (0.42f + response * 0.08f) + metrics.beatPhase * response * 0.5f;
+        const float radius = minimumDimension * (0.18f + metrics.stereoWidth * response * 0.13f + personality * 0.08f);
+        const float size = minimumDimension * (0.035f + metrics.bass * response * 0.024f + intensity * 0.004f);
         objects.push_back(makeObject3D(Object3DKind::Polyhedron,
                                        Vec3{std::cos(angle) * radius,
                                             std::sin(angle * 1.3f) * radius * 0.55f,
-                                            minimumDimension * (0.18f + std::sin(angle + phase) * 0.25f)},
+                                            minimumDimension * (0.18f + std::sin(angle + phase) * (0.22f + response * 0.08f) +
+                                                                metrics.dropIntensity * response * 0.18f)},
                                        Vec3{size * (1.0f + metrics.bass), size, size * (0.8f + metrics.lowMid)},
                                        Vec3{phase * (0.9f + unit),
                                             angle + metrics.beatConfidence,
                                             -phase * (0.5f + personality)},
                                        withAlpha(colors[(i + 1) % 4], 0.42f + metrics.dropIntensity * 0.24f),
-                                       0.42f + metrics.beatConfidence * 0.42f + metrics.bass * 0.28f));
+                                       0.42f + metrics.beatConfidence * response * 0.42f + metrics.bass * response * 0.32f));
     }
 }
 
@@ -879,16 +1087,19 @@ void addCrystalStormObjects(std::vector<Object3D>& objects,
                             float minimumDimension,
                             float density,
                             float personality,
+                            float response,
                             double time)
 {
     const float phase = static_cast<float>(time);
-    const int shards = scaledCount(26, density * (0.75f + metrics.treble * 0.65f));
+    const int shards = scaledCount(26, density * (0.72f + metrics.treble * response * 0.62f + metrics.spectralFlux * 0.2f));
     for (int i = 0; i < shards; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(shards);
-        const float angle = unit * 2.3999632f + phase * (0.22f + metrics.spectralFlux * 0.12f);
-        const float radius = minimumDimension * (0.08f + unit * 0.52f + metrics.stereoWidth * 0.12f);
-        const float z = minimumDimension * (std::sin(unit * kPi * 3.0f + phase) * 0.52f + metrics.dropIntensity * 0.46f);
-        const float size = minimumDimension * (0.026f + spectrumAt(metrics, i) * 0.038f + metrics.treble * 0.012f);
+        const float angle = unit * 2.3999632f + phase * (0.22f + metrics.spectralFlux * response * 0.18f);
+        const float radius = minimumDimension * (0.08f + unit * 0.52f + metrics.stereoWidth * response * 0.14f);
+        const float z = minimumDimension *
+                        (std::sin(unit * kPi * (3.0f + response * 0.2f) + phase) * (0.48f + response * 0.08f) +
+                         metrics.dropIntensity * response * 0.48f);
+        const float size = minimumDimension * (0.026f + spectrumAt(metrics, i) * response * 0.04f + metrics.treble * 0.012f);
         objects.push_back(makeObject3D(Object3DKind::Shard,
                                        Vec3{std::cos(angle) * radius,
                                             std::sin(angle * 1.17f) * radius * 0.64f,
@@ -898,7 +1109,7 @@ void addCrystalStormObjects(std::vector<Object3D>& objects,
                                             phase * (0.7f + unit) + metrics.harmonicEnergy,
                                             angle * 0.4f},
                                        withAlpha(colors[(i + 2) % 4], 0.34f + metrics.treble * 0.34f),
-                                       0.34f + metrics.treble * 0.86f + metrics.harmonicEnergy * 0.3f));
+                                       0.34f + metrics.treble * response * 0.86f + metrics.harmonicEnergy * 0.34f));
     }
 }
 
@@ -908,27 +1119,29 @@ void addNeuralSpaceObjects(std::vector<Object3D>& objects,
                            float minimumDimension,
                            float density,
                            float personality,
+                           float response,
                            double time)
 {
     const float phase = static_cast<float>(time);
-    const int nodes = scaledCount(18, density * (0.85f + metrics.barConfidence * 0.45f));
+    const int nodes = scaledCount(18, density * (0.82f + metrics.barConfidence * response * 0.42f + metrics.onset * 0.16f));
     const std::size_t firstNode = objects.size();
     for (int i = 0; i < nodes; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(nodes);
         const float chroma = chromaAt(metrics, i);
-        const float angle = unit * 2.0f * kPi + metrics.barPhase * kPi * 0.55f;
+        const float angle = unit * 2.0f * kPi + metrics.barPhase * kPi * (0.55f + response * 0.08f);
         const float layer = static_cast<float>(i % 5) / 4.0f;
         const float radius = minimumDimension * (0.12f + layer * 0.12f + metrics.stereoWidth * 0.12f);
         objects.push_back(makeObject3D(Object3DKind::Node,
                                        Vec3{std::cos(angle + phase * 0.12f) * radius,
                                             std::sin(angle * 1.41f + phase * 0.1f) * radius * 0.72f,
-                                            minimumDimension * (-0.25f + layer * 0.32f + chroma * 0.36f)},
-                                       Vec3{minimumDimension * (0.012f + chroma * 0.018f + metrics.beatConfidence * 0.008f),
+                                            minimumDimension * (-0.25f + layer * 0.32f + chroma * 0.32f +
+                                                                metrics.downbeatConfidence * response * 0.1f)},
+                                       Vec3{minimumDimension * (0.012f + chroma * 0.018f + metrics.beatConfidence * response * 0.009f),
                                             minimumDimension * (0.012f + chroma * 0.018f),
                                             minimumDimension * 0.012f},
                                        Vec3{phase * 0.3f, angle, metrics.phrasePhase * kPi},
                                        withAlpha(colors[i % 4], 0.36f + metrics.barConfidence * 0.28f),
-                                       0.3f + metrics.downbeatConfidence * 0.8f + chroma * 0.4f));
+                                       0.3f + metrics.downbeatConfidence * response * 0.82f + chroma * 0.4f));
     }
     for (int i = 0; i < nodes; ++i) {
         const Object3D& a = objects[firstNode + static_cast<std::size_t>(i)];
@@ -938,7 +1151,7 @@ void addNeuralSpaceObjects(std::vector<Object3D>& objects,
                                      Vec3{1.0f, 1.0f, 1.0f},
                                      Vec3{},
                                      withAlpha(colors[(i + 1) % 4], 0.18f + metrics.phraseIntensity * 0.2f),
-                                     0.18f + metrics.barConfidence * 0.42f + personality * 0.18f);
+                                     0.18f + metrics.barConfidence * response * 0.42f + personality * 0.18f);
         link.target = b.position;
         objects.push_back(link);
     }
@@ -950,35 +1163,39 @@ void addDimensionalTunnelObjects(std::vector<Object3D>& objects,
                                  float minimumDimension,
                                  float density,
                                  float personality,
+                                 float response,
                                  double time)
 {
     const float phase = static_cast<float>(time);
-    const int layers = scaledCount(18, density * (0.75f + metrics.dropIntensity * 0.5f));
+    const int layers = scaledCount(18, density * (0.72f + metrics.dropIntensity * response * 0.52f + metrics.bass * 0.12f));
     for (int i = 0; i < layers; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(layers);
-        const float z = std::fmod(unit * minimumDimension * 2.8f - phase * minimumDimension * (0.18f + metrics.dropIntensity * 0.38f),
+        const float z = std::fmod(unit * minimumDimension * (2.8f + response * 0.16f) -
+                                      phase * minimumDimension * (0.18f + metrics.dropIntensity * response * 0.42f + metrics.bass * 0.08f),
                                   minimumDimension * 2.8f);
-        const float radius = minimumDimension * (0.12f + unit * 0.36f + metrics.stereoWidth * 0.08f);
+        const float radius = minimumDimension * (0.12f + unit * 0.36f + metrics.stereoWidth * response * 0.1f);
         objects.push_back(makeObject3D(Object3DKind::TunnelRib,
                                        Vec3{std::sin(phase * 0.21f + unit * kPi) * minimumDimension * 0.04f,
                                             std::cos(phase * 0.17f + unit * kPi) * minimumDimension * 0.03f,
                                             z - minimumDimension * 0.45f},
                                        Vec3{radius, radius * (0.62f + metrics.phraseIntensity * 0.22f), 0.45f + unit * 0.65f},
-                                       Vec3{metrics.phrasePhase * 0.35f, phase * 0.08f, phase * (0.38f + personality * 0.25f) + unit * kPi},
+                                       Vec3{metrics.phrasePhase * (0.35f + response * 0.08f),
+                                            phase * 0.08f,
+                                            phase * (0.38f + personality * 0.25f + response * 0.04f) + unit * kPi},
                                        withAlpha(colors[i % 4], 0.22f + unit * 0.22f),
-                                       0.28f + metrics.dropIntensity * 0.72f));
+                                       0.28f + metrics.dropIntensity * response * 0.76f));
         if (i % 3 == 0) {
             const float angle = unit * 2.0f * kPi + phase;
             objects.push_back(makeObject3D(Object3DKind::Polyhedron,
                                            Vec3{std::cos(angle) * radius * 0.74f,
                                                 std::sin(angle) * radius * 0.42f,
                                                 z},
-                                           Vec3{minimumDimension * 0.026f,
-                                                minimumDimension * (0.026f + metrics.bass * 0.02f),
+                                           Vec3{minimumDimension * (0.026f + metrics.beatConfidence * response * 0.004f),
+                                                minimumDimension * (0.026f + metrics.bass * response * 0.024f),
                                                 minimumDimension * 0.026f},
                                            Vec3{phase + angle, phase * 0.7f, angle},
                                            withAlpha(colors[(i + 2) % 4], 0.32f + metrics.beatConfidence * 0.24f),
-                                           0.24f + metrics.beatConfidence * 0.54f));
+                                           0.24f + metrics.beatConfidence * response * 0.58f));
         }
     }
 }
@@ -989,13 +1206,16 @@ void addCymaticSculptureObjects(std::vector<Object3D>& objects,
                                 float minimumDimension,
                                 float density,
                                 float personality,
+                                float response,
                                 double time)
 {
     const float phase = static_cast<float>(time);
-    const int plates = scaledCount(5, density);
+    const int plates = scaledCount(5, density * (0.86f + metrics.harmonicEnergy * response * 0.18f));
     for (int i = 0; i < plates; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, plates - 1));
-        const float z = minimumDimension * (-0.24f + unit * 0.42f + metrics.harmonicEnergy * 0.12f);
+        const float z = minimumDimension *
+                        (-0.24f + unit * 0.42f + metrics.harmonicEnergy * response * 0.13f +
+                         metrics.buildTension * response * 0.08f);
         objects.push_back(makeObject3D(Object3DKind::Plate,
                                        Vec3{(unit - 0.5f) * minimumDimension * 0.38f,
                                             std::sin(phase * 0.27f + unit * kPi) * minimumDimension * 0.06f,
@@ -1007,25 +1227,311 @@ void addCymaticSculptureObjects(std::vector<Object3D>& objects,
                                             (unit - 0.5f) * 0.4f,
                                             phase * 0.12f + chromaAt(metrics, i) * kPi},
                                        withAlpha(colors[(i + 1) % 4], 0.32f + metrics.harmonicEnergy * 0.24f),
-                                       0.32f + metrics.harmonicEnergy * 0.74f + metrics.buildTension * 0.32f));
+                                       0.32f + metrics.harmonicEnergy * response * 0.78f + metrics.buildTension * response * 0.34f));
     }
 
-    const int nodal = scaledCount(20, density * (0.72f + metrics.harmonicEnergy * 0.46f));
+    const int nodal = scaledCount(20, density * (0.72f + metrics.harmonicEnergy * response * 0.46f + metrics.treble * 0.14f));
     for (int i = 0; i < nodal; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(nodal);
         const float angle = unit * 2.0f * kPi + phase * 0.18f;
         const float harmonic = chromaAt(metrics, i + 2U);
-        const float radius = minimumDimension * (0.08f + harmonic * 0.38f + metrics.buildTension * 0.08f);
+        const float radius = minimumDimension * (0.08f + harmonic * response * 0.38f + metrics.buildTension * 0.08f);
         objects.push_back(makeObject3D(Object3DKind::Particle,
                                        Vec3{std::cos(angle) * radius,
                                             std::sin(angle * 1.8f) * radius * 0.62f,
-                                            minimumDimension * (std::sin(angle * 2.0f + phase) * 0.22f + harmonic * 0.25f)},
+                                            minimumDimension * (std::sin(angle * 2.0f + phase * (1.0f + response * 0.1f)) *
+                                                                    (0.2f + response * 0.05f) +
+                                                                harmonic * 0.25f)},
                                        Vec3{minimumDimension * (0.01f + harmonic * 0.02f),
                                             minimumDimension * (0.01f + harmonic * 0.02f),
                                             minimumDimension * 0.01f},
                                        Vec3{},
                                        withAlpha(colors[i % 4], 0.25f + harmonic * 0.36f),
                                        0.22f + harmonic * 0.72f));
+    }
+}
+
+void addModeSpecific3DObjects(std::vector<Object3D>& objects,
+                              VisualMode mode,
+                              const AudioMetrics& metrics,
+                              const std::array<ColorRGBA, 5>& colors,
+                              float minimumDimension,
+                              float density,
+                              float personality,
+                              float response,
+                              double time)
+{
+    const float phase = static_cast<float>(time);
+    const float beat = metrics.beat ? metrics.beatConfidence : 0.0f;
+    const float bassPush = metrics.bass * response;
+    const float treblePush = metrics.treble * response;
+    const float dropPush = metrics.dropIntensity * response;
+    const float phrasePush = metrics.phraseIntensity * response + metrics.buildTension * response * 0.55f;
+
+    switch (mode) {
+    case VisualMode::QuantumTunnel: {
+        const int planes = scaledCount(7, density * (0.78f + dropPush * 0.18f));
+        for (int i = 0; i < planes; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(planes);
+            const float z = minimumDimension * (-0.48f + unit * (1.82f + dropPush * 0.42f)) -
+                            phase * minimumDimension * (0.08f + dropPush * 0.06f);
+            objects.push_back(makeObject3D(Object3DKind::DepthPlane,
+                                           Vec3{0.0f, 0.0f, z},
+                                           Vec3{minimumDimension * (0.18f + unit * 0.16f),
+                                                minimumDimension * (0.12f + unit * 0.1f),
+                                                minimumDimension * 0.02f},
+                                           Vec3{metrics.stereoWidth * 0.12f, phase * 0.04f, phase * (0.12f + dropPush * 0.08f)},
+                                           withAlpha(colors[i % 4], 0.16f + unit * 0.14f + dropPush * 0.08f),
+                                           0.18f + dropPush * 0.52f));
+        }
+        const int orbiters = scaledCount(10, density * (0.65f + bassPush * 0.18f));
+        for (int i = 0; i < orbiters; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(orbiters);
+            const float angle = unit * 2.0f * kPi + phase * (0.56f + dropPush * 0.18f);
+            const float radius = minimumDimension * (0.16f + metrics.stereoWidth * 0.16f + unit * 0.1f);
+            objects.push_back(makeObject3D(Object3DKind::Orbiter,
+                                           Vec3{std::cos(angle) * radius,
+                                                std::sin(angle) * radius * 0.62f,
+                                                minimumDimension * (0.18f + unit * 0.75f - dropPush * 0.2f)},
+                                           Vec3{minimumDimension * (0.012f + bassPush * 0.012f),
+                                                minimumDimension * 0.012f,
+                                                minimumDimension * 0.012f},
+                                           Vec3{0.0f, angle, phase},
+                                           withAlpha(colors[(i + 1) % 4], 0.34f + dropPush * 0.2f),
+                                           0.28f + bassPush * 0.42f + beat * 0.32f));
+        }
+        break;
+    }
+    case VisualMode::TechnoMandala: {
+        const int columns = scaledCount(12, density * (0.72f + beat * 0.18f));
+        for (int i = 0; i < columns; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(columns);
+            const float angle = unit * 2.0f * kPi + metrics.beatPhase * kPi * 0.5f;
+            const float radius = minimumDimension * (0.18f + bassPush * 0.04f);
+            objects.push_back(makeObject3D(Object3DKind::Column,
+                                           Vec3{std::cos(angle) * radius,
+                                                std::sin(angle) * radius,
+                                                minimumDimension * (0.04f + std::sin(phase + angle) * 0.12f)},
+                                           Vec3{minimumDimension * (0.012f + bassPush * 0.006f),
+                                                minimumDimension * (0.12f + beat * 0.05f),
+                                                minimumDimension * (0.012f + bassPush * 0.006f)},
+                                           Vec3{0.0f, angle, phase * (0.2f + bassPush * 0.04f)},
+                                           withAlpha(colors[i % 4], 0.34f + beat * 0.18f),
+                                           0.28f + bassPush * 0.5f));
+        }
+        objects.push_back(makeObject3D(Object3DKind::Cage,
+                                       Vec3{0.0f, 0.0f, minimumDimension * (0.12f + dropPush * 0.16f)},
+                                       Vec3{minimumDimension * (0.11f + bassPush * 0.04f),
+                                            minimumDimension * (0.11f + bassPush * 0.04f),
+                                            minimumDimension * (0.08f + bassPush * 0.035f)},
+                                       Vec3{phase * 0.34f, phase * 0.42f, metrics.beatPhase * 2.0f * kPi},
+                                       withAlpha(colors[1], 0.46f + beat * 0.2f),
+                                       0.4f + bassPush * 0.55f));
+        break;
+    }
+    case VisualMode::LissajousMesh: {
+        const int ribbons = scaledCount(6, density * (0.72f + metrics.stereoWidth * response * 0.22f));
+        for (int i = 0; i < ribbons; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(ribbons);
+            const float angle = unit * 2.0f * kPi;
+            objects.push_back(makeObject3D(Object3DKind::Ribbon,
+                                           Vec3{std::cos(angle) * minimumDimension * 0.09f,
+                                                std::sin(angle) * minimumDimension * 0.07f,
+                                                minimumDimension * (-0.18f + unit * 0.18f + metrics.stereoWidth * response * 0.2f)},
+                                           Vec3{minimumDimension * (0.16f + metrics.stereoWidth * 0.08f),
+                                                minimumDimension * (0.18f + treblePush * 0.03f),
+                                                minimumDimension * (0.1f + bassPush * 0.04f)},
+                                           Vec3{phase * (0.22f + unit * 0.08f),
+                                                phase * (0.31f + metrics.stereoWidth * 0.08f),
+                                                angle + metrics.beatPhase * kPi},
+                                           withAlpha(colors[(i + 2) % 4], 0.34f + metrics.stereoWidth * 0.22f),
+                                           0.24f + metrics.stereoWidth * response * 0.46f));
+        }
+        break;
+    }
+    case VisualMode::FrequencyBloom: {
+        const int petals = scaledCount(8, density * (0.68f + treblePush * 0.22f));
+        for (int i = 0; i < petals; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(petals);
+            const float angle = unit * 2.0f * kPi + phase * 0.12f;
+            const float energy = spectrumAt(metrics, i * 5U);
+            objects.push_back(makeObject3D(Object3DKind::WaveSurface,
+                                           Vec3{std::cos(angle) * minimumDimension * (0.11f + energy * 0.12f),
+                                                std::sin(angle) * minimumDimension * (0.08f + energy * 0.08f),
+                                                minimumDimension * (energy * response * 0.32f - 0.08f)},
+                                           Vec3{minimumDimension * (0.08f + energy * response * 0.05f),
+                                                minimumDimension * (0.12f + energy * response * 0.08f),
+                                                minimumDimension * 0.04f},
+                                           Vec3{phase * 0.1f, angle, phase * (0.18f + energy * 0.12f)},
+                                           withAlpha(colors[i % 4], 0.28f + energy * 0.34f),
+                                           0.24f + treblePush * 0.44f + energy * 0.3f));
+        }
+        break;
+    }
+    case VisualMode::FractalCathedral: {
+        const int spires = scaledCount(9, density * (0.7f + phrasePush * 0.18f));
+        for (int i = 0; i < spires; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, spires - 1));
+            const float x = (unit - 0.5f) * minimumDimension * 0.58f;
+            const float height = minimumDimension * (0.12f + phrasePush * 0.08f + std::fabs(unit - 0.5f) * 0.1f);
+            objects.push_back(makeObject3D(Object3DKind::Column,
+                                           Vec3{x, minimumDimension * 0.08f, minimumDimension * (0.08f + unit * 0.26f)},
+                                           Vec3{minimumDimension * 0.012f, height, minimumDimension * 0.014f},
+                                           Vec3{0.18f + metrics.phrasePhase * 0.12f, 0.0f, phase * 0.04f},
+                                           withAlpha(colors[(i + 3) % 4], 0.26f + phrasePush * 0.18f),
+                                           0.2f + phrasePush * 0.45f));
+        }
+        objects.push_back(makeObject3D(Object3DKind::Cage,
+                                       Vec3{0.0f, -minimumDimension * 0.04f, minimumDimension * (0.22f + phrasePush * 0.14f)},
+                                       Vec3{minimumDimension * 0.22f, minimumDimension * 0.18f, minimumDimension * 0.16f},
+                                       Vec3{0.4f + metrics.phrasePhase * 0.2f, phase * 0.05f, 0.0f},
+                                       withAlpha(colors[4], 0.24f + phrasePush * 0.22f),
+                                       0.22f + phrasePush * 0.38f));
+        break;
+    }
+    case VisualMode::PolyrhythmLattice: {
+        const int grid = scaledCount(5, density);
+        const float spacing = minimumDimension * (0.08f + metrics.stereoWidth * 0.025f);
+        for (int x = -grid; x <= grid; x += 2) {
+            for (int y = -grid; y <= grid; y += 2) {
+                const float phaseOffset = static_cast<float>(x * y) * 0.1f;
+                objects.push_back(makeObject3D(Object3DKind::Column,
+                                               Vec3{static_cast<float>(x) * spacing,
+                                                    static_cast<float>(y) * spacing * 0.72f,
+                                                    std::sin(phase + phaseOffset + metrics.beatPhase * kPi) *
+                                                        minimumDimension * (0.08f + bassPush * 0.04f)},
+                                               Vec3{minimumDimension * 0.009f,
+                                                    minimumDimension * (0.06f + beat * 0.04f + bassPush * 0.03f),
+                                                    minimumDimension * 0.009f},
+                                               Vec3{0.0f, phaseOffset, phase * 0.12f},
+                                               withAlpha(colors[(x + y + 64) % 4], 0.22f + beat * 0.16f),
+                                               0.18f + bassPush * 0.38f));
+            }
+        }
+        break;
+    }
+    case VisualMode::SpectralOrigami: {
+        const int folds = scaledCount(7, density * (0.72f + treblePush * 0.18f));
+        for (int i = 0; i < folds; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(folds);
+            objects.push_back(makeObject3D(Object3DKind::DepthPlane,
+                                           Vec3{(unit - 0.5f) * minimumDimension * 0.44f,
+                                                std::sin(phase + unit * kPi) * minimumDimension * 0.06f,
+                                                minimumDimension * (-0.12f + unit * 0.38f + treblePush * 0.12f)},
+                                           Vec3{minimumDimension * (0.08f + treblePush * 0.03f),
+                                                minimumDimension * (0.16f + personality * 0.04f),
+                                                minimumDimension * 0.02f},
+                                           Vec3{phase * 0.18f + unit, 0.62f + unit * 0.5f, phase * 0.12f},
+                                           withAlpha(colors[i % 4], 0.2f + treblePush * 0.18f),
+                                           0.2f + treblePush * 0.44f));
+        }
+        break;
+    }
+    case VisualMode::ChromaKaleidoscope: {
+        const int prisms = scaledCount(10, density * (0.68f + metrics.harmonicEnergy * response * 0.18f));
+        for (int i = 0; i < prisms; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(prisms);
+            const float angle = unit * 2.0f * kPi + metrics.keyConfidence * response;
+            const float chroma = chromaAt(metrics, i);
+            objects.push_back(makeObject3D(Object3DKind::Cage,
+                                           Vec3{std::cos(angle) * minimumDimension * (0.16f + chroma * 0.12f),
+                                                std::sin(angle) * minimumDimension * (0.1f + chroma * 0.08f),
+                                                minimumDimension * (-0.16f + chroma * response * 0.5f)},
+                                           Vec3{minimumDimension * (0.026f + chroma * 0.024f),
+                                                minimumDimension * (0.05f + chroma * 0.036f),
+                                                minimumDimension * (0.026f + chroma * 0.024f)},
+                                           Vec3{phase * 0.18f, angle + phase * 0.08f, metrics.harmonicEnergy * kPi},
+                                           withAlpha(colors[(i + 2) % 4], 0.24f + chroma * 0.42f),
+                                           0.2f + chroma * response * 0.7f));
+        }
+        break;
+    }
+    case VisualMode::HyperspacePolytope: {
+        const int cages = scaledCount(5, density * (0.78f + dropPush * 0.12f));
+        for (int i = 0; i < cages; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(cages);
+            objects.push_back(makeObject3D(Object3DKind::Cage,
+                                           Vec3{std::sin(unit * kPi * 2.0f + phase * 0.12f) * minimumDimension * 0.16f,
+                                                std::cos(unit * kPi * 2.0f + phase * 0.16f) * minimumDimension * 0.1f,
+                                                minimumDimension * (-0.22f + unit * 0.55f + dropPush * 0.12f)},
+                                           Vec3{minimumDimension * (0.06f + unit * 0.018f + dropPush * 0.02f),
+                                                minimumDimension * (0.06f + unit * 0.018f),
+                                                minimumDimension * (0.06f + unit * 0.018f)},
+                                           Vec3{phase * 0.24f + unit, phase * 0.31f, phase * 0.18f + metrics.beatPhase},
+                                           withAlpha(colors[i % 4], 0.26f + dropPush * 0.18f),
+                                           0.24f + dropPush * 0.46f + metrics.harmonicEnergy * 0.2f));
+        }
+        break;
+    }
+    case VisualMode::PhaseWeave: {
+        const int currents = scaledCount(8, density * (0.72f + metrics.stereoWidth * response * 0.2f));
+        for (int i = 0; i < currents; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(currents);
+            objects.push_back(makeObject3D(Object3DKind::Ribbon,
+                                           Vec3{(unit - 0.5f) * minimumDimension * 0.5f,
+                                                std::sin(phase * 0.2f + unit * kPi) * minimumDimension * 0.12f,
+                                                minimumDimension * (std::cos(unit * kPi + phase * 0.11f) * 0.22f)},
+                                           Vec3{minimumDimension * (0.22f + metrics.stereoWidth * response * 0.1f),
+                                                minimumDimension * 0.2f,
+                                                minimumDimension * (0.12f + metrics.spectralFlux * response * 0.04f)},
+                                           Vec3{phase * 0.12f, phase * (0.24f + metrics.stereoWidth * 0.08f), unit * kPi + phase * 0.18f},
+                                           withAlpha(colors[(i + 1) % 4], 0.24f + metrics.stereoWidth * 0.26f),
+                                           0.22f + metrics.stereoWidth * response * 0.5f + metrics.spectralFlux * 0.24f));
+        }
+        break;
+    }
+    case VisualMode::ResonanceTessellation: {
+        const int planes = scaledCount(6, density * (0.76f + metrics.harmonicEnergy * response * 0.14f));
+        for (int i = 0; i < planes; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(planes);
+            objects.push_back(makeObject3D(Object3DKind::DepthPlane,
+                                           Vec3{std::sin(unit * kPi * 2.0f + phase * 0.08f) * minimumDimension * 0.12f,
+                                                (unit - 0.5f) * minimumDimension * 0.24f,
+                                                minimumDimension * (-0.2f + unit * 0.42f + metrics.harmonicEnergy * response * 0.12f)},
+                                           Vec3{minimumDimension * (0.12f + metrics.buildTension * 0.04f),
+                                                minimumDimension * (0.1f + metrics.harmonicEnergy * 0.04f),
+                                                minimumDimension * 0.02f},
+                                           Vec3{0.58f + metrics.phrasePhase * 0.2f, unit * 0.3f, phase * 0.08f},
+                                           withAlpha(colors[i % 4], 0.18f + metrics.harmonicEnergy * 0.22f),
+                                           0.22f + metrics.harmonicEnergy * response * 0.48f));
+        }
+        break;
+    }
+    case VisualMode::NeuralConstellation: {
+        const int anchors = scaledCount(5, density * (0.76f + metrics.barConfidence * response * 0.14f));
+        for (int i = 0; i < anchors; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(anchors);
+            const float angle = unit * 2.0f * kPi + metrics.barPhase * kPi;
+            objects.push_back(makeObject3D(Object3DKind::Anchor,
+                                           Vec3{std::cos(angle) * minimumDimension * 0.24f,
+                                                std::sin(angle) * minimumDimension * 0.15f,
+                                                minimumDimension * (-0.12f + unit * 0.28f + metrics.downbeatConfidence * response * 0.12f)},
+                                           Vec3{minimumDimension * (0.012f + metrics.downbeatConfidence * response * 0.008f),
+                                                minimumDimension * 0.012f,
+                                                minimumDimension * 0.012f},
+                                           Vec3{0.0f, angle, phase * 0.24f + metrics.beatPhase * kPi},
+                                           withAlpha(colors[i % 4], 0.3f + metrics.barConfidence * 0.24f),
+                                           0.28f + metrics.downbeatConfidence * response * 0.62f));
+        }
+        break;
+    }
+    case VisualMode::CymaticInterference: {
+        const int surfaces = scaledCount(4, density * (0.9f + metrics.harmonicEnergy * response * 0.16f));
+        for (int i = 0; i < surfaces; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(surfaces);
+            objects.push_back(makeObject3D(Object3DKind::WaveSurface,
+                                           Vec3{0.0f,
+                                                (unit - 0.5f) * minimumDimension * 0.18f,
+                                                minimumDimension * (-0.16f + unit * 0.24f + metrics.buildTension * response * 0.1f)},
+                                           Vec3{minimumDimension * (0.18f + metrics.harmonicEnergy * response * 0.04f),
+                                                minimumDimension * (0.12f + metrics.buildTension * 0.04f),
+                                                minimumDimension * 0.04f},
+                                           Vec3{0.48f + metrics.phrasePhase * 0.24f, 0.18f * unit, phase * 0.1f + chromaAt(metrics, i) * kPi},
+                                           withAlpha(colors[(i + 2) % 4], 0.22f + metrics.harmonicEnergy * 0.24f),
+                                           0.28f + metrics.harmonicEnergy * response * 0.64f + metrics.buildTension * 0.22f));
+        }
+        break;
+    }
     }
 }
 
@@ -1050,27 +1556,29 @@ void addObject3DScene(GeometryFrame& frame,
     const float minimumDimension = std::min(width, height);
     const float objectDensity = std::clamp(quality * (0.42f + objectDensity3DOf(settings) * 1.08f), 0.18f, 1.8f);
     const float personality = scenePersonalityOf(settings);
+    const float response = musicResponse3D(metrics, settings);
     const Camera3D camera = makeCamera3D(settings, metrics, width, height, speed, time);
     std::vector<Object3D> objects;
-    objects.reserve(160);
+    objects.reserve(260);
 
     switch (profile) {
     case Scene3DProfile::TechnoMachine:
-        addTechnoMachineObjects(objects, metrics, colors, minimumDimension, objectDensity, intensity, personality, time);
+        addTechnoMachineObjects(objects, metrics, colors, minimumDimension, objectDensity, intensity, personality, response, time);
         break;
     case Scene3DProfile::CrystalStorm:
-        addCrystalStormObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, time);
+        addCrystalStormObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, response, time);
         break;
     case Scene3DProfile::NeuralSpace:
-        addNeuralSpaceObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, time);
+        addNeuralSpaceObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, response, time);
         break;
     case Scene3DProfile::DimensionalTunnel:
-        addDimensionalTunnelObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, time);
+        addDimensionalTunnelObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, response, time);
         break;
     case Scene3DProfile::CymaticSculpture:
-        addCymaticSculptureObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, time);
+        addCymaticSculptureObjects(objects, metrics, colors, minimumDimension, objectDensity, personality, response, time);
         break;
     }
+    addModeSpecific3DObjects(objects, settings.mode, metrics, colors, minimumDimension, objectDensity, personality, response, time);
 
     applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
 
@@ -1096,7 +1604,7 @@ void addObject3DScene(GeometryFrame& frame,
     }
 
     frame.objects3D = std::move(objects);
-    frame.scene3DName = scene3DName(profile);
+    frame.scene3DName = mode3DName(settings.mode);
     frame.cameraDepth = camera.cameraDistance;
     frame.objectDepthRange = range;
 }

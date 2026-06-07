@@ -76,7 +76,7 @@ std::vector<std::string> formatRuntimeInspectorLines(const RuntimeInspectorState
         lines.push_back("REC " + formatDuration(state.captureDurationSeconds) +
                         (state.captureDirectory.empty() ? std::string{} : "  " + state.captureDirectory));
     } else {
-        lines.push_back("Capture idle");
+        lines.push_back("Capture idle - recording off");
     }
 
     return lines;
