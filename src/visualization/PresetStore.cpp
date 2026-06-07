@@ -69,13 +69,17 @@ VisualPreset makeCuratedPreset(std::string name,
                                float intensity,
                                float speed,
                                bool trails = true,
-                               bool autoScene = false)
+                               bool autoScene = false,
+                               float depth3D = 0.65f,
+                               float colorImpact = 0.75f)
 {
     VisualPreset preset;
     preset.name = std::move(name);
     preset.settings.mode = mode;
     preset.settings.palette = palette;
     preset.settings.hueShift = hueShift;
+    preset.settings.depth3D = depth3D;
+    preset.settings.colorImpact = colorImpact;
     preset.settings.complexity = complexity;
     preset.settings.intensity = intensity;
     preset.settings.speed = speed;
@@ -176,7 +180,10 @@ const std::vector<VisualPreset>& curatedPresets()
                           1.48f,
                           2.45f,
                           1.80f,
-                          false),
+                          false,
+                          false,
+                          0.78f,
+                          0.88f),
         makeCuratedPreset("Acid Geometry",
                           VisualMode::TechnoMandala,
                           Palette::AcidAurora,
@@ -190,21 +197,33 @@ const std::vector<VisualPreset>& curatedPresets()
                           0.62f,
                           1.72f,
                           1.85f,
-                          1.20f),
+                          1.20f,
+                          true,
+                          false,
+                          0.92f,
+                          0.82f),
         makeCuratedPreset("Harmonic Glass",
                           VisualMode::ChromaKaleidoscope,
                           Palette::OceanicPulse,
                           0.52f,
                           1.28f,
                           1.30f,
-                          0.90f),
+                          0.90f,
+                          true,
+                          false,
+                          0.70f,
+                          0.78f),
         makeCuratedPreset("Fractal Cathedral",
                           VisualMode::FractalCathedral,
                           Palette::MonochromeLaser,
                           0.00f,
                           1.42f,
                           1.65f,
-                          0.78f),
+                          0.78f,
+                          true,
+                          false,
+                          0.82f,
+                          0.56f),
         makeCuratedPreset("Breakbeat Origami",
                           VisualMode::SpectralOrigami,
                           Palette::AcidAurora,
@@ -225,35 +244,55 @@ const std::vector<VisualPreset>& curatedPresets()
                           0.74f,
                           1.58f,
                           1.74f,
-                          1.24f),
+                          1.24f,
+                          true,
+                          false,
+                          0.84f,
+                          0.80f),
         makeCuratedPreset("Stereo Loom",
                           VisualMode::PhaseWeave,
                           Palette::OceanicPulse,
                           0.41f,
                           1.34f,
                           1.42f,
-                          0.96f),
+                          0.96f,
+                          true,
+                          false,
+                          0.88f,
+                          0.66f),
         makeCuratedPreset("Resonance Tessellation",
                           VisualMode::ResonanceTessellation,
                           Palette::AcidAurora,
                           0.22f,
                           1.50f,
                           1.68f,
-                          1.12f),
+                          1.12f,
+                          true,
+                          false,
+                          0.76f,
+                          0.84f),
         makeCuratedPreset("Neural Constellation",
                           VisualMode::NeuralConstellation,
                           Palette::NeonVoltage,
                           0.68f,
                           1.44f,
                           1.58f,
-                          0.98f),
+                          0.98f,
+                          true,
+                          false,
+                          0.80f,
+                          0.76f),
         makeCuratedPreset("Cymatic Interference",
                           VisualMode::CymaticInterference,
                           Palette::AcidAurora,
                           0.36f,
                           1.62f,
                           1.82f,
-                          1.08f),
+                          1.08f,
+                          true,
+                          false,
+                          0.74f,
+                          0.90f),
         makeCuratedPreset("Auto DJ Director",
                           VisualMode::QuantumTunnel,
                           Palette::NeonVoltage,
@@ -262,7 +301,9 @@ const std::vector<VisualPreset>& curatedPresets()
                           1.60f,
                           1.00f,
                           true,
-                          true)
+                          true,
+                          0.76f,
+                          0.82f)
     };
     return presets;
 }
@@ -466,6 +507,8 @@ bool savePreset(const std::filesystem::path& path,
     output << "mode=" << toString(preset.settings.mode) << "\n";
     output << "palette=" << toString(preset.settings.palette) << "\n";
     output << "hueShift=" << preset.settings.hueShift << "\n";
+    output << "depth3D=" << preset.settings.depth3D << "\n";
+    output << "colorImpact=" << preset.settings.colorImpact << "\n";
     output << "complexity=" << preset.settings.complexity << "\n";
     output << "intensity=" << preset.settings.intensity << "\n";
     output << "speed=" << preset.settings.speed << "\n";
@@ -522,6 +565,12 @@ std::optional<VisualPreset> loadPreset(const std::filesystem::path& path, std::s
     }
     if (const auto it = values.find("hueshift"); it != values.end()) {
         preset.settings.hueShift = std::clamp(parseFloat(it->second, preset.settings.hueShift), 0.0f, 1.0f);
+    }
+    if (const auto it = values.find("depth3d"); it != values.end()) {
+        preset.settings.depth3D = std::clamp(parseFloat(it->second, preset.settings.depth3D), 0.0f, 1.0f);
+    }
+    if (const auto it = values.find("colorimpact"); it != values.end()) {
+        preset.settings.colorImpact = std::clamp(parseFloat(it->second, preset.settings.colorImpact), 0.0f, 1.0f);
     }
     if (const auto it = values.find("complexity"); it != values.end()) {
         preset.settings.complexity = std::clamp(parseFloat(it->second, preset.settings.complexity), 0.35f, 1.8f);

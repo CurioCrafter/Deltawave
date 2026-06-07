@@ -18,7 +18,9 @@ The HUD shows:
 
 Use `Q` or the `Auto Quality` panel toggle to enable or disable adaptive quality. Drag the `Quality` slider for manual quality; manual changes disable adaptive quality.
 
-Auto Scene (`A`) changes mode, palette, intensity, and speed from audio metrics but still runs through the same adaptive-quality path. If a track causes a dense mode switch on weaker hardware, keep Auto Quality enabled.
+Auto Scene (`A`) changes mode, palette, hue, depth, color impact, intensity, and speed from audio metrics but still runs through the same adaptive-quality path. If a track causes a dense mode switch or a high-depth camera push on weaker hardware, keep Auto Quality enabled.
+
+Depth (`D` or the `Depth 3D` slider) adds a post-generation perspective pass and a small number of guide shells/vanishing lines. Color impact (`F` or the `Color Impact` slider) changes color grading only, so it should have little cost compared with complexity and depth.
 
 Trails (`T`) replace a full background clear with a low-cost decay pass. They are useful for dense techno motion and shareable exports; disable them when you need crisp single-frame inspection or exact geometry edges.
 

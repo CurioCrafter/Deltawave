@@ -111,6 +111,33 @@ float colorDistance(ColorRGBA a, ColorRGBA b)
     return std::fabs(a.r - b.r) + std::fabs(a.g - b.g) + std::fabs(a.b - b.b);
 }
 
+float averageRingRadius(const GeometryFrame& frame)
+{
+    if (frame.rings.empty()) {
+        return 0.0f;
+    }
+    float total = 0.0f;
+    for (const Ring& ring : frame.rings) {
+        total += ring.radius;
+    }
+    return total / static_cast<float>(frame.rings.size());
+}
+
+float averagePolylinePointDistance(const GeometryFrame& frame, Vec2 center)
+{
+    float total = 0.0f;
+    int count = 0;
+    for (const Polyline& polyline : frame.polylines) {
+        for (Vec2 point : polyline.points) {
+            const float dx = point.x - center.x;
+            const float dy = point.y - center.y;
+            total += std::sqrt(dx * dx + dy * dy);
+            ++count;
+        }
+    }
+    return count > 0 ? total / static_cast<float>(count) : 0.0f;
+}
+
 AudioMetrics syntheticMetrics()
 {
     AudioMetrics metrics{};
@@ -593,6 +620,8 @@ void liveCapturePackageWritesShareMetadata()
     settings.mode = VisualMode::ChromaKaleidoscope;
     settings.palette = Palette::OceanicPulse;
     settings.hueShift = 0.25f;
+    settings.depth3D = 0.81f;
+    settings.colorImpact = 0.86f;
     settings.autoScene = true;
     const AudioMetrics metrics = syntheticMetrics();
     const GeometryFrame frame = engine.buildFrame(metrics, settings, 96.0f, 54.0f, 1.0);
@@ -617,6 +646,8 @@ void liveCapturePackageWritesShareMetadata()
     package.requestedSettings = settings;
     package.finalSettings = settings;
     package.finalSettings.complexity = 1.5f;
+    package.finalSettings.depth3D = 0.93f;
+    package.finalSettings.colorImpact = 0.95f;
     package.width = 96;
     package.height = 54;
     package.framesWritten = recorder.frameCount();
@@ -677,6 +708,14 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture manifest should include key metadata");
         require(manifestText.find("\"finalComplexity\": 1.500") != std::string::npos,
                 "live capture manifest should include final complexity");
+        require(manifestText.find("\"requestedDepth3D\": 0.810") != std::string::npos,
+                "live capture manifest should include requested 3D depth");
+        require(manifestText.find("\"finalDepth3D\": 0.930") != std::string::npos,
+                "live capture manifest should include final 3D depth");
+        require(manifestText.find("\"requestedColorImpact\": 0.860") != std::string::npos,
+                "live capture manifest should include requested color impact");
+        require(manifestText.find("\"finalColorImpact\": 0.950") != std::string::npos,
+                "live capture manifest should include final color impact");
         require(manifestText.find("\"dominantSection\": \"Drop\"") != std::string::npos,
                 "live capture manifest should include dominant section");
         require(manifestText.find("\"sectionConfidence\": 0.880") != std::string::npos,
@@ -728,6 +767,10 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture page should summarize phrase confidence");
         require(pageText.find("Build Tension") != std::string::npos,
                 "live capture page should summarize build tension");
+        require(pageText.find("Depth 3D") != std::string::npos,
+                "live capture page should summarize 3D depth");
+        require(pageText.find("Color Impact") != std::string::npos,
+                "live capture page should summarize color impact");
         require(pageText.find("Complexity") != std::string::npos,
                 "live capture page should summarize complexity");
         require(pageText.find("Section") != std::string::npos,
@@ -871,6 +914,74 @@ void hueShiftChangesRenderedPalette()
             "hue shift should visibly change generated colors");
     require(colorDistance(base.background, shifted.background) > 0.01f,
             "hue shift should influence background tint");
+}
+
+void depth3DProjectsGeometryIntoPerspectiveSpace()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::HyperspacePolytope;
+    settings.palette = Palette::NeonVoltage;
+    settings.colorImpact = 0.65f;
+    settings.depth3D = 0.0f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.9f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.beat = true;
+    metrics.beatConfidence = 0.86f;
+    metrics.bass = 0.82f;
+    metrics.stereoWidth = 0.72f;
+    metrics.dropIntensity = 0.68f;
+    metrics.buildTension = 0.64f;
+
+    const GeometryFrame flat = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 4.0);
+    settings.depth3D = 1.0f;
+    const GeometryFrame deep = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 4.0);
+
+    require(countPrimitives(deep) > countPrimitives(flat),
+            "3D depth should add vanishing-space guide geometry");
+    require(!flat.rings.empty() && !deep.rings.empty(), "depth comparison should have rings");
+    require(std::fabs(averageRingRadius(flat) - averageRingRadius(deep)) > 0.5f,
+            "3D depth should change projected ring scale");
+    require(averagePolylinePointDistance(deep, Vec2{640.0f, 360.0f}) !=
+                averagePolylinePointDistance(flat, Vec2{640.0f, 360.0f}),
+            "3D depth should project polyline points through perspective space");
+}
+
+void colorImpactStrengthensPalettePersonality()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::FrequencyBloom;
+    settings.palette = Palette::NeonVoltage;
+    settings.hueShift = 0.62f;
+    settings.depth3D = 0.0f;
+    settings.colorImpact = 0.0f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.keyIndex = 9;
+    metrics.keyMode = MusicalMode::Minor;
+    metrics.keyConfidence = 0.84f;
+    metrics.harmonicEnergy = 0.8f;
+    metrics.dropIntensity = 0.58f;
+    metrics.buildTension = 0.62f;
+    metrics.treble = 0.72f;
+
+    const GeometryFrame subtle = engine.buildFrame(metrics, settings, 960.0f, 540.0f, 3.0);
+    settings.colorImpact = 1.0f;
+    const GeometryFrame intense = engine.buildFrame(metrics, settings, 960.0f, 540.0f, 3.0);
+
+    require(countPrimitives(subtle) == countPrimitives(intense),
+            "color impact should recolor without changing geometry density when depth is fixed");
+    require(!subtle.beams.empty() && !intense.beams.empty(), "frequency bloom should generate beams");
+    require(colorDistance(subtle.beams.front().color, intense.beams.front().color) > 0.12f,
+            "color impact should strongly alter generated colors");
+    require(colorDistance(subtle.background, intense.background) > 0.02f,
+            "color impact should shift the whole frame mood, including background");
 }
 
 void chromaKaleidoscopeRespondsToHarmony()
@@ -1188,6 +1299,8 @@ void presetRoundTripsSettings()
     preset.settings.mode = VisualMode::HyperspacePolytope;
     preset.settings.palette = Palette::AcidAurora;
     preset.settings.hueShift = 0.37f;
+    preset.settings.depth3D = 0.88f;
+    preset.settings.colorImpact = 0.91f;
     preset.settings.complexity = 1.42f;
     preset.settings.intensity = 2.35f;
     preset.settings.speed = 1.7f;
@@ -1235,6 +1348,10 @@ void presetRoundTripsSettings()
             "cymatic interference should parse from aliases");
     require(loaded->settings.palette == preset.settings.palette, "preset palette should round-trip");
     require(loaded->settings.hueShift > 0.36f && loaded->settings.hueShift < 0.38f, "hue shift should round-trip");
+    require(loaded->settings.depth3D > 0.87f && loaded->settings.depth3D < 0.89f,
+            "3D depth should round-trip");
+    require(loaded->settings.colorImpact > 0.90f && loaded->settings.colorImpact < 0.92f,
+            "color impact should round-trip");
     require(loaded->settings.complexity > 1.41f && loaded->settings.complexity < 1.43f,
             "complexity should round-trip");
     require(loaded->settings.intensity > 2.3f && loaded->settings.intensity < 2.4f, "intensity should round-trip");
@@ -1318,6 +1435,10 @@ void curatedPresetBankProvidesRenderableLooks()
 
         require(preset.settings.hueShift >= 0.0f && preset.settings.hueShift <= 1.0f,
                 "curated hue shift should be normalized");
+        require(preset.settings.depth3D >= 0.0f && preset.settings.depth3D <= 1.0f,
+                "curated depth should be normalized");
+        require(preset.settings.colorImpact >= 0.0f && preset.settings.colorImpact <= 1.0f,
+                "curated color impact should be normalized");
         require(preset.settings.complexity >= 0.35f && preset.settings.complexity <= 1.8f,
                 "curated complexity should stay in supported range");
         require(preset.settings.intensity >= 0.15f && preset.settings.intensity <= 4.0f,
@@ -1369,6 +1490,8 @@ void userPresetLibrarySavesScansAndLoads()
     preset.settings.mode = VisualMode::NeuralConstellation;
     preset.settings.palette = Palette::AcidAurora;
     preset.settings.hueShift = 0.27f;
+    preset.settings.depth3D = 0.84f;
+    preset.settings.colorImpact = 0.89f;
     preset.settings.complexity = 1.6f;
     preset.settings.intensity = 2.2f;
     preset.settings.speed = 1.4f;
@@ -1421,6 +1544,10 @@ void userPresetLibrarySavesScansAndLoads()
             "loaded user preset should preserve the visual mode");
     require(loaded->settings.palette == Palette::AcidAurora,
             "loaded user preset should preserve the palette");
+    require(loaded->settings.depth3D > 0.83f && loaded->settings.depth3D < 0.85f,
+            "loaded user preset should preserve 3D depth");
+    require(loaded->settings.colorImpact > 0.88f && loaded->settings.colorImpact < 0.90f,
+            "loaded user preset should preserve color impact");
     require(!loaded->settings.trails, "loaded user preset should preserve trails");
     require(loaded->settings.autoScene, "loaded user preset should preserve Auto Scene");
 
@@ -1434,6 +1561,8 @@ void controlPanelHitTestsButtonsAndSliders()
     settings.palette = Palette::OceanicPulse;
     settings.intensity = 2.0f;
     settings.speed = 1.2f;
+    settings.depth3D = 0.77f;
+    settings.colorImpact = 0.82f;
 
     const ControlPanelLayout layout = buildControlPanelLayout(1280.0f, 720.0f, settings, true);
     require(!layout.items.empty(), "control panel should build interactive items");
@@ -1443,6 +1572,8 @@ void controlPanelHitTestsButtonsAndSliders()
     bool foundSlider = false;
     bool foundQuality = false;
     bool foundHueShift = false;
+    bool foundDepth = false;
+    bool foundColorImpact = false;
     bool foundComplexity = false;
     bool foundAutoScene = false;
     bool foundTrails = false;
@@ -1486,6 +1617,16 @@ void controlPanelHitTestsButtonsAndSliders()
             require(item.slider, "hue shift control should be a slider");
             require(item.value >= 0.0f && item.value <= 1.0f, "hue shift slider value should be normalized");
             foundHueShift = true;
+        }
+        if (item.control == PanelControl::DepthSlider) {
+            require(item.slider, "3D depth control should be a slider");
+            require(item.value > 0.76f && item.value < 0.78f, "3D depth slider should reflect settings");
+            foundDepth = true;
+        }
+        if (item.control == PanelControl::ColorImpactSlider) {
+            require(item.slider, "color impact control should be a slider");
+            require(item.value > 0.81f && item.value < 0.83f, "color impact slider should reflect settings");
+            foundColorImpact = true;
         }
         if (item.control == PanelControl::ComplexitySlider) {
             require(item.slider, "complexity control should be a slider");
@@ -1547,6 +1688,8 @@ void controlPanelHitTestsButtonsAndSliders()
     require(foundSlider, "intensity slider should exist");
     require(foundQuality, "quality slider should exist");
     require(foundHueShift, "hue shift slider should exist");
+    require(foundDepth, "3D depth slider should exist");
+    require(foundColorImpact, "color impact slider should exist");
     require(foundComplexity, "complexity slider should exist");
     require(foundAutoScene, "auto scene control should exist");
     require(foundTrails, "trails control should exist");
@@ -1739,6 +1882,8 @@ void offlineExporterWritesDeterministicFrames()
     options.settings.mode = VisualMode::QuantumTunnel;
     options.settings.palette = Palette::NeonVoltage;
     options.settings.hueShift = 0.25f;
+    options.settings.depth3D = 0.83f;
+    options.settings.colorImpact = 0.87f;
     options.settings.complexity = 1.33f;
     options.syncProfile = syncProfilePath;
 
@@ -1769,6 +1914,14 @@ void offlineExporterWritesDeterministicFrames()
                 "offline manifest should include hue shift");
         require(manifestText.find("finalHueShift=0.250") != std::string::npos,
                 "offline manifest should include final hue shift");
+        require(manifestText.find("depth3D=0.830") != std::string::npos,
+                "offline manifest should include 3D depth");
+        require(manifestText.find("finalDepth3D=0.830") != std::string::npos,
+                "offline manifest should include final 3D depth");
+        require(manifestText.find("colorImpact=0.870") != std::string::npos,
+                "offline manifest should include color impact");
+        require(manifestText.find("finalColorImpact=0.870") != std::string::npos,
+                "offline manifest should include final color impact");
         require(manifestText.find("complexity=1.330") != std::string::npos,
                 "offline manifest should include complexity");
         require(manifestText.find("dominantSection=") != std::string::npos,
@@ -1799,6 +1952,8 @@ void offlineExporterWritesDeterministicFrames()
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
         require(timelineText.find("frame,timeSeconds,mode,palette") != std::string::npos,
                 "timeline should include a CSV header");
+        require(timelineText.find("hueShift,depth3D,colorImpact,complexity") != std::string::npos,
+                "timeline should include depth and color columns");
         require(timelineText.find("\"Quantum Tunnel\"") != std::string::npos,
                 "timeline should include rendered visual mode");
         require(timelineText.find("section,sectionConfidence,sectionProgress") != std::string::npos,
@@ -1833,6 +1988,8 @@ void offlineExporterWritesSharePackage()
     options.settings.mode = VisualMode::SpectralOrigami;
     options.settings.palette = Palette::AcidAurora;
     options.settings.hueShift = 0.42f;
+    options.settings.depth3D = 0.79f;
+    options.settings.colorImpact = 0.86f;
     options.settings.complexity = 1.25f;
     options.environmentTimeOfDay = 0.25f;
     options.sharePackage = true;
@@ -1870,6 +2027,14 @@ void offlineExporterWritesSharePackage()
                 "share manifest should include hue shift");
         require(manifestText.find("\"finalHueShift\": 0.420") != std::string::npos,
                 "share manifest should include final hue shift");
+        require(manifestText.find("\"depth3D\": 0.790") != std::string::npos,
+                "share manifest should include 3D depth");
+        require(manifestText.find("\"finalDepth3D\": 0.790") != std::string::npos,
+                "share manifest should include final 3D depth");
+        require(manifestText.find("\"colorImpact\": 0.860") != std::string::npos,
+                "share manifest should include color impact");
+        require(manifestText.find("\"finalColorImpact\": 0.860") != std::string::npos,
+                "share manifest should include final color impact");
         require(manifestText.find("\"complexity\": 1.250") != std::string::npos,
                 "share manifest should include complexity");
         require(manifestText.find("\"dominantSection\":") != std::string::npos,
@@ -1911,6 +2076,10 @@ void offlineExporterWritesSharePackage()
                 "share page should summarize hue shift");
         require(pageText.find("Final Hue Shift") != std::string::npos,
                 "share page should summarize final hue shift");
+        require(pageText.find("Depth 3D") != std::string::npos,
+                "share page should summarize 3D depth");
+        require(pageText.find("Color Impact") != std::string::npos,
+                "share page should summarize color impact");
         require(pageText.find("Complexity") != std::string::npos,
                 "share page should summarize complexity");
         require(pageText.find("Bar Lock") != std::string::npos,
@@ -1950,6 +2119,8 @@ void batchExporterWritesGalleryForAudioDirectory()
     options.settings.mode = VisualMode::ResonanceTessellation;
     options.settings.palette = Palette::AcidAurora;
     options.settings.complexity = 1.2f;
+    options.settings.depth3D = 0.8f;
+    options.settings.colorImpact = 0.84f;
     options.lookName = "Batch Tessellation";
     options.sharePackage = true;
 
@@ -1987,6 +2158,10 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch manifest should include deterministic output folders");
         require(manifestText.find("\"mode\": \"Resonance Tessellation\"") != std::string::npos,
                 "batch manifest should include selected visual mode");
+        require(manifestText.find("\"depth3D\": 0.800") != std::string::npos,
+                "batch manifest should include configured 3D depth");
+        require(manifestText.find("\"colorImpact\": 0.840") != std::string::npos,
+                "batch manifest should include configured color impact");
         require(manifestText.find("\"trackIntelligence\":") != std::string::npos,
                 "batch manifest should include per-track intelligence");
         require(manifestText.find("\"dominantStyle\":") != std::string::npos,
@@ -2023,6 +2198,8 @@ void batchExporterWritesGalleryForAudioDirectory()
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
         require(timelineText.find("\"Resonance Tessellation\"") != std::string::npos,
                 "batch timeline should contain rendered mode name");
+        require(timelineText.find("hueShift,depth3D,colorImpact,complexity") != std::string::npos,
+                "batch timeline should contain depth and color columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "batch timeline should contain phrase structure columns");
     }
@@ -2095,6 +2272,8 @@ int main()
         {"syncMetricsAddVisualAccents", viz::tests::syncMetricsAddVisualAccents},
         {"environmentStateAddsVisualContext", viz::tests::environmentStateAddsVisualContext},
         {"hueShiftChangesRenderedPalette", viz::tests::hueShiftChangesRenderedPalette},
+        {"depth3DProjectsGeometryIntoPerspectiveSpace", viz::tests::depth3DProjectsGeometryIntoPerspectiveSpace},
+        {"colorImpactStrengthensPalettePersonality", viz::tests::colorImpactStrengthensPalettePersonality},
         {"chromaKaleidoscopeRespondsToHarmony", viz::tests::chromaKaleidoscopeRespondsToHarmony},
         {"phaseWeaveRespondsToStereoHarmonyAndDrops", viz::tests::phaseWeaveRespondsToStereoHarmonyAndDrops},
         {"resonanceTessellationRespondsToHarmonyBuildsAndDrops", viz::tests::resonanceTessellationRespondsToHarmonyBuildsAndDrops},

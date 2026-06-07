@@ -22,11 +22,13 @@
 - `[`: apply the previous user preset from `profiles\presets`.
 - `]`: apply the next user preset from `profiles\presets`.
 - `K`: save the current look into the app-managed user preset library. Duplicate names receive a numbered `.vizpreset` file instead of overwriting an existing preset.
-- `A`: toggle Auto Scene. When enabled, audio style, BPM, arrangement section, drops, phrase intensity, stereo width, and tonal key confidence adapt mode, palette, hue shift, speed, and intensity. Mode switches add a short beat-synced morph overlay.
+- `A`: toggle Auto Scene. When enabled, audio style, BPM, arrangement section, drops, phrase intensity, stereo width, and tonal key confidence adapt mode, palette, hue shift, 3D depth, color impact, speed, and intensity. Mode switches add a short beat-synced morph overlay.
 - `E`: toggle environment reactivity. When enabled, local time-of-day and pointer-motion context add ambient orbital geometry and color motion.
 - `T`: toggle decaying trails for live display and recorded frames.
 - `C`: cycle palette.
 - `U`: advance the current palette hue shift by one semitone-like color step.
+- `D`: increase the faux-3D depth pass for stronger perspective, parallax, and depth fog.
+- `F`: increase color impact for stronger palette steering, saturation, contrast, and whole-frame tint.
 - `X`: increase geometry complexity for denser procedural forms.
 - `I`: toggle mouse-reactive interaction field.
 - `Q`: toggle adaptive quality.
@@ -39,4 +41,4 @@
 - `F11`: toggle fullscreen.
 - `Esc`: quit.
 
-The on-screen panel mirrors the core controls with clickable buttons and sliders, including source profile reset, previous/next curated look buttons, user preset save/cycle buttons, Auto Scene, Environment, Trails, HUD, interaction, and adaptive quality toggles. Slider drags adjust intensity, speed, hue shift, complexity, and manual quality directly. The HUD includes beat, bar, phrase, and build-tension sync state. On wide windows, the right-side inspector shows the current source, file playback progress, active look, user preset count, style/sync profile files, decoded audio format, and recording folder.
+The on-screen panel mirrors the core controls with clickable buttons and sliders, including source profile reset, previous/next curated look buttons, user preset save/cycle buttons, Auto Scene, Environment, Trails, HUD, interaction, and adaptive quality toggles. Slider drags adjust intensity, speed, hue shift, 3D depth, color impact, complexity, and manual quality directly. The HUD includes beat, bar, phrase, build-tension, depth, and color-impact state. On wide windows, the right-side inspector shows the current source, file playback progress, active look, user preset count, style/sync profile files, decoded audio format, and recording folder.

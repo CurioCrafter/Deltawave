@@ -130,6 +130,14 @@ bool writeShareManifest(const OfflineExportOptions& options,
            << std::clamp(options.settings.hueShift, 0.0f, 1.0f) << ",\n";
     output << "  \"finalHueShift\": " << std::fixed << std::setprecision(3)
            << std::clamp(result.finalHueShift, 0.0f, 1.0f) << ",\n";
+    output << "  \"depth3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.depth3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalDepth3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalDepth3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"colorImpact\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.colorImpact, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalColorImpact\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalColorImpact, 0.0f, 1.0f) << ",\n";
     output << "  \"minimumHueShift\": " << std::fixed << std::setprecision(3)
            << std::clamp(result.minimumHueShift, 0.0f, 1.0f) << ",\n";
     output << "  \"maximumHueShift\": " << std::fixed << std::setprecision(3)
@@ -238,6 +246,10 @@ bool writeSharePage(const OfflineExportOptions& options,
     stat("Palette", std::string(toString(options.settings.palette)));
     stat("Hue Shift", std::to_string(options.settings.hueShift));
     stat("Final Hue Shift", std::to_string(result.finalHueShift));
+    stat("Depth 3D", std::to_string(options.settings.depth3D));
+    stat("Final Depth 3D", std::to_string(result.finalDepth3D));
+    stat("Color Impact", std::to_string(options.settings.colorImpact));
+    stat("Final Color Impact", std::to_string(result.finalColorImpact));
     stat("Complexity", std::to_string(options.settings.complexity));
     stat("Duration", std::to_string(result.durationSeconds) + " sec");
     stat("Frames", std::to_string(result.framesWritten));

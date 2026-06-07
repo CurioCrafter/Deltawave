@@ -198,6 +198,28 @@ ControlPanelLayout buildControlPanelLayout(float width,
             std::clamp(settings.hueShift, 0.0f, 1.0f));
     advance();
     addItem(layout,
+            PanelControl::DepthSlider,
+            innerLeft,
+            y,
+            innerWidth,
+            itemHeight,
+            "Depth 3D",
+            false,
+            true,
+            std::clamp(settings.depth3D, 0.0f, 1.0f));
+    advance();
+    addItem(layout,
+            PanelControl::ColorImpactSlider,
+            innerLeft,
+            y,
+            innerWidth,
+            itemHeight,
+            "Color Impact",
+            false,
+            true,
+            std::clamp(settings.colorImpact, 0.0f, 1.0f));
+    advance();
+    addItem(layout,
             PanelControl::ComplexitySlider,
             innerLeft,
             y,

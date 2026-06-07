@@ -48,6 +48,8 @@ enum class PanelControl {
     IntensitySlider,
     SpeedSlider,
     HueShiftSlider,
+    DepthSlider,
+    ColorImpactSlider,
     ComplexitySlider,
     QualitySlider,
     ToggleHud,

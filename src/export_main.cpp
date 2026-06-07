@@ -36,6 +36,8 @@ void printUsage()
         << "  --trails           Keep decaying geometry trails in frame output\n"
         << "  --no-trails        Render crisp frames with a full background clear each frame\n"
         << "  --hue-shift N      Shift palette hue from 0.0 to 1.0, default 0.0\n"
+        << "  --depth-3d N       Faux-3D perspective/parallax strength from 0.0 flat to 1.0 deep\n"
+        << "  --color-impact N   Palette personality strength from 0.0 subtle to 1.0 intense\n"
         << "  --complexity N     Geometry density from 0.35 sparse to 1.8 dense, default 1.0\n"
         << "  --look NAME        Apply a built-in curated look; use --list-looks to inspect names\n"
         << "  --list-looks       Print built-in curated looks and exit\n"
@@ -54,6 +56,8 @@ void printCuratedLooks()
         std::cout << "  " << preset.name
                   << " | " << viz::toString(preset.settings.mode)
                   << " | " << viz::toString(preset.settings.palette)
+                  << " | depth " << preset.settings.depth3D
+                  << " | color " << preset.settings.colorImpact
                   << " | complexity " << preset.settings.complexity
                   << " | intensity " << preset.settings.intensity
                   << " | speed " << preset.settings.speed
@@ -178,6 +182,14 @@ int main(int argc, char** argv)
             options.settings.hueShift = std::clamp(static_cast<float>(parseDouble(value, options.settings.hueShift)),
                                                    0.0f,
                                                    1.0f);
+        } else if ((arg == "--depth-3d" || arg == "--depth") && nextValue(i, argc, argv, value)) {
+            options.settings.depth3D = std::clamp(static_cast<float>(parseDouble(value, options.settings.depth3D)),
+                                                  0.0f,
+                                                  1.0f);
+        } else if ((arg == "--color-impact" || arg == "--color") && nextValue(i, argc, argv, value)) {
+            options.settings.colorImpact = std::clamp(static_cast<float>(parseDouble(value, options.settings.colorImpact)),
+                                                      0.0f,
+                                                      1.0f);
         } else if (arg == "--complexity" && nextValue(i, argc, argv, value)) {
             options.settings.complexity = std::clamp(static_cast<float>(parseDouble(value, options.settings.complexity)),
                                                      0.35f,

@@ -22,6 +22,8 @@ private:
     Palette currentPalette_ = Palette::NeonVoltage;
     float transitionStrength_ = 0.0f;
     float smoothedHueShift_ = 0.0f;
+    float smoothedDepth3D_ = 0.55f;
+    float smoothedColorImpact_ = 0.65f;
     float smoothedIntensity_ = 1.0f;
     float smoothedSpeed_ = 1.0f;
 

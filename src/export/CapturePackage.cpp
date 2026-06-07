@@ -152,6 +152,14 @@ bool writeManifest(const CapturePackage& package,
            << std::clamp(package.requestedSettings.hueShift, 0.0f, 1.0f) << ",\n";
     output << "  \"finalHueShift\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.finalSettings.hueShift, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedDepth3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.requestedSettings.depth3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalDepth3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.finalSettings.depth3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedColorImpact\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.requestedSettings.colorImpact, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalColorImpact\": " << std::fixed << std::setprecision(3)
+           << std::clamp(package.finalSettings.colorImpact, 0.0f, 1.0f) << ",\n";
     output << "  \"requestedComplexity\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.requestedSettings.complexity, 0.35f, 1.8f) << ",\n";
     output << "  \"finalComplexity\": " << std::fixed << std::setprecision(3)
@@ -253,6 +261,8 @@ bool writePage(const CapturePackage& package,
     stat("Sync Profile", package.syncProfilePath.empty() ? "None" : package.syncProfilePath.filename().string());
     stat("Final Mode", std::string(toString(package.finalSettings.mode)));
     stat("Final Palette", std::string(toString(package.finalSettings.palette)));
+    stat("Depth 3D", std::to_string(package.finalSettings.depth3D));
+    stat("Color Impact", std::to_string(package.finalSettings.colorImpact));
     stat("Complexity", std::to_string(package.finalSettings.complexity));
     stat("Frames", std::to_string(package.framesWritten));
     stat("Preview Frames", std::to_string(preview.previewFramesUsed));

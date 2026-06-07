@@ -130,6 +130,8 @@ private:
     void adjustIntensity(float delta);
     void adjustSpeed(float delta);
     void adjustHueShift(float delta);
+    void adjustDepth3D(float delta);
+    void adjustColorImpact(float delta);
     void adjustComplexity(float delta);
     void updateMouseInteraction(int x, int y, bool pressed);
     EnvironmentState currentEnvironment() const;

@@ -1053,6 +1053,20 @@ void WindowsApp::adjustHueShift(float delta)
     setStatus(hueShiftStatus(settings_.hueShift));
 }
 
+void WindowsApp::adjustDepth3D(float delta)
+{
+    markCustomLook();
+    settings_.depth3D = std::clamp(settings_.depth3D + delta, 0.0f, 1.0f);
+    setStatus(L"3D depth: " + std::to_wstring(static_cast<int>(std::round(settings_.depth3D * 100.0f))) + L"%");
+}
+
+void WindowsApp::adjustColorImpact(float delta)
+{
+    markCustomLook();
+    settings_.colorImpact = std::clamp(settings_.colorImpact + delta, 0.0f, 1.0f);
+    setStatus(L"Color impact: " + std::to_wstring(static_cast<int>(std::round(settings_.colorImpact * 100.0f))) + L"%");
+}
+
 void WindowsApp::adjustComplexity(float delta)
 {
     markCustomLook();
@@ -1243,6 +1257,8 @@ void WindowsApp::applyPanelControl(const PanelItem& item, int x)
     case PanelControl::IntensitySlider:
     case PanelControl::SpeedSlider:
     case PanelControl::HueShiftSlider:
+    case PanelControl::DepthSlider:
+    case PanelControl::ColorImpactSlider:
     case PanelControl::ComplexitySlider:
     case PanelControl::QualitySlider:
         applyPanelSlider(item.control, x);
@@ -1296,6 +1312,12 @@ void WindowsApp::applyPanelSlider(PanelControl control, int x)
         } else if (control == PanelControl::HueShiftSlider) {
             settings_.hueShift = unit;
             setStatus(hueShiftStatus(settings_.hueShift));
+        } else if (control == PanelControl::DepthSlider) {
+            settings_.depth3D = unit;
+            setStatus(L"3D depth: " + std::to_wstring(static_cast<int>(std::round(settings_.depth3D * 100.0f))) + L"%");
+        } else if (control == PanelControl::ColorImpactSlider) {
+            settings_.colorImpact = unit;
+            setStatus(L"Color impact: " + std::to_wstring(static_cast<int>(std::round(settings_.colorImpact * 100.0f))) + L"%");
         } else if (control == PanelControl::ComplexitySlider) {
             settings_.complexity = 0.35f + unit * (1.8f - 0.35f);
             setStatus(L"Complexity: " + std::to_wstring(settings_.complexity));
@@ -1386,6 +1408,12 @@ LRESULT WindowsApp::handleMessage(UINT message, WPARAM wParam, LPARAM lParam)
             return 0;
         case 'U':
             adjustHueShift(1.0f / 12.0f);
+            return 0;
+        case 'D':
+            adjustDepth3D(0.1f);
+            return 0;
+        case 'F':
+            adjustColorImpact(0.1f);
             return 0;
         case 'V':
             resetCurrentAudioProfiles();

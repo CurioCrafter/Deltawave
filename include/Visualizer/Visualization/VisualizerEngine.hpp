@@ -102,6 +102,8 @@ struct VisualSettings {
     VisualMode mode = VisualMode::QuantumTunnel;
     Palette palette = Palette::NeonVoltage;
     float hueShift = 0.0f;
+    float depth3D = 0.55f;
+    float colorImpact = 0.65f;
     float complexity = 1.0f;
     float intensity = 1.0f;
     float speed = 1.0f;

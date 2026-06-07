@@ -39,6 +39,15 @@ ColorRGBA mix(ColorRGBA a, ColorRGBA b, float t)
     };
 }
 
+Vec2 mix(Vec2 a, Vec2 b, float t)
+{
+    t = clamp01(t);
+    return Vec2{
+        a.x + ((b.x - a.x) * t),
+        a.y + ((b.y - a.y) * t)
+    };
+}
+
 Vec2 polar(Vec2 center, float radius, float angle)
 {
     return Vec2{center.x + std::cos(angle) * radius, center.y + std::sin(angle) * radius};
@@ -72,6 +81,16 @@ float qualityOf(const VisualSettings& settings)
 float complexityOf(const VisualSettings& settings)
 {
     return std::clamp(settings.complexity, 0.35f, 1.8f);
+}
+
+float depth3DOf(const VisualSettings& settings)
+{
+    return std::clamp(settings.depth3D, 0.0f, 1.0f);
+}
+
+float colorImpactOf(const VisualSettings& settings)
+{
+    return std::clamp(settings.colorImpact, 0.0f, 1.0f);
 }
 
 float environmentDrive(const VisualSettings& settings, const EnvironmentState& environment)
@@ -138,6 +157,32 @@ ColorRGBA shiftedHue(ColorRGBA color, float shift)
     return hsv(hue + shift, saturation, maximum, color.a);
 }
 
+float luminance(ColorRGBA color)
+{
+    return color.r * 0.2126f + color.g * 0.7152f + color.b * 0.0722f;
+}
+
+ColorRGBA clampColor(ColorRGBA color)
+{
+    color.r = clamp01(color.r);
+    color.g = clamp01(color.g);
+    color.b = clamp01(color.b);
+    color.a = clamp01(color.a);
+    return color;
+}
+
+ColorRGBA gradeColor(ColorRGBA color, float saturation, float contrast, float value)
+{
+    const float luma = luminance(color);
+    color.r = luma + (color.r - luma) * saturation;
+    color.g = luma + (color.g - luma) * saturation;
+    color.b = luma + (color.b - luma) * saturation;
+    color.r = (0.5f + (color.r - 0.5f) * contrast) * value;
+    color.g = (0.5f + (color.g - 0.5f) * contrast) * value;
+    color.b = (0.5f + (color.b - 0.5f) * contrast) * value;
+    return clampColor(color);
+}
+
 std::array<ColorRGBA, 5> shiftedPalette(std::array<ColorRGBA, 5> colors, float shift)
 {
     shift = wrapUnit(shift);
@@ -148,6 +193,56 @@ std::array<ColorRGBA, 5> shiftedPalette(std::array<ColorRGBA, 5> colors, float s
     for (ColorRGBA& color : colors) {
         color = shiftedHue(color, shift);
     }
+    return colors;
+}
+
+std::array<ColorRGBA, 5> personalityPalette(std::array<ColorRGBA, 5> colors,
+                                            const VisualSettings& settings,
+                                            const AudioMetrics& metrics)
+{
+    const float impact = colorImpactOf(settings);
+    const float keyHue = metrics.keyIndex >= 0
+                             ? static_cast<float>((metrics.keyIndex % 12 + 12) % 12) / 12.0f
+                             : 0.0f;
+    const float harmonicSteer = metrics.keyIndex >= 0
+                                    ? metrics.keyConfidence * metrics.harmonicEnergy * keyHue * 0.28f
+                                    : 0.0f;
+    const float phraseSteer = metrics.phraseConfidence * metrics.phrasePhase * 0.08f;
+    const float accentHue = wrapUnit(settings.hueShift +
+                                     harmonicSteer * impact +
+                                     phraseSteer * impact +
+                                     metrics.spectralCentroid * 0.06f +
+                                     metrics.dropIntensity * 0.05f);
+
+    colors = shiftedPalette(colors, settings.hueShift);
+    const float energy = clamp01(metrics.rms * 1.35f +
+                                 metrics.spectralFlux * 0.22f +
+                                 metrics.dropIntensity * 0.28f +
+                                 metrics.buildTension * 0.18f);
+    const float saturation = 1.0f + impact * (0.42f + energy * 0.36f);
+    const float contrast = 1.0f + impact * (0.18f + metrics.beatConfidence * 0.16f + metrics.dropIntensity * 0.16f);
+    const float value = 0.92f + impact * (0.1f + metrics.treble * 0.08f);
+
+    for (std::size_t i = 0; i < colors.size(); ++i) {
+        const float lane = static_cast<float>(i) / static_cast<float>(colors.size());
+        const std::size_t chromaIndex = i * 2U + static_cast<std::size_t>(metrics.keyIndex >= 0 ? metrics.keyIndex : 0);
+        const float chroma = chromaAt(metrics, chromaIndex);
+        const float laneHue = wrapUnit(accentHue + lane * (0.16f + metrics.stereoWidth * 0.08f) + chroma * 0.08f);
+        const float laneSaturation = std::clamp(0.68f + impact * 0.28f + metrics.treble * 0.08f, 0.0f, 1.0f);
+        const float laneValue = std::clamp(0.58f + energy * 0.28f + impact * 0.3f + chroma * 0.1f, 0.0f, 1.0f);
+        const ColorRGBA target = hsv(laneHue, laneSaturation, laneValue, colors[i].a);
+        const float mixAmount = impact * (0.24f + lane * 0.12f + energy * 0.16f);
+        colors[i] = gradeColor(mix(colors[i], target, mixAmount), saturation, contrast, value);
+    }
+
+    const ColorRGBA bassShadow = hsv(wrapUnit(accentHue + 0.5f + metrics.bass * 0.08f),
+                                     0.72f + impact * 0.18f,
+                                     0.10f + metrics.bass * 0.18f + impact * 0.2f,
+                                     1.0f);
+    colors[4] = gradeColor(mix(colors[4], bassShadow, impact * (0.36f + metrics.dropIntensity * 0.18f)),
+                           1.0f + impact * 0.24f,
+                           1.0f + impact * 0.18f,
+                           0.88f + impact * 0.08f);
     return colors;
 }
 
@@ -186,6 +281,142 @@ std::array<ColorRGBA, 5> paletteColors(Palette palette)
                 ColorRGBA{0.02f, 0.04f, 0.12f, 1.0f}};
     }
     return {ColorRGBA{}, ColorRGBA{}, ColorRGBA{}, ColorRGBA{}, ColorRGBA{}};
+}
+
+Vec2 projectDepthPoint(Vec2 point, Vec2 vanishingPoint, Vec2 cameraOffset, float depth, float strength)
+{
+    depth = clamp01(depth);
+    const float perspective = 0.58f + depth * 0.72f;
+    Vec2 projected{
+        vanishingPoint.x + (point.x - vanishingPoint.x) * perspective + cameraOffset.x * (depth - 0.5f),
+        vanishingPoint.y + (point.y - vanishingPoint.y) * perspective + cameraOffset.y * (depth - 0.5f)
+    };
+    return mix(point, projected, strength);
+}
+
+void applyDepthCues(GeometryFrame& frame,
+                    const AudioMetrics& metrics,
+                    const VisualSettings& settings,
+                    const std::array<ColorRGBA, 5>& colors,
+                    float width,
+                    float height,
+                    float speed,
+                    double time)
+{
+    const float settingStrength = depth3DOf(settings);
+    if (settingStrength <= 0.001f) {
+        return;
+    }
+
+    const float beatPulse = metrics.beat ? metrics.beatConfidence : 0.0f;
+    const float musicPush = clamp01(metrics.bass * 0.34f +
+                                    metrics.dropIntensity * 0.38f +
+                                    metrics.buildTension * 0.18f +
+                                    beatPulse * 0.26f);
+    const float strength = std::clamp(settingStrength * (0.72f + musicPush * 0.38f + metrics.stereoWidth * 0.16f),
+                                      0.0f,
+                                      1.0f);
+    const Vec2 center{width * 0.5f, height * 0.5f};
+    const float minimumDimension = std::min(width, height);
+    const float diagonal = std::hypot(width, height);
+    const float cameraPhase = static_cast<float>(time) * speed * (0.22f + metrics.stereoWidth * 0.12f) +
+                              metrics.phrasePhase * kPi * 0.35f;
+    const Vec2 vanishingPoint{
+        center.x + std::cos(cameraPhase) * width * (0.08f + metrics.stereoWidth * 0.08f) * strength,
+        center.y + std::sin(cameraPhase * 0.73f + metrics.buildTension) * height *
+                       (0.06f + metrics.buildTension * 0.08f) * strength
+    };
+    const Vec2 cameraOffset{
+        (center.x - vanishingPoint.x) * 0.46f * strength,
+        (center.y - vanishingPoint.y) * 0.46f * strength
+    };
+
+    const std::size_t originalPolylineCount = frame.polylines.size();
+    const int guideCount = std::max(4, static_cast<int>(std::round(6.0f + strength * 8.0f)));
+    for (int i = 0; i < guideCount; ++i) {
+        const float unit = static_cast<float>(i) / static_cast<float>(guideCount);
+        const float angle = unit * 2.0f * kPi + cameraPhase * 0.24f;
+        const Vec2 far = polar(vanishingPoint, minimumDimension * (0.04f + metrics.treble * 0.04f), angle);
+        const Vec2 middle = polar(center, diagonal * (0.22f + unit * 0.08f), angle + std::sin(cameraPhase + unit) * 0.05f);
+        const Vec2 near = polar(center, diagonal * (0.58f + metrics.bass * 0.08f + strength * 0.06f), angle);
+        frame.polylines.push_back(Polyline{
+            {far, middle, near},
+            0.45f + strength * 0.9f + metrics.beatConfidence * 0.35f,
+            withAlpha(colors[i % 4], (0.035f + musicPush * 0.05f) * strength),
+            false
+        });
+    }
+
+    const int shellCount = std::max(3, static_cast<int>(std::round(3.0f + strength * 4.0f)));
+    for (int i = 0; i < shellCount; ++i) {
+        const float unit = static_cast<float>(i + 1) / static_cast<float>(shellCount + 1);
+        frame.rings.push_back(Ring{
+            projectDepthPoint(center, vanishingPoint, cameraOffset, unit, strength),
+            minimumDimension * (0.08f + unit * 0.34f) * (0.78f + unit * 0.32f + musicPush * 0.12f),
+            4 + (i % 5),
+            cameraPhase * (0.3f + unit * 0.5f),
+            0.45f + unit * 1.1f,
+            withAlpha(colors[(i + 1) % 4], (0.035f + unit * 0.055f + musicPush * 0.04f) * strength)
+        });
+    }
+
+    for (std::size_t i = 0; i < frame.rings.size(); ++i) {
+        Ring& ring = frame.rings[i];
+        const float radiusDepth = clamp01(ring.radius / std::max(1.0f, diagonal * 0.48f));
+        const float layer = clamp01(radiusDepth * 0.78f +
+                                    (static_cast<float>(i % 9U) / 8.0f) * 0.22f +
+                                    musicPush * 0.14f);
+        ring.center = projectDepthPoint(ring.center, vanishingPoint, cameraOffset, layer, strength);
+        ring.radius *= 1.0f + strength * (-0.24f + layer * 0.56f + metrics.bass * 0.1f);
+        ring.strokeWidth *= 1.0f + strength * (-0.28f + layer * 0.64f + beatPulse * 0.14f);
+        ring.rotation += (layer - 0.5f) * strength * (0.45f + metrics.stereoWidth * 0.35f);
+        ring.color.a = clamp01(ring.color.a * (0.5f + layer * 0.78f + musicPush * 0.16f));
+    }
+
+    for (std::size_t i = 0; i < frame.particles.size(); ++i) {
+        Particle& particle = frame.particles[i];
+        const float dx = particle.position.x - center.x;
+        const float dy = particle.position.y - center.y;
+        const float radial = std::sqrt(dx * dx + dy * dy) / std::max(1.0f, diagonal * 0.5f);
+        const float layer = clamp01(radial * 0.62f +
+                                    (static_cast<float>(i % 11U) / 10.0f) * 0.32f +
+                                    metrics.treble * 0.1f +
+                                    musicPush * 0.08f);
+        particle.position = projectDepthPoint(particle.position, vanishingPoint, cameraOffset, layer, strength);
+        particle.radius *= 1.0f + strength * (-0.32f + layer * 0.92f + metrics.treble * 0.08f);
+        particle.color.a = clamp01(particle.color.a * (0.42f + layer * 0.92f + metrics.spectralFlux * 0.12f));
+    }
+
+    for (std::size_t i = 0; i < frame.polylines.size(); ++i) {
+        Polyline& polyline = frame.polylines[i];
+        const bool guideLine = i >= originalPolylineCount;
+        const float lane = static_cast<float>(i % 13U) / 12.0f;
+        for (Vec2& point : polyline.points) {
+            const float dx = point.x - center.x;
+            const float dy = point.y - center.y;
+            const float radial = std::sqrt(dx * dx + dy * dy) / std::max(1.0f, diagonal * 0.5f);
+            const float layer = clamp01(radial * 0.54f + lane * 0.36f + metrics.stereoWidth * 0.08f + musicPush * 0.08f);
+            point = projectDepthPoint(point, vanishingPoint, cameraOffset, layer, guideLine ? strength * 0.45f : strength);
+        }
+        polyline.strokeWidth *= 1.0f + strength * (-0.18f + lane * 0.36f + musicPush * 0.08f);
+        polyline.color.a = clamp01(polyline.color.a * (guideLine ? 1.0f : (0.58f + lane * 0.62f + musicPush * 0.16f)));
+    }
+
+    for (std::size_t i = 0; i < frame.beams.size(); ++i) {
+        Beam& beam = frame.beams[i];
+        const float layer = clamp01(static_cast<float>(i % 12U) / 11.0f + musicPush * 0.12f);
+        beam.angle += (layer - 0.5f) * strength * (0.12f + metrics.stereoWidth * 0.16f);
+        beam.length *= 1.0f + strength * (-0.18f + layer * 0.48f + metrics.bass * 0.12f);
+        beam.width *= 1.0f + strength * (-0.22f + layer * 0.58f + beatPulse * 0.12f);
+        beam.color.a = clamp01(beam.color.a * (0.52f + layer * 0.72f + metrics.dropIntensity * 0.18f));
+    }
+
+    std::stable_sort(frame.rings.begin(), frame.rings.end(), [](const Ring& left, const Ring& right) {
+        return left.radius < right.radius;
+    });
+    std::stable_sort(frame.particles.begin(), frame.particles.end(), [](const Particle& left, const Particle& right) {
+        return left.radius < right.radius;
+    });
 }
 
 void addQuantumTunnel(GeometryFrame& frame,
@@ -2205,7 +2436,7 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
                                            double timeSeconds) const
 {
     GeometryFrame frame;
-    const auto colors = shiftedPalette(paletteColors(settings.palette), settings.hueShift);
+    const auto colors = personalityPalette(paletteColors(settings.palette), settings, metrics);
     const float intensity = std::clamp(settings.intensity, 0.15f, 4.0f);
     const float speed = std::clamp(settings.speed, 0.1f, 4.0f);
     const float quality = qualityOf(settings);
@@ -2307,6 +2538,8 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
     if (settings.interactiveField) {
         bendTowardInteraction(frame, interaction, width, height, intensity, colors);
     }
+
+    applyDepthCues(frame, metrics, settings, colors, width, height, speed, timeSeconds);
 
     return frame;
 }

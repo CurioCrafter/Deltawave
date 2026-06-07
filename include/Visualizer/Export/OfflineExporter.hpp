@@ -51,6 +51,8 @@ struct OfflineExportResult {
     float peakRms = 0.0f;
     float estimatedBpm = 0.0f;
     float finalHueShift = 0.0f;
+    float finalDepth3D = 0.0f;
+    float finalColorImpact = 0.0f;
     float minimumHueShift = 1.0f;
     float maximumHueShift = 0.0f;
     float keyConfidence = 0.0f;

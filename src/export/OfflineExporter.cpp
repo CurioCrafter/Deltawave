@@ -82,6 +82,14 @@ bool writeManifest(const OfflineExportOptions& options,
            << std::clamp(options.settings.hueShift, 0.0f, 1.0f) << "\n";
     output << "finalHueShift=" << std::fixed << std::setprecision(3)
            << std::clamp(result.finalHueShift, 0.0f, 1.0f) << "\n";
+    output << "depth3D=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.depth3D, 0.0f, 1.0f) << "\n";
+    output << "finalDepth3D=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalDepth3D, 0.0f, 1.0f) << "\n";
+    output << "colorImpact=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.colorImpact, 0.0f, 1.0f) << "\n";
+    output << "finalColorImpact=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalColorImpact, 0.0f, 1.0f) << "\n";
     output << "minimumHueShift=" << std::fixed << std::setprecision(3)
            << std::clamp(result.minimumHueShift, 0.0f, 1.0f) << "\n";
     output << "maximumHueShift=" << std::fixed << std::setprecision(3)
@@ -273,6 +281,8 @@ bool exportAudioToFrames(const OfflineExportOptions& options,
 
         result.peakRms = std::max(result.peakRms, metrics.rms);
         result.finalHueShift = renderSettings.hueShift;
+        result.finalDepth3D = renderSettings.depth3D;
+        result.finalColorImpact = renderSettings.colorImpact;
         result.minimumHueShift = std::min(result.minimumHueShift, renderSettings.hueShift);
         result.maximumHueShift = std::max(result.maximumHueShift, renderSettings.hueShift);
         if (metrics.beat) {

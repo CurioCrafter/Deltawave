@@ -241,6 +241,10 @@ bool writeManifest(const BatchExportOptions& options,
     output << "  \"look\": \"" << escapeJson(options.lookName.empty() ? "Custom" : options.lookName) << "\",\n";
     output << "  \"mode\": \"" << escapeJson(std::string(toString(options.settings.mode))) << "\",\n";
     output << "  \"palette\": \"" << escapeJson(std::string(toString(options.settings.palette))) << "\",\n";
+    output << "  \"depth3D\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.depth3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"colorImpact\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.colorImpact, 0.0f, 1.0f) << ",\n";
     output << "  \"width\": " << options.width << ",\n";
     output << "  \"height\": " << options.height << ",\n";
     output << "  \"frameRate\": " << options.frameRate << ",\n";
@@ -352,6 +356,8 @@ bool writeIndex(const BatchExportOptions& options,
            << " discovered audio files from <code>" << escapeHtml(slashPath(inputRoot)) << "</code>.</p>\n";
     output << "<p>Look: " << escapeHtml(options.lookName.empty() ? "Custom" : options.lookName)
            << " | Mode: " << escapeHtml(std::string(toString(options.settings.mode)))
+           << " | Depth: " << escapeHtml(formatFloat(options.settings.depth3D, 2))
+           << " | Color: " << escapeHtml(formatFloat(options.settings.colorImpact, 2))
            << " | Resolution: " << options.width << " x " << options.height
            << " | FPS: " << options.frameRate << "</p>\n";
     output << "<p><a href=\"batch_manifest.json\">batch_manifest.json</a> contains machine-readable export metadata.</p>\n";
