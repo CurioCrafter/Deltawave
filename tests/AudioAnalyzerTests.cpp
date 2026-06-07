@@ -1,0 +1,498 @@
+#include "TestHarness.hpp"
+#include "Visualizer/Audio/AdaptiveStyleModel.hpp"
+#include "Visualizer/Audio/AudioAnalyzer.hpp"
+#include "Visualizer/Audio/AudioFileLoader.hpp"
+#include "Visualizer/Audio/AudioSyncProfile.hpp"
+#include "Visualizer/Audio/WavFile.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <vector>
+
+namespace viz::tests {
+namespace {
+
+constexpr float kPi = 3.14159265358979323846f;
+
+void writeU16(std::ofstream& output, std::uint16_t value)
+{
+    output.put(static_cast<char>(value & 0xFFU));
+    output.put(static_cast<char>((value >> 8U) & 0xFFU));
+}
+
+void writeU32(std::ofstream& output, std::uint32_t value)
+{
+    output.put(static_cast<char>(value & 0xFFU));
+    output.put(static_cast<char>((value >> 8U) & 0xFFU));
+    output.put(static_cast<char>((value >> 16U) & 0xFFU));
+    output.put(static_cast<char>((value >> 24U) & 0xFFU));
+}
+
+void writeTestWav(const std::filesystem::path& path)
+{
+    constexpr int sampleRate = 48000;
+    constexpr int channels = 2;
+    constexpr int frames = 4800;
+    constexpr int bits = 16;
+    constexpr int blockAlign = channels * bits / 8;
+    constexpr int dataBytes = frames * blockAlign;
+
+    std::ofstream output(path, std::ios::binary);
+    output.write("RIFF", 4);
+    writeU32(output, 36U + static_cast<std::uint32_t>(dataBytes));
+    output.write("WAVE", 4);
+    output.write("fmt ", 4);
+    writeU32(output, 16);
+    writeU16(output, 1);
+    writeU16(output, channels);
+    writeU32(output, sampleRate);
+    writeU32(output, sampleRate * blockAlign);
+    writeU16(output, blockAlign);
+    writeU16(output, bits);
+    output.write("data", 4);
+    writeU32(output, dataBytes);
+
+    for (int i = 0; i < frames; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(sampleRate);
+        const auto left = static_cast<std::int16_t>(std::sin(2.0f * kPi * 110.0f * t) * 18000.0f);
+        const auto right = static_cast<std::int16_t>(std::sin(2.0f * kPi * 880.0f * t) * 12000.0f);
+        writeU16(output, static_cast<std::uint16_t>(left));
+        writeU16(output, static_cast<std::uint16_t>(right));
+    }
+}
+
+} // namespace
+
+void analyzerReportsSilence()
+{
+    AudioAnalyzer analyzer(48000, 2);
+    std::vector<float> silence(2048 * 2, 0.0f);
+    const AudioMetrics metrics = analyzer.analyzeInterleaved(silence.data(), 2048, 0.0);
+    require(metrics.rms == 0.0f, "silence RMS should be zero");
+    require(metrics.peak == 0.0f, "silence peak should be zero");
+    require(metrics.style == AudioStyle::Silence, "silence style should be Silence");
+}
+
+void analyzerFindsBassAndStereo()
+{
+    AudioAnalyzer analyzer(48000, 2);
+    std::vector<float> samples(4096 * 2, 0.0f);
+    for (int i = 0; i < 4096; ++i) {
+        const float t = static_cast<float>(i) / 48000.0f;
+        samples[static_cast<std::size_t>(i) * 2U] = std::sin(2.0f * kPi * 95.0f * t) * 0.55f;
+        samples[(static_cast<std::size_t>(i) * 2U) + 1U] = std::sin(2.0f * kPi * 1800.0f * t) * 0.35f;
+    }
+
+    const AudioMetrics metrics = analyzer.analyzeInterleaved(samples.data(), 4096, 0.2);
+    require(metrics.rms > 0.1f, "tone should produce RMS energy");
+    require(metrics.peak > 0.45f, "tone should produce peak energy");
+    require(metrics.bass > 0.05f, "low tone should appear in bass band");
+    require(metrics.stereoWidth > 0.1f, "different left/right tones should produce stereo width");
+}
+
+void analyzerDetectsChromaAndKey()
+{
+    AudioAnalyzer analyzer(48000, 2);
+    std::vector<float> samples(8192 * 2, 0.0f);
+    constexpr float cBinHz = 1048.4280f;
+    constexpr float eBinHz = 1284.4994f;
+    constexpr float gBinHz = 1573.7262f;
+    for (int i = 0; i < 8192; ++i) {
+        const float t = static_cast<float>(i) / 48000.0f;
+        const float chord = (std::sin(2.0f * kPi * cBinHz * t) * 0.34f) +
+                            (std::sin(2.0f * kPi * eBinHz * t) * 0.28f) +
+                            (std::sin(2.0f * kPi * gBinHz * t) * 0.31f);
+        samples[static_cast<std::size_t>(i) * 2U] = chord;
+        samples[(static_cast<std::size_t>(i) * 2U) + 1U] = chord;
+    }
+
+    analyzer.analyzeInterleaved(samples.data(), 8192, 0.4);
+    const AudioMetrics metrics = analyzer.analyzeInterleaved(samples.data(), 8192, 0.6);
+    require(metrics.harmonicEnergy > 0.1f, "tonal chord should produce harmonic energy");
+    require(metrics.keyIndex == 0,
+            "C-major chord should detect C as the key root, got " + std::string(keyName(metrics.keyIndex)));
+    require(metrics.keyMode == MusicalMode::Major,
+            "major chord should detect major mode, got " + std::string(toString(metrics.keyMode)));
+    require(metrics.keyConfidence > 0.1f, "detected key should have usable confidence");
+    require(metrics.chroma[0] > 0.02f && metrics.chroma[4] > 0.02f && metrics.chroma[7] > 0.02f,
+            "C, E, and G chroma bins should be active");
+}
+
+void wavLoaderReadsGeneratedPcm()
+{
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "visualizer_test.wav";
+    writeTestWav(path);
+    std::string error;
+    const std::optional<WavAudio> wav = loadWavFile(path, error);
+    std::filesystem::remove(path);
+
+    require(wav.has_value(), "generated WAV should load: " + error);
+    require(wav->sampleRate == 48000, "sample rate should round-trip");
+    require(wav->channelCount == 2, "channel count should round-trip");
+    require(wav->bitsPerSample == 16, "bit depth should round-trip");
+    require(wav->samples.size() == 4800U * 2U, "sample count should match generated WAV");
+    require(wav->durationSeconds > 0.09 && wav->durationSeconds < 0.11, "duration should be near 0.1s");
+}
+
+void audioFileLoaderReadsGeneratedWav()
+{
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "visualizer_test_loader.WAVE";
+    writeTestWav(path);
+    std::string error;
+    const std::optional<WavAudio> audio = loadAudioFile(path, error, AudioLoadOptions{false});
+    std::filesystem::remove(path);
+
+    require(isLikelyWavFile(path), "loader should recognize WAV-style extensions case-insensitively");
+    require(audio.has_value(), "audio-file loader should load generated WAV through portable fallback: " + error);
+    require(audio->sampleRate == 48000, "audio loader should preserve sample rate");
+    require(audio->channelCount == 2, "audio loader should preserve channels");
+    require(audio->samples.size() == 4800U * 2U, "audio loader sample count should match generated WAV");
+}
+
+void adaptiveStyleModelPredictsTechno()
+{
+    AudioMetrics metrics{};
+    metrics.rms = 0.45f;
+    metrics.peak = 0.9f;
+    metrics.bass = 0.76f;
+    metrics.lowMid = 0.58f;
+    metrics.mid = 0.35f;
+    metrics.highMid = 0.42f;
+    metrics.treble = 0.4f;
+    metrics.spectralCentroid = 0.31f;
+    metrics.stereoWidth = 0.24f;
+    metrics.onset = 0.12f;
+    metrics.beatConfidence = 0.8f;
+    metrics.bpm = 128.0f;
+
+    AdaptiveStyleModel model;
+    const StylePrediction prediction = model.predict(metrics);
+    require(prediction.style == AudioStyle::Techno, "techno feature vector should classify as Techno");
+    require(prediction.confidence > 0.35f, "techno prediction should have useful confidence");
+}
+
+void adaptiveStyleModelPersistsProfile()
+{
+    AudioMetrics wide{};
+    wide.rms = 0.34f;
+    wide.peak = 0.76f;
+    wide.bass = 0.28f;
+    wide.lowMid = 0.36f;
+    wide.mid = 0.42f;
+    wide.highMid = 0.5f;
+    wide.treble = 0.52f;
+    wide.spectralCentroid = 0.44f;
+    wide.stereoWidth = 0.88f;
+    wide.onset = 0.08f;
+    wide.beatConfidence = 0.38f;
+    wide.bpm = 124.0f;
+
+    AdaptiveStyleModel model;
+    for (int i = 0; i < 18; ++i) {
+        model.learn(wide, AudioStyle::Wide, 0.92f);
+    }
+    require(model.learnedWeight(AudioStyle::Wide) > 0.4f, "wide centroid should accumulate learned weight");
+
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "visualizer_style_profile_test";
+    const std::filesystem::path profile = root / "adaptive_style_profile.vizaudio";
+    std::filesystem::remove_all(root);
+
+    std::string error;
+    require(model.saveProfile(profile, error), "style profile should save: " + error);
+    require(std::filesystem::exists(profile), "style profile file should exist");
+
+    AdaptiveStyleModel loaded;
+    require(loaded.loadProfile(profile, error), "style profile should load: " + error);
+    require(loaded.learnedWeight(AudioStyle::Wide) > 0.4f, "loaded profile should preserve learned weight");
+    const StylePrediction prediction = loaded.predict(wide);
+    require(prediction.style == AudioStyle::Wide, "loaded profile should preserve adapted wide classification");
+
+    const std::filesystem::path invalid = root / "invalid.vizaudio";
+    {
+        std::ofstream output(invalid);
+        output << "style=Wide\nfeatures=bad-data\nlearnedWeight=0.9\n";
+    }
+    const float beforeInvalid = loaded.learnedWeight(AudioStyle::Wide);
+    require(!loaded.loadProfile(invalid, error), "invalid style profile should fail to load");
+    require(std::fabs(loaded.learnedWeight(AudioStyle::Wide) - beforeInvalid) < 0.001f,
+            "invalid profile load should not replace the current model");
+
+    std::filesystem::remove_all(root);
+}
+
+void audioAnalyzerLoadsAndSavesStyleProfile()
+{
+    AudioMetrics bright{};
+    bright.rms = 0.28f;
+    bright.peak = 0.68f;
+    bright.bass = 0.16f;
+    bright.lowMid = 0.22f;
+    bright.mid = 0.38f;
+    bright.highMid = 0.78f;
+    bright.treble = 0.9f;
+    bright.spectralCentroid = 0.74f;
+    bright.stereoWidth = 0.24f;
+    bright.onset = 0.08f;
+    bright.beatConfidence = 0.25f;
+    bright.bpm = 116.0f;
+
+    AdaptiveStyleModel sourceModel;
+    for (int i = 0; i < 20; ++i) {
+        sourceModel.learn(bright, AudioStyle::Bright, 0.95f);
+    }
+
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "visualizer_analyzer_profile_test";
+    const std::filesystem::path profile = root / "profile.vizaudio";
+    std::filesystem::remove_all(root);
+
+    std::string error;
+    require(sourceModel.saveProfile(profile, error), "source style profile should save: " + error);
+
+    AudioAnalyzer analyzer(48000, 2);
+    require(analyzer.loadStyleProfile(profile, error), "analyzer should load style profile: " + error);
+    require(analyzer.learnedStyleWeight(AudioStyle::Bright) > 0.45f,
+            "analyzer should expose loaded learned weight");
+    analyzer.reset();
+    require(analyzer.learnedStyleWeight(AudioStyle::Bright) > 0.45f,
+            "audio reset should preserve learned style profile");
+
+    const std::filesystem::path saved = root / "saved.vizaudio";
+    require(analyzer.saveStyleProfile(saved, error), "analyzer should save style profile: " + error);
+    require(std::filesystem::exists(saved), "saved analyzer style profile should exist");
+
+    analyzer.resetStyleProfile();
+    require(analyzer.learnedStyleWeight(AudioStyle::Bright) < 0.01f,
+            "explicit profile reset should clear learned weight");
+
+    std::filesystem::remove_all(root);
+}
+
+void audioSyncProfilePersistsSensitivity()
+{
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "visualizer_sync_profile_test";
+    const std::filesystem::path profilePath = root / "adaptive_sync_profile.vizsync";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    {
+        std::ofstream output(profilePath);
+        output << "# test sync profile\n";
+        output << "beatSensitivity=1.280\n";
+        output << "sectionSensitivity=1.160\n";
+        output << "learnedWeight=0.420\n";
+    }
+
+    std::string error;
+    AudioSyncProfile profile;
+    require(profile.loadProfile(profilePath, error), "sync profile should load: " + error);
+    require(profile.beatSensitivity() > 1.27f && profile.beatSensitivity() < 1.29f,
+            "loaded sync profile should preserve beat sensitivity");
+    require(profile.sectionSensitivity() > 1.15f && profile.sectionSensitivity() < 1.17f,
+            "loaded sync profile should preserve section sensitivity");
+    require(profile.learnedWeight() > 0.41f && profile.learnedWeight() < 0.43f,
+            "loaded sync profile should preserve learned weight");
+    require(profile.beatThresholdScale() < 0.79f,
+            "higher beat sensitivity should lower the effective beat threshold");
+
+    const std::filesystem::path savedPath = root / "saved.vizsync";
+    require(profile.saveProfile(savedPath, error), "sync profile should save: " + error);
+    AudioSyncProfile reloaded;
+    require(reloaded.loadProfile(savedPath, error), "saved sync profile should reload: " + error);
+    require(std::fabs(reloaded.sectionSensitivity() - profile.sectionSensitivity()) < 0.001f,
+            "saved sync profile should round-trip section sensitivity");
+
+    const std::filesystem::path invalidPath = root / "invalid.vizsync";
+    {
+        std::ofstream output(invalidPath);
+        output << "beatSensitivity=bad\nsectionSensitivity=1.0\nlearnedWeight=0.2\n";
+    }
+    const float beforeInvalid = reloaded.beatSensitivity();
+    require(!reloaded.loadProfile(invalidPath, error), "invalid sync profile should fail to load");
+    require(std::fabs(reloaded.beatSensitivity() - beforeInvalid) < 0.001f,
+            "invalid sync profile load should not replace current calibration");
+
+    std::filesystem::remove_all(root);
+}
+
+void audioAnalyzerLoadsAndSavesSyncProfile()
+{
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "visualizer_analyzer_sync_profile_test";
+    const std::filesystem::path profilePath = root / "source.vizsync";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    {
+        std::ofstream output(profilePath);
+        output << "beatSensitivity=1.180\n";
+        output << "sectionSensitivity=0.920\n";
+        output << "learnedWeight=0.360\n";
+    }
+
+    std::string error;
+    AudioAnalyzer analyzer(48000, 2);
+    require(analyzer.loadSyncProfile(profilePath, error), "analyzer should load sync profile: " + error);
+    require(analyzer.beatSensitivity() > 1.17f && analyzer.beatSensitivity() < 1.19f,
+            "analyzer should expose loaded beat sensitivity");
+    require(analyzer.sectionSensitivity() > 0.91f && analyzer.sectionSensitivity() < 0.93f,
+            "analyzer should expose loaded section sensitivity");
+    analyzer.reset();
+    require(analyzer.beatSensitivity() > 1.17f && analyzer.beatSensitivity() < 1.19f,
+            "audio reset should preserve sync profile calibration");
+
+    std::vector<float> samples(2048 * 2, 0.0f);
+    for (int i = 0; i < 2048; ++i) {
+        const float t = static_cast<float>(i) / 48000.0f;
+        const float low = std::sin(2.0f * kPi * 96.0f * t) * 0.42f;
+        samples[static_cast<std::size_t>(i) * 2U] = low;
+        samples[(static_cast<std::size_t>(i) * 2U) + 1U] = low;
+    }
+    const AudioMetrics metrics = analyzer.analyzeInterleaved(samples.data(), 2048, 0.1);
+    require(metrics.beatSensitivity > 1.17f && metrics.beatSensitivity < 1.19f,
+            "analyzer metrics should expose active beat sensitivity for the HUD");
+    require(metrics.sectionSensitivity > 0.91f && metrics.sectionSensitivity < 0.93f,
+            "analyzer metrics should expose active section sensitivity for the HUD");
+
+    const std::filesystem::path savedPath = root / "saved.vizsync";
+    require(analyzer.saveSyncProfile(savedPath, error), "analyzer should save sync profile: " + error);
+    require(std::filesystem::exists(savedPath), "saved analyzer sync profile should exist");
+
+    analyzer.resetSyncProfile();
+    require(analyzer.syncProfileLearnedWeight() < 0.01f,
+            "explicit sync profile reset should clear learned sync weight");
+    require(std::fabs(analyzer.beatSensitivity() - 1.0f) < 0.001f,
+            "explicit sync profile reset should restore default beat sensitivity");
+
+    std::filesystem::remove_all(root);
+}
+
+void analyzerReportsAdvancedSyncMetrics()
+{
+    AudioAnalyzer analyzer(48000, 2);
+    std::vector<float> silence(2048 * 2, 0.0f);
+    for (int i = 0; i < 30; ++i) {
+        analyzer.analyzeInterleaved(silence.data(), 2048, static_cast<double>(i) * 0.05);
+    }
+
+    std::vector<float> burst(4096 * 2, 0.0f);
+    for (int i = 0; i < 4096; ++i) {
+        const float t = static_cast<float>(i) / 48000.0f;
+        const float low = std::sin(2.0f * kPi * 92.0f * t) * 0.82f;
+        const float high = std::sin(2.0f * kPi * 4200.0f * t) * 0.26f;
+        burst[static_cast<std::size_t>(i) * 2U] = low + high;
+        burst[(static_cast<std::size_t>(i) * 2U) + 1U] = low - high;
+    }
+
+    const AudioMetrics metrics = analyzer.analyzeInterleaved(burst.data(), 4096, 1.6);
+    require(metrics.spectralFlux > 0.02f, "burst should produce spectral flux");
+    require(metrics.bandOnsets[0] > 0.05f, "bass burst should produce a bass-band onset");
+    require(metrics.dropIntensity > 0.05f, "burst after quiet history should produce drop intensity");
+    require(metrics.phraseIntensity >= 0.0f && metrics.phraseIntensity <= 1.0f, "phrase intensity should be normalized");
+    require(metrics.beatPhase >= 0.0f && metrics.beatPhase <= 1.0f, "beat phase should be normalized");
+    require(metrics.barPhase >= 0.0f && metrics.barPhase <= 1.0f, "bar phase should be normalized");
+    require(metrics.barConfidence >= 0.0f && metrics.barConfidence <= 1.0f, "bar confidence should be normalized");
+    require(metrics.downbeatConfidence >= 0.0f && metrics.downbeatConfidence <= 1.0f,
+            "downbeat confidence should be normalized");
+    require(metrics.phrasePhase >= 0.0f && metrics.phrasePhase <= 1.0f,
+            "phrase phase should be normalized");
+    require(metrics.phraseConfidence >= 0.0f && metrics.phraseConfidence <= 1.0f,
+            "phrase confidence should be normalized");
+    require(metrics.buildTension >= 0.0f && metrics.buildTension <= 1.0f,
+            "build tension should be normalized");
+}
+
+void analyzerTracksBarPhaseAndDownbeats()
+{
+    AudioAnalyzer analyzer(48000, 2);
+    std::vector<float> silence(2048 * 2, 0.0f);
+    for (int i = 0; i < 30; ++i) {
+        analyzer.analyzeInterleaved(silence.data(), 2048, static_cast<double>(i) * 0.05);
+    }
+
+    std::vector<float> burst(4096 * 2, 0.0f);
+    bool sawBeat = false;
+    bool sawDownbeat = false;
+    bool sawPhraseBoundary = false;
+    float bestBarConfidence = 0.0f;
+    float bestPhraseConfidence = 0.0f;
+    float bestBuildTension = 0.0f;
+    for (int beat = 0; beat < 10; ++beat) {
+        analyzer.analyzeInterleaved(silence.data(), 2048, 1.0 + static_cast<double>(beat) * 0.5 - 0.08);
+        for (int i = 0; i < 4096; ++i) {
+            const float t = static_cast<float>(beat * 4096 + i) / 48000.0f;
+            const float low = std::sin(2.0f * kPi * 88.0f * t) * 0.92f;
+            const float click = (i < 320 ? 0.42f : 0.0f) * std::sin(2.0f * kPi * 1800.0f * t);
+            burst[static_cast<std::size_t>(i) * 2U] = low + click;
+            burst[(static_cast<std::size_t>(i) * 2U) + 1U] = low - click * 0.45f;
+        }
+
+        const AudioMetrics metrics = analyzer.analyzeInterleaved(burst.data(), 4096, 1.0 + static_cast<double>(beat) * 0.5);
+        sawBeat = sawBeat || metrics.beat;
+        sawDownbeat = sawDownbeat || metrics.downbeat;
+        sawPhraseBoundary = sawPhraseBoundary || metrics.phraseBoundary;
+        bestBarConfidence = std::max(bestBarConfidence, metrics.barConfidence);
+        bestPhraseConfidence = std::max(bestPhraseConfidence, metrics.phraseConfidence);
+        bestBuildTension = std::max(bestBuildTension, metrics.buildTension);
+        require(metrics.barPhase >= 0.0f && metrics.barPhase <= 1.0f, "tracked bar phase should stay normalized");
+        require(metrics.phrasePhase >= 0.0f && metrics.phrasePhase <= 1.0f,
+                "tracked phrase phase should stay normalized");
+    }
+
+    require(sawBeat, "repeated low-frequency pulses should produce beat events");
+    require(sawDownbeat, "bar tracker should mark at least one downbeat");
+    require(sawPhraseBoundary, "phrase tracker should mark at least one phrase boundary");
+    require(bestBarConfidence > 0.15f, "bar tracker should accumulate usable confidence");
+    require(bestPhraseConfidence > 0.08f, "phrase tracker should accumulate usable confidence");
+    require(bestBuildTension >= 0.0f && bestBuildTension <= 1.0f,
+            "phrase tracker should keep build tension normalized");
+}
+
+void analyzerDetectsArrangementSections()
+{
+    AudioAnalyzer analyzer(48000, 2);
+    std::vector<float> silence(2048 * 2, 0.0f);
+    AudioMetrics metrics;
+    for (int i = 0; i < 30; ++i) {
+        metrics = analyzer.analyzeInterleaved(silence.data(), 2048, static_cast<double>(i) * 0.05);
+    }
+    require(metrics.section == ArrangementSection::Silence, "silence should report the Silence section");
+    require(metrics.sectionConfidence > 0.9f, "silence section confidence should be high");
+
+    std::vector<float> groove(2048 * 2, 0.0f);
+    for (int frame = 0; frame < 24; ++frame) {
+        for (int i = 0; i < 2048; ++i) {
+            const float t = static_cast<float>(frame * 2048 + i) / 48000.0f;
+            const float low = std::sin(2.0f * kPi * 118.0f * t) * 0.18f;
+            const float mid = std::sin(2.0f * kPi * 880.0f * t) * 0.06f;
+            groove[static_cast<std::size_t>(i) * 2U] = low + mid;
+            groove[(static_cast<std::size_t>(i) * 2U) + 1U] = low - mid * 0.4f;
+        }
+        metrics = analyzer.analyzeInterleaved(groove.data(), 2048, 1.5 + static_cast<double>(frame) * 0.05);
+    }
+    require(metrics.section == ArrangementSection::Groove || metrics.section == ArrangementSection::Build,
+            "steady musical content should leave silence for a musical section");
+    require(metrics.sectionProgress >= 0.0f && metrics.sectionProgress <= 1.0f,
+            "section progress should be normalized");
+    require(metrics.phraseConfidence >= 0.0f && metrics.phraseConfidence <= 1.0f,
+            "section analysis should keep phrase confidence normalized");
+    require(metrics.buildTension >= 0.0f && metrics.buildTension <= 1.0f,
+            "section analysis should keep build tension normalized");
+
+    std::vector<float> burst(4096 * 2, 0.0f);
+    for (int i = 0; i < 4096; ++i) {
+        const float t = static_cast<float>(i) / 48000.0f;
+        const float low = std::sin(2.0f * kPi * 92.0f * t) * 0.86f;
+        const float high = std::sin(2.0f * kPi * 5100.0f * t) * 0.34f;
+        burst[static_cast<std::size_t>(i) * 2U] = low + high;
+        burst[(static_cast<std::size_t>(i) * 2U) + 1U] = low - high;
+    }
+    metrics = analyzer.analyzeInterleaved(burst.data(), 4096, 3.2);
+    require(metrics.section == ArrangementSection::Drop || metrics.dropIntensity > 0.35f,
+            "large lift after established history should report a drop-like section");
+    require(metrics.sectionConfidence > 0.25f, "detected section should carry confidence");
+}
+
+} // namespace viz::tests

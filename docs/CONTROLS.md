@@ -1,0 +1,42 @@
+# Controls
+
+- `O`: open an audio file.
+- Drag/drop audio: load and play the dropped file.
+- `L`: stop file playback and return to live loopback.
+- `V`: reset the current source's adaptive audio AI profile. This clears learned style and beat/section sync sensitivity for the active loopback or loaded audio file.
+- `1`: Quantum Tunnel.
+- `2`: Techno Mandala.
+- `3`: Lissajous Mesh.
+- `4`: Frequency Bloom.
+- `5`: Fractal Cathedral.
+- `6`: Polyrhythm Lattice.
+- `7`: Spectral Origami.
+- `8`: Chroma Kaleidoscope.
+- `9`: Hyperspace Polytope.
+- `0`: Phase Weave.
+- `M`: Resonance Tessellation.
+- `Y`: Neural Constellation.
+- `Z`: Cymatic Interference.
+- `B`: apply the previous built-in curated look.
+- `N`: apply the next built-in curated look. Built-in looks include Warehouse Strobe, Acid Geometry, 4D Hyperspace, Harmonic Glass, Fractal Cathedral, Breakbeat Origami, Deep Bloom, Phase Weave, Stereo Loom, Resonance Tessellation, Neural Constellation, Cymatic Interference, and Auto DJ Director.
+- `[`: apply the previous user preset from `profiles\presets`.
+- `]`: apply the next user preset from `profiles\presets`.
+- `K`: save the current look into the app-managed user preset library. Duplicate names receive a numbered `.vizpreset` file instead of overwriting an existing preset.
+- `A`: toggle Auto Scene. When enabled, audio style, BPM, arrangement section, drops, phrase intensity, stereo width, and tonal key confidence adapt mode, palette, hue shift, speed, and intensity. Mode switches add a short beat-synced morph overlay.
+- `E`: toggle environment reactivity. When enabled, local time-of-day and pointer-motion context add ambient orbital geometry and color motion.
+- `T`: toggle decaying trails for live display and recorded frames.
+- `C`: cycle palette.
+- `U`: advance the current palette hue shift by one semitone-like color step.
+- `X`: increase geometry complexity for denser procedural forms.
+- `I`: toggle mouse-reactive interaction field.
+- `Q`: toggle adaptive quality.
+- `Up` / `Down`: adjust intensity.
+- `Left` / `Right`: adjust animation speed.
+- `S`: save the current visual settings to a chosen `.vizpreset` file.
+- `P`: load visual settings from a chosen `.vizpreset` file.
+- `R`: toggle frame-sequence recording. Stopped recordings write a share page, BMP preview, manifest, lossless frame sequence, and an MP4 when FFmpeg is available.
+- `H`: toggle HUD.
+- `F11`: toggle fullscreen.
+- `Esc`: quit.
+
+The on-screen panel mirrors the core controls with clickable buttons and sliders, including source profile reset, previous/next curated look buttons, user preset save/cycle buttons, Auto Scene, Environment, Trails, HUD, interaction, and adaptive quality toggles. Slider drags adjust intensity, speed, hue shift, complexity, and manual quality directly. The HUD includes beat, bar, phrase, and build-tension sync state. On wide windows, the right-side inspector shows the current source, file playback progress, active look, user preset count, style/sync profile files, decoded audio format, and recording folder.

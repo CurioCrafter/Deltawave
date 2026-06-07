@@ -1,0 +1,14 @@
+build/
+captures/
+artifacts/
+profiles/
+cmake-build-*/
+.vs/
+.vscode/
+*.user
+*.suo
+*.VC.db
+*.log
+*.ppm
+*.bmp
+*.mp4
