@@ -43,6 +43,8 @@ void printUsage()
         << "  --color-impact N   Palette personality strength from 0.0 subtle to 1.0 intense\n"
         << "  --scene-personality N  Scene personality/motion bias from 0.0 restrained to 1.0 extreme\n"
         << "  --response-3d N    Music-to-3D response gain from 0.0 restrained to 1.0 intense\n"
+        << "  --motion-stability N  Smooth camera/object jitter from 0.0 wild to 1.0 stable\n"
+        << "  --pattern-clarity N  Preserve readable geometry from 0.0 chaotic to 1.0 crisp\n"
         << "  --complexity N     Geometry density from 0.35 sparse to 1.8 dense, default 1.0\n"
         << "  --look NAME        Apply a built-in curated look; use --list-looks to inspect names\n"
         << "  --list-looks       Print built-in curated looks and exit\n"
@@ -68,6 +70,8 @@ void printCuratedLooks()
                   << " | color " << preset.settings.colorImpact
                   << " | persona " << preset.settings.scenePersonality
                   << " | react " << preset.settings.response3D
+                  << " | stable " << preset.settings.motionStability
+                  << " | clarity " << preset.settings.patternClarity
                   << " | complexity " << preset.settings.complexity
                   << " | intensity " << preset.settings.intensity
                   << " | speed " << preset.settings.speed
@@ -216,6 +220,12 @@ int main(int argc, char** argv)
                    nextValue(i, argc, argv, value)) {
             options.settings.response3D =
                 std::clamp(static_cast<float>(parseDouble(value, options.settings.response3D)), 0.0f, 1.0f);
+        } else if ((arg == "--motion-stability" || arg == "--stability") && nextValue(i, argc, argv, value)) {
+            options.settings.motionStability =
+                std::clamp(static_cast<float>(parseDouble(value, options.settings.motionStability)), 0.0f, 1.0f);
+        } else if ((arg == "--pattern-clarity" || arg == "--clarity") && nextValue(i, argc, argv, value)) {
+            options.settings.patternClarity =
+                std::clamp(static_cast<float>(parseDouble(value, options.settings.patternClarity)), 0.0f, 1.0f);
         } else if (arg == "--complexity" && nextValue(i, argc, argv, value)) {
             options.settings.complexity = std::clamp(static_cast<float>(parseDouble(value, options.settings.complexity)),
                                                      0.35f,

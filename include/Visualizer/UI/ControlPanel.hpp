@@ -54,6 +54,8 @@ enum class PanelControl {
     LightingGlowSlider,
     ScenePersonalitySlider,
     Response3DSlider,
+    MotionStabilitySlider,
+    PatternClaritySlider,
     ColorImpactSlider,
     ComplexitySlider,
     QualitySlider,

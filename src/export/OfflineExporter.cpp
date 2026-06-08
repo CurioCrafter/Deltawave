@@ -110,6 +110,14 @@ bool writeManifest(const OfflineExportOptions& options,
            << std::clamp(options.settings.response3D, 0.0f, 1.0f) << "\n";
     output << "finalResponse3D=" << std::fixed << std::setprecision(3)
            << std::clamp(result.finalResponse3D, 0.0f, 1.0f) << "\n";
+    output << "motionStability=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.motionStability, 0.0f, 1.0f) << "\n";
+    output << "finalMotionStability=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalMotionStability, 0.0f, 1.0f) << "\n";
+    output << "patternClarity=" << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.patternClarity, 0.0f, 1.0f) << "\n";
+    output << "finalPatternClarity=" << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalPatternClarity, 0.0f, 1.0f) << "\n";
     output << "minimumHueShift=" << std::fixed << std::setprecision(3)
            << std::clamp(result.minimumHueShift, 0.0f, 1.0f) << "\n";
     output << "maximumHueShift=" << std::fixed << std::setprecision(3)
@@ -308,6 +316,8 @@ bool exportAudioToFrames(const OfflineExportOptions& options,
         result.finalLightingGlow = renderSettings.lightingGlow;
         result.finalScenePersonality = renderSettings.scenePersonality;
         result.finalResponse3D = renderSettings.response3D;
+        result.finalMotionStability = renderSettings.motionStability;
+        result.finalPatternClarity = renderSettings.patternClarity;
         result.minimumHueShift = std::min(result.minimumHueShift, renderSettings.hueShift);
         result.maximumHueShift = std::max(result.maximumHueShift, renderSettings.hueShift);
         if (metrics.beat) {

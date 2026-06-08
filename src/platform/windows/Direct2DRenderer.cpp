@@ -270,6 +270,8 @@ void Direct2DRenderer::drawHud(const AudioMetrics& metrics,
          << L"  Color " << (settings.colorImpact * 100.0f) << L"%"
          << L"  Persona " << (settings.scenePersonality * 100.0f) << L"%"
          << L"  React " << (settings.response3D * 100.0f) << L"%"
+         << L"  Stable " << (settings.motionStability * 100.0f) << L"%"
+         << L"  Clear " << (settings.patternClarity * 100.0f) << L"%"
          << L"\n";
     text << L"Complexity " << std::setprecision(2) << settings.complexity
          << L"  Flux " << std::setprecision(2) << metrics.spectralFlux

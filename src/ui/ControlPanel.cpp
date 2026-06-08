@@ -214,6 +214,12 @@ ControlPanelLayout buildControlPanelLayout(float width,
                   PanelControl::Response3DSlider,
                   "React 3D",
                   std::clamp(settings.response3D, 0.0f, 1.0f));
+    addSliderPair(PanelControl::MotionStabilitySlider,
+                  "Stable",
+                  std::clamp(settings.motionStability, 0.0f, 1.0f),
+                  PanelControl::PatternClaritySlider,
+                  "Clarity",
+                  std::clamp(settings.patternClarity, 0.0f, 1.0f));
     addSliderPair(PanelControl::ComplexitySlider,
                   "Complex",
                   settingToUnit(settings.complexity, 0.35f, 1.8f),

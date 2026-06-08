@@ -58,6 +58,8 @@ struct OfflineExportResult {
     float finalLightingGlow = 0.0f;
     float finalScenePersonality = 0.0f;
     float finalResponse3D = 0.0f;
+    float finalMotionStability = 0.0f;
+    float finalPatternClarity = 0.0f;
     float minimumHueShift = 1.0f;
     float maximumHueShift = 0.0f;
     float keyConfidence = 0.0f;

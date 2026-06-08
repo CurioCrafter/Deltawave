@@ -158,6 +158,14 @@ bool writeShareManifest(const OfflineExportOptions& options,
            << std::clamp(options.settings.response3D, 0.0f, 1.0f) << ",\n";
     output << "  \"finalResponse3D\": " << std::fixed << std::setprecision(3)
            << std::clamp(result.finalResponse3D, 0.0f, 1.0f) << ",\n";
+    output << "  \"motionStability\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.motionStability, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalMotionStability\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalMotionStability, 0.0f, 1.0f) << ",\n";
+    output << "  \"patternClarity\": " << std::fixed << std::setprecision(3)
+           << std::clamp(options.settings.patternClarity, 0.0f, 1.0f) << ",\n";
+    output << "  \"finalPatternClarity\": " << std::fixed << std::setprecision(3)
+           << std::clamp(result.finalPatternClarity, 0.0f, 1.0f) << ",\n";
     output << "  \"minimumHueShift\": " << std::fixed << std::setprecision(3)
            << std::clamp(result.minimumHueShift, 0.0f, 1.0f) << ",\n";
     output << "  \"maximumHueShift\": " << std::fixed << std::setprecision(3)
@@ -280,6 +288,10 @@ bool writeSharePage(const OfflineExportOptions& options,
     stat("Final Scene Personality", std::to_string(result.finalScenePersonality));
     stat("3D Response", std::to_string(options.settings.response3D));
     stat("Final 3D Response", std::to_string(result.finalResponse3D));
+    stat("Motion Stability", std::to_string(options.settings.motionStability));
+    stat("Final Motion Stability", std::to_string(result.finalMotionStability));
+    stat("Pattern Clarity", std::to_string(options.settings.patternClarity));
+    stat("Final Pattern Clarity", std::to_string(result.finalPatternClarity));
     stat("Complexity", std::to_string(options.settings.complexity));
     stat("Duration", std::to_string(result.durationSeconds) + " sec");
     stat("Frames", std::to_string(result.framesWritten));

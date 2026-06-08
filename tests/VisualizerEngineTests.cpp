@@ -234,6 +234,16 @@ float averageObjectGlow(const GeometryFrame& frame)
     return total / static_cast<float>(frame.objects3D.size());
 }
 
+float visualEnergyScore(const GeometryFrame& frame)
+{
+    return frame.flash * 80.0f +
+           averageObjectGlow(frame) * 18.0f +
+           averageObjectScale(frame) * 0.015f +
+           frame.objectDepthRange * 0.006f +
+           frame.cameraDepth * 0.002f +
+           static_cast<float>(viz::countPrimitives(frame)) * 0.08f;
+}
+
 bool objectDepthsAreSorted(const GeometryFrame& frame)
 {
     for (std::size_t i = 1; i < frame.objects3D.size(); ++i) {
@@ -733,6 +743,8 @@ void liveCapturePackageWritesShareMetadata()
     settings.lightingGlow = 0.83f;
     settings.scenePersonality = 0.61f;
     settings.response3D = 0.74f;
+    settings.motionStability = 0.73f;
+    settings.patternClarity = 0.81f;
     settings.autoScene = true;
     const AudioMetrics metrics = syntheticMetrics();
     const GeometryFrame frame = engine.buildFrame(metrics, settings, 96.0f, 54.0f, 1.0);
@@ -764,6 +776,8 @@ void liveCapturePackageWritesShareMetadata()
     package.finalSettings.lightingGlow = 0.91f;
     package.finalSettings.scenePersonality = 0.79f;
     package.finalSettings.response3D = 0.96f;
+    package.finalSettings.motionStability = 0.88f;
+    package.finalSettings.patternClarity = 0.93f;
     package.width = 96;
     package.height = 54;
     package.framesWritten = recorder.frameCount();
@@ -852,6 +866,14 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture manifest should include requested 3D response");
         require(manifestText.find("\"finalResponse3D\": 0.960") != std::string::npos,
                 "live capture manifest should include final 3D response");
+        require(manifestText.find("\"requestedMotionStability\": 0.730") != std::string::npos,
+                "live capture manifest should include requested motion stability");
+        require(manifestText.find("\"finalMotionStability\": 0.880") != std::string::npos,
+                "live capture manifest should include final motion stability");
+        require(manifestText.find("\"requestedPatternClarity\": 0.810") != std::string::npos,
+                "live capture manifest should include requested pattern clarity");
+        require(manifestText.find("\"finalPatternClarity\": 0.930") != std::string::npos,
+                "live capture manifest should include final pattern clarity");
         require(manifestText.find("\"dominantSection\": \"Drop\"") != std::string::npos,
                 "live capture manifest should include dominant section");
         require(manifestText.find("\"sectionConfidence\": 0.880") != std::string::npos,
@@ -917,6 +939,10 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture page should summarize scene personality");
         require(pageText.find("3D Response") != std::string::npos,
                 "live capture page should summarize 3D response");
+        require(pageText.find("Motion Stability") != std::string::npos,
+                "live capture page should summarize motion stability");
+        require(pageText.find("Pattern Clarity") != std::string::npos,
+                "live capture page should summarize pattern clarity");
         require(pageText.find("Complexity") != std::string::npos,
                 "live capture page should summarize complexity");
         require(pageText.find("Section") != std::string::npos,
@@ -1273,6 +1299,267 @@ void object3DRespondsStronglyToMusicAcrossModes()
         require(countMoved || glowMoved || scaleMoved || zMoved || depthMoved || cameraMoved || primitiveMoved,
                 "every mode's 3D layer should materially react to intense music metrics");
     }
+}
+
+void songProfilesScaleMusicallyWithoutChaos()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.82f;
+    settings.lightingGlow = 0.82f;
+    settings.scenePersonality = 0.76f;
+    settings.response3D = 0.88f;
+    settings.motionStability = 0.78f;
+    settings.patternClarity = 0.84f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.9f;
+
+    AudioMetrics silence{};
+    silence.style = AudioStyle::Silence;
+    silence.section = ArrangementSection::Silence;
+    silence.beatPhase = 0.42f;
+    silence.barPhase = 0.2f;
+    silence.phrasePhase = 0.3f;
+
+    AudioMetrics low = syntheticMetrics();
+    low.rms = 0.055f;
+    low.peak = 0.10f;
+    low.bass = 0.04f;
+    low.lowMid = 0.035f;
+    low.mid = 0.04f;
+    low.highMid = 0.04f;
+    low.treble = 0.04f;
+    low.stereoWidth = 0.08f;
+    low.spectralFlux = 0.02f;
+    low.beat = false;
+    low.beatConfidence = 0.06f;
+    low.dropIntensity = 0.0f;
+    low.phraseIntensity = 0.06f;
+    low.buildTension = 0.02f;
+    low.style = AudioStyle::Ambient;
+    low.styleConfidence = 0.55f;
+
+    AudioMetrics steady = syntheticMetrics();
+    steady.rms = 0.34f;
+    steady.peak = 0.58f;
+    steady.bass = 0.48f;
+    steady.lowMid = 0.36f;
+    steady.mid = 0.28f;
+    steady.highMid = 0.26f;
+    steady.treble = 0.24f;
+    steady.stereoWidth = 0.32f;
+    steady.spectralFlux = 0.16f;
+    steady.beat = true;
+    steady.beatConfidence = 0.86f;
+    steady.beatPhase = 0.08f;
+    steady.dropIntensity = 0.08f;
+    steady.phraseIntensity = 0.28f;
+    steady.buildTension = 0.12f;
+    steady.style = AudioStyle::Techno;
+    steady.styleConfidence = 0.86f;
+    steady.section = ArrangementSection::Groove;
+
+    AudioMetrics ambient = low;
+    ambient.rms = 0.22f;
+    ambient.peak = 0.34f;
+    ambient.bass = 0.12f;
+    ambient.lowMid = 0.20f;
+    ambient.mid = 0.28f;
+    ambient.highMid = 0.34f;
+    ambient.treble = 0.36f;
+    ambient.stereoWidth = 0.74f;
+    ambient.phraseIntensity = 0.62f;
+    ambient.phraseConfidence = 0.78f;
+    ambient.harmonicEnergy = 0.68f;
+    ambient.keyConfidence = 0.74f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.9f;
+    ambient.section = ArrangementSection::Breakdown;
+
+    AudioMetrics breakbeat = steady;
+    breakbeat.rms = 0.48f;
+    breakbeat.peak = 0.78f;
+    breakbeat.bass = 0.58f;
+    breakbeat.treble = 0.56f;
+    breakbeat.spectralFlux = 0.52f;
+    breakbeat.onset = 0.66f;
+    breakbeat.beatConfidence = 0.72f;
+    breakbeat.beatPhase = 0.28f;
+    breakbeat.dropIntensity = 0.22f;
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.68f;
+    breakbeat.bandOnsets = {0.64f, 0.50f, 0.42f, 0.56f, 0.62f};
+
+    AudioMetrics drop = steady;
+    drop.rms = 0.82f;
+    drop.peak = 1.0f;
+    drop.bass = 0.94f;
+    drop.lowMid = 0.74f;
+    drop.mid = 0.58f;
+    drop.highMid = 0.70f;
+    drop.treble = 0.82f;
+    drop.stereoWidth = 0.78f;
+    drop.spectralFlux = 0.70f;
+    drop.onset = 0.86f;
+    drop.beatConfidence = 0.96f;
+    drop.beatPhase = 0.04f;
+    drop.downbeat = true;
+    drop.downbeatConfidence = 0.92f;
+    drop.dropIntensity = 0.92f;
+    drop.phraseIntensity = 0.82f;
+    drop.phraseBoundary = true;
+    drop.buildTension = 0.82f;
+    drop.harmonicEnergy = 0.80f;
+    drop.keyConfidence = 0.72f;
+    drop.style = AudioStyle::BassHeavy;
+    drop.styleConfidence = 0.9f;
+    drop.section = ArrangementSection::Drop;
+    drop.bandOnsets = {0.90f, 0.74f, 0.52f, 0.62f, 0.70f};
+
+    const GeometryFrame silenceFrame = engine.buildFrame(silence, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame lowFrame = engine.buildFrame(low, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame steadyFrame = engine.buildFrame(steady, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame ambientFrame = engine.buildFrame(ambient, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame breakbeatFrame = engine.buildFrame(breakbeat, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame dropFrame = engine.buildFrame(drop, settings, 1280.0f, 720.0f, 2.0);
+
+    require(silenceFrame.flash == 0.0f, "silence should not trigger beat/drop flash");
+    require(!silenceFrame.objects3D.empty(), "silence should keep a readable base 3D scaffold");
+    require(visualEnergyScore(lowFrame) > visualEnergyScore(silenceFrame) + 0.5f,
+            "low-volume audio should move more than silence");
+    require(visualEnergyScore(steadyFrame) > visualEnergyScore(lowFrame) + 1.0f,
+            "steady techno should feel more active than low-volume audio");
+    require(visualEnergyScore(ambientFrame) > visualEnergyScore(silenceFrame) + 1.0f,
+            "ambient material should still create musical phrase motion");
+    require(visualEnergyScore(breakbeatFrame) > visualEnergyScore(lowFrame) + 2.0f,
+            "breakbeat transients should add visible accents");
+    require(visualEnergyScore(dropFrame) > visualEnergyScore(steadyFrame) + 3.0f,
+            "bass-heavy drops should push the scene harder than a steady groove");
+    require(dropFrame.flash < 0.7f, "drop flash should be intense but not a full-screen panic strobe");
+    require(dropFrame.objectDepthRange < 3200.0f, "drop response should stay within a readable depth range");
+}
+
+void motionStabilityAndPatternClarityReduceJitter()
+{
+    VisualizerEngine engine;
+    VisualSettings wild;
+    wild.mode = VisualMode::HyperspacePolytope;
+    wild.depth3D = 1.0f;
+    wild.objectDensity3D = 0.86f;
+    wild.lightingGlow = 0.9f;
+    wild.scenePersonality = 0.82f;
+    wild.response3D = 1.0f;
+    wild.motionStability = 0.0f;
+    wild.patternClarity = 0.0f;
+    wild.interactiveField = false;
+    wild.environmentReactive = false;
+    wild.qualityScale = 0.9f;
+
+    VisualSettings clear = wild;
+    clear.motionStability = 1.0f;
+    clear.patternClarity = 1.0f;
+
+    AudioMetrics calm = syntheticMetrics();
+    calm.rms = 0.09f;
+    calm.peak = 0.16f;
+    calm.bass = 0.07f;
+    calm.lowMid = 0.08f;
+    calm.mid = 0.06f;
+    calm.highMid = 0.05f;
+    calm.treble = 0.05f;
+    calm.stereoWidth = 0.10f;
+    calm.spectralFlux = 0.02f;
+    calm.beat = false;
+    calm.beatConfidence = 0.06f;
+    calm.dropIntensity = 0.0f;
+    calm.phraseIntensity = 0.05f;
+    calm.buildTension = 0.0f;
+    calm.style = AudioStyle::Ambient;
+    calm.styleConfidence = 0.6f;
+
+    AudioMetrics intense = syntheticMetrics();
+    intense.rms = 0.84f;
+    intense.peak = 1.0f;
+    intense.bass = 0.95f;
+    intense.lowMid = 0.72f;
+    intense.mid = 0.52f;
+    intense.highMid = 0.78f;
+    intense.treble = 0.88f;
+    intense.stereoWidth = 0.84f;
+    intense.spectralFlux = 0.78f;
+    intense.onset = 0.86f;
+    intense.beat = true;
+    intense.beatConfidence = 0.98f;
+    intense.beatPhase = 0.05f;
+    intense.downbeat = true;
+    intense.downbeatConfidence = 0.94f;
+    intense.dropIntensity = 0.94f;
+    intense.phraseIntensity = 0.86f;
+    intense.phraseBoundary = true;
+    intense.buildTension = 0.9f;
+    intense.style = AudioStyle::BassHeavy;
+    intense.styleConfidence = 0.9f;
+    intense.section = ArrangementSection::Drop;
+    intense.bandOnsets = {0.92f, 0.76f, 0.50f, 0.64f, 0.76f};
+
+    const GeometryFrame wildCalm = engine.buildFrame(calm, wild, 1280.0f, 720.0f, 3.0);
+    const GeometryFrame wildIntense = engine.buildFrame(intense, wild, 1280.0f, 720.0f, 3.0);
+    const GeometryFrame clearCalm = engine.buildFrame(calm, clear, 1280.0f, 720.0f, 3.0);
+    const GeometryFrame clearIntense = engine.buildFrame(intense, clear, 1280.0f, 720.0f, 3.0);
+
+    const float wildness = wildIntense.objectDepthRange +
+                           std::fabs(averageObjectZ(wildIntense)) * 0.20f +
+                           averageObjectScale(wildIntense) * 0.08f +
+                           averageObjectGlow(wildIntense) * 60.0f;
+    const float clearWildness = clearIntense.objectDepthRange +
+                                std::fabs(averageObjectZ(clearIntense)) * 0.20f +
+                                averageObjectScale(clearIntense) * 0.08f +
+                                averageObjectGlow(clearIntense) * 60.0f;
+
+    require(clearWildness < wildness,
+            "stability and clarity should cap excessive depth, scale, and glow");
+    require(averageObjectGlow(clearIntense) <= averageObjectGlow(wildIntense) + 0.03f,
+            "clear mode should cap glow compared with wild response");
+    require(visualEnergyScore(clearIntense) > visualEnergyScore(clearCalm) + 1.5f,
+            "stable and clear settings should still react to intense music");
+    require(!clearIntense.objects3D.empty(), "stable and clear settings should keep 3D objects visible");
+}
+
+void silenceKeepsStableReadableScaffold()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::QuantumTunnel;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.78f;
+    settings.response3D = 0.88f;
+    settings.motionStability = 0.86f;
+    settings.patternClarity = 0.9f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.9f;
+
+    AudioMetrics silence{};
+    silence.style = AudioStyle::Silence;
+    silence.section = ArrangementSection::Silence;
+    silence.beatPhase = 0.5f;
+    silence.barPhase = 0.25f;
+    silence.phrasePhase = 0.25f;
+
+    const GeometryFrame first = engine.buildFrame(silence, settings, 1280.0f, 720.0f, 1.0);
+    const GeometryFrame second = engine.buildFrame(silence, settings, 1280.0f, 720.0f, 1.5);
+
+    require(first.flash == 0.0f && second.flash == 0.0f, "silence should never create flash");
+    require(countPrimitives(first) == countPrimitives(second), "silence should keep a stable geometry count");
+    require(std::fabs(first.cameraDepth - second.cameraDepth) < 1.0f,
+            "silence should keep camera depth stable");
+    require(std::fabs(first.objectDepthRange - second.objectDepthRange) < 90.0f,
+            "silence should avoid random depth-range jumps");
+    require(averageObjectGlow(first) < 0.75f && averageObjectGlow(second) < 0.75f,
+            "silence should keep glow restrained");
 }
 
 void object3DDepthSortsAndProjects()
@@ -1724,6 +2011,8 @@ void presetRoundTripsSettings()
     preset.settings.lightingGlow = 0.82f;
     preset.settings.scenePersonality = 0.57f;
     preset.settings.response3D = 0.93f;
+    preset.settings.motionStability = 0.68f;
+    preset.settings.patternClarity = 0.79f;
     preset.settings.complexity = 1.42f;
     preset.settings.intensity = 2.35f;
     preset.settings.speed = 1.7f;
@@ -1785,6 +2074,10 @@ void presetRoundTripsSettings()
             "scene personality should round-trip");
     require(loaded->settings.response3D > 0.92f && loaded->settings.response3D < 0.94f,
             "3D response should round-trip");
+    require(loaded->settings.motionStability > 0.67f && loaded->settings.motionStability < 0.69f,
+            "motion stability should round-trip");
+    require(loaded->settings.patternClarity > 0.78f && loaded->settings.patternClarity < 0.80f,
+            "pattern clarity should round-trip");
     require(loaded->settings.complexity > 1.41f && loaded->settings.complexity < 1.43f,
             "complexity should round-trip");
     require(loaded->settings.intensity > 2.3f && loaded->settings.intensity < 2.4f, "intensity should round-trip");
@@ -1882,6 +2175,10 @@ void curatedPresetBankProvidesRenderableLooks()
                 "curated scene personality should be normalized");
         require(preset.settings.response3D >= 0.0f && preset.settings.response3D <= 1.0f,
                 "curated 3D response should be normalized");
+        require(preset.settings.motionStability >= 0.0f && preset.settings.motionStability <= 1.0f,
+                "curated motion stability should be normalized");
+        require(preset.settings.patternClarity >= 0.0f && preset.settings.patternClarity <= 1.0f,
+                "curated pattern clarity should be normalized");
         require(preset.settings.complexity >= 0.35f && preset.settings.complexity <= 1.8f,
                 "curated complexity should stay in supported range");
         require(preset.settings.intensity >= 0.15f && preset.settings.intensity <= 4.0f,
@@ -1941,6 +2238,8 @@ void userPresetLibrarySavesScansAndLoads()
     preset.settings.lightingGlow = 0.81f;
     preset.settings.scenePersonality = 0.62f;
     preset.settings.response3D = 0.91f;
+    preset.settings.motionStability = 0.73f;
+    preset.settings.patternClarity = 0.83f;
     preset.settings.complexity = 1.6f;
     preset.settings.intensity = 2.2f;
     preset.settings.speed = 1.4f;
@@ -2007,6 +2306,10 @@ void userPresetLibrarySavesScansAndLoads()
             "loaded user preset should preserve scene personality");
     require(loaded->settings.response3D > 0.90f && loaded->settings.response3D < 0.92f,
             "loaded user preset should preserve 3D response");
+    require(loaded->settings.motionStability > 0.72f && loaded->settings.motionStability < 0.74f,
+            "loaded user preset should preserve motion stability");
+    require(loaded->settings.patternClarity > 0.82f && loaded->settings.patternClarity < 0.84f,
+            "loaded user preset should preserve pattern clarity");
     require(!loaded->settings.trails, "loaded user preset should preserve trails");
     require(loaded->settings.autoScene, "loaded user preset should preserve Auto Scene");
 
@@ -2027,6 +2330,8 @@ void controlPanelHitTestsButtonsAndSliders()
     settings.lightingGlow = 0.88f;
     settings.scenePersonality = 0.58f;
     settings.response3D = 0.91f;
+    settings.motionStability = 0.74f;
+    settings.patternClarity = 0.83f;
 
     const ControlPanelLayout layout = buildControlPanelLayout(1280.0f, 720.0f, settings, true);
     require(!layout.items.empty(), "control panel should build interactive items");
@@ -2043,6 +2348,8 @@ void controlPanelHitTestsButtonsAndSliders()
     bool foundColorImpact = false;
     bool foundScenePersonality = false;
     bool foundResponse3D = false;
+    bool foundMotionStability = false;
+    bool foundPatternClarity = false;
     bool foundComplexity = false;
     bool foundAutoScene = false;
     bool foundTrails = false;
@@ -2122,6 +2429,16 @@ void controlPanelHitTestsButtonsAndSliders()
             require(item.value > 0.90f && item.value < 0.92f, "3D response slider should reflect settings");
             foundResponse3D = true;
         }
+        if (item.control == PanelControl::MotionStabilitySlider) {
+            require(item.slider, "motion stability control should be a slider");
+            require(item.value > 0.73f && item.value < 0.75f, "motion stability slider should reflect settings");
+            foundMotionStability = true;
+        }
+        if (item.control == PanelControl::PatternClaritySlider) {
+            require(item.slider, "pattern clarity control should be a slider");
+            require(item.value > 0.82f && item.value < 0.84f, "pattern clarity slider should reflect settings");
+            foundPatternClarity = true;
+        }
         if (item.control == PanelControl::ComplexitySlider) {
             require(item.slider, "complexity control should be a slider");
             require(item.rect.bottom <= layout.panel.bottom, "complexity slider should fit inside the panel");
@@ -2189,6 +2506,8 @@ void controlPanelHitTestsButtonsAndSliders()
     require(foundColorImpact, "color impact slider should exist");
     require(foundScenePersonality, "scene personality slider should exist");
     require(foundResponse3D, "3D response slider should exist");
+    require(foundMotionStability, "motion stability slider should exist");
+    require(foundPatternClarity, "pattern clarity slider should exist");
     require(foundComplexity, "complexity slider should exist");
     require(foundAutoScene, "auto scene control should exist");
     require(foundTrails, "trails control should exist");
@@ -2390,6 +2709,8 @@ void offlineExporterWritesDeterministicFrames()
     options.settings.lightingGlow = 0.82f;
     options.settings.scenePersonality = 0.59f;
     options.settings.response3D = 0.94f;
+    options.settings.motionStability = 0.76f;
+    options.settings.patternClarity = 0.82f;
     options.settings.complexity = 1.33f;
     options.syncProfile = syncProfilePath;
 
@@ -2448,6 +2769,14 @@ void offlineExporterWritesDeterministicFrames()
                 "offline manifest should include 3D response");
         require(manifestText.find("finalResponse3D=0.940") != std::string::npos,
                 "offline manifest should include final 3D response");
+        require(manifestText.find("motionStability=0.760") != std::string::npos,
+                "offline manifest should include motion stability");
+        require(manifestText.find("finalMotionStability=0.760") != std::string::npos,
+                "offline manifest should include final motion stability");
+        require(manifestText.find("patternClarity=0.820") != std::string::npos,
+                "offline manifest should include pattern clarity");
+        require(manifestText.find("finalPatternClarity=0.820") != std::string::npos,
+                "offline manifest should include final pattern clarity");
         require(manifestText.find("complexity=1.330") != std::string::npos,
                 "offline manifest should include complexity");
         require(manifestText.find("dominantSection=") != std::string::npos,
@@ -2478,8 +2807,8 @@ void offlineExporterWritesDeterministicFrames()
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
         require(timelineText.find("frame,timeSeconds,mode,palette") != std::string::npos,
                 "timeline should include a CSV header");
-        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,complexity") != std::string::npos,
-                "timeline should include 3D depth, object, glow, color, personality, and response columns");
+        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,motionStability,patternClarity,complexity") != std::string::npos,
+                "timeline should include 3D depth, object, glow, color, personality, response, stability, and clarity columns");
         require(timelineText.find("\"Quantum Tunnel\"") != std::string::npos,
                 "timeline should include rendered visual mode");
         require(timelineText.find("section,sectionConfidence,sectionProgress") != std::string::npos,
@@ -2521,6 +2850,8 @@ void offlineExporterWritesSharePackage()
     options.settings.lightingGlow = 0.84f;
     options.settings.scenePersonality = 0.69f;
     options.settings.response3D = 0.92f;
+    options.settings.motionStability = 0.78f;
+    options.settings.patternClarity = 0.86f;
     options.settings.complexity = 1.25f;
     options.environmentTimeOfDay = 0.25f;
     options.sharePackage = true;
@@ -2586,6 +2917,14 @@ void offlineExporterWritesSharePackage()
                 "share manifest should include 3D response");
         require(manifestText.find("\"finalResponse3D\": 0.920") != std::string::npos,
                 "share manifest should include final 3D response");
+        require(manifestText.find("\"motionStability\": 0.780") != std::string::npos,
+                "share manifest should include motion stability");
+        require(manifestText.find("\"finalMotionStability\": 0.780") != std::string::npos,
+                "share manifest should include final motion stability");
+        require(manifestText.find("\"patternClarity\": 0.860") != std::string::npos,
+                "share manifest should include pattern clarity");
+        require(manifestText.find("\"finalPatternClarity\": 0.860") != std::string::npos,
+                "share manifest should include final pattern clarity");
         require(manifestText.find("\"complexity\": 1.250") != std::string::npos,
                 "share manifest should include complexity");
         require(manifestText.find("\"dominantSection\":") != std::string::npos,
@@ -2641,6 +2980,10 @@ void offlineExporterWritesSharePackage()
                 "share page should summarize scene personality");
         require(pageText.find("3D Response") != std::string::npos,
                 "share page should summarize 3D response");
+        require(pageText.find("Motion Stability") != std::string::npos,
+                "share page should summarize motion stability");
+        require(pageText.find("Pattern Clarity") != std::string::npos,
+                "share page should summarize pattern clarity");
         require(pageText.find("Complexity") != std::string::npos,
                 "share page should summarize complexity");
         require(pageText.find("Bar Lock") != std::string::npos,
@@ -2687,6 +3030,8 @@ void batchExporterWritesGalleryForAudioDirectory()
     options.settings.lightingGlow = 0.85f;
     options.settings.scenePersonality = 0.7f;
     options.settings.response3D = 0.95f;
+    options.settings.motionStability = 0.79f;
+    options.settings.patternClarity = 0.87f;
     options.lookName = "Batch Tessellation";
     options.sharePackage = true;
 
@@ -2738,6 +3083,10 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch manifest should include configured scene personality");
         require(manifestText.find("\"response3D\": 0.950") != std::string::npos,
                 "batch manifest should include configured 3D response");
+        require(manifestText.find("\"motionStability\": 0.790") != std::string::npos,
+                "batch manifest should include configured motion stability");
+        require(manifestText.find("\"patternClarity\": 0.870") != std::string::npos,
+                "batch manifest should include configured pattern clarity");
         require(manifestText.find("\"trackIntelligence\":") != std::string::npos,
                 "batch manifest should include per-track intelligence");
         require(manifestText.find("\"dominantStyle\":") != std::string::npos,
@@ -2762,6 +3111,10 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch index should link machine-readable metadata");
         require(indexText.find("React: 0.95") != std::string::npos,
                 "batch index should summarize 3D response");
+        require(indexText.find("Stable: 0.79") != std::string::npos,
+                "batch index should summarize motion stability");
+        require(indexText.find("Clear: 0.87") != std::string::npos,
+                "batch index should summarize pattern clarity");
         require(indexText.find("<th>Preview</th><th>Input</th>") != std::string::npos,
                 "batch index should expose a preview column");
         require(indexText.find("<th>Style</th><th>Sync</th>") != std::string::npos,
@@ -2776,8 +3129,8 @@ void batchExporterWritesGalleryForAudioDirectory()
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
         require(timelineText.find("\"Resonance Tessellation\"") != std::string::npos,
                 "batch timeline should contain rendered mode name");
-        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,complexity") != std::string::npos,
-                "batch timeline should contain 3D object, glow, color, personality, and response columns");
+        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,motionStability,patternClarity,complexity") != std::string::npos,
+                "batch timeline should contain 3D object, glow, color, personality, response, stability, and clarity columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "batch timeline should contain phrase structure columns");
     }
@@ -2853,6 +3206,9 @@ int main()
         {"depth3DProjectsGeometryIntoPerspectiveSpace", viz::tests::depth3DProjectsGeometryIntoPerspectiveSpace},
         {"object3DModesProduceDistinctSignatures", viz::tests::object3DModesProduceDistinctSignatures},
         {"object3DRespondsStronglyToMusicAcrossModes", viz::tests::object3DRespondsStronglyToMusicAcrossModes},
+        {"songProfilesScaleMusicallyWithoutChaos", viz::tests::songProfilesScaleMusicallyWithoutChaos},
+        {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
+        {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"objectDensity3DControlsObjectCount", viz::tests::objectDensity3DControlsObjectCount},

@@ -4,6 +4,8 @@
 
 Start music in another Windows app and make sure it is playing through the default output device. WASAPI loopback follows the default render endpoint selected in Windows sound settings.
 
+If the HUD RMS/Bass/Treble values move but visuals feel too calm, raise `React 3D` first. If the scene moves but looks shaky or unreadable, raise `Stable` and `Clarity`; those controls damp camera/object jitter and preserve recognizable patterns without disabling music response.
+
 ## Audio File Does Not Load
 
 PCM and IEEE-float WAV files are supported by the portable loader. Windows builds also try Media Foundation for common local formats such as MP3, AAC/M4A, WMA, and any installed-codec formats. If a compressed file does not load, confirm Windows Media Player or another Media Foundation-based app can play it on the same machine.

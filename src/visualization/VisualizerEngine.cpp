@@ -163,21 +163,222 @@ float response3DOf(const VisualSettings& settings)
     return std::clamp(settings.response3D, 0.0f, 1.0f);
 }
 
+float motionStabilityOf(const VisualSettings& settings)
+{
+    return std::clamp(settings.motionStability, 0.0f, 1.0f);
+}
+
+float patternClarityOf(const VisualSettings& settings)
+{
+    return std::clamp(settings.patternClarity, 0.0f, 1.0f);
+}
+
+float smootherStep(float edge0, float edge1, float value)
+{
+    if (std::abs(edge1 - edge0) <= 0.00001f) {
+        return value >= edge1 ? 1.0f : 0.0f;
+    }
+    const float t = clamp01((value - edge0) / (edge1 - edge0));
+    return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+}
+
+struct MusicMotionEnvelope {
+    float audible = 0.0f;
+    float energy = 0.0f;
+    float bass = 0.0f;
+    float beat = 0.0f;
+    float drop = 0.0f;
+    float phrase = 0.0f;
+    float build = 0.0f;
+    float treble = 0.0f;
+    float stereo = 0.0f;
+    float flux = 0.0f;
+    float detail = 0.0f;
+    float camera = 0.0f;
+    float motion = 0.0f;
+    float accent = 0.0f;
+    float stability = 0.0f;
+    float clarity = 0.0f;
+};
+
+MusicMotionEnvelope musicEnvelope(const AudioMetrics& metrics, const VisualSettings& settings)
+{
+    MusicMotionEnvelope envelope;
+    envelope.stability = motionStabilityOf(settings);
+    envelope.clarity = patternClarityOf(settings);
+
+    const float loudness = clamp01(metrics.rms * 1.55f +
+                                   metrics.peak * 0.22f +
+                                   metrics.bass * 0.16f +
+                                   metrics.lowMid * 0.08f +
+                                   metrics.mid * 0.04f +
+                                   metrics.treble * 0.08f);
+    envelope.audible = smootherStep(0.012f, 0.11f, loudness);
+    if (metrics.style == AudioStyle::Silence && loudness < 0.06f) {
+        envelope.audible *= smootherStep(0.035f, 0.12f, loudness);
+    }
+
+    const float beatDecay = std::pow(clamp01(1.0f - metrics.beatPhase), 2.25f) *
+                            clamp01(metrics.beatConfidence);
+    const float beatHit = metrics.beat ? std::max(0.42f, metrics.beatConfidence) : 0.0f;
+    envelope.beat = envelope.audible * clamp01(beatHit * 0.66f + beatDecay * 0.42f);
+    envelope.energy = envelope.audible *
+                      smootherStep(0.018f, 0.72f, metrics.rms * 1.24f + metrics.lowMid * 0.22f + metrics.mid * 0.18f);
+    envelope.bass = envelope.audible *
+                    smootherStep(0.018f, 0.92f, metrics.bass * 0.98f + metrics.lowMid * 0.18f + metrics.bandOnsets[0] * 0.12f);
+    envelope.treble = envelope.audible *
+                      smootherStep(0.012f, 0.82f, metrics.treble * 0.92f + metrics.highMid * 0.22f);
+    envelope.stereo = envelope.audible * smootherStep(0.035f, 0.90f, metrics.stereoWidth);
+    envelope.flux = envelope.audible * smootherStep(0.012f, 0.76f, metrics.spectralFlux);
+    envelope.drop = envelope.audible *
+                    smootherStep(0.08f, 0.96f, metrics.dropIntensity + metrics.bass * 0.13f + metrics.rms * 0.10f);
+    envelope.phrase = envelope.audible *
+                      clamp01(smootherStep(0.04f, 0.86f, metrics.phraseIntensity) +
+                              (metrics.phraseBoundary ? 0.18f : 0.0f));
+    envelope.build = envelope.audible * smootherStep(0.06f, 0.86f, metrics.buildTension);
+    envelope.detail = envelope.audible *
+                      clamp01(envelope.treble * 0.44f +
+                              envelope.flux * 0.34f +
+                              metrics.onset * 0.24f +
+                              metrics.bandOnsets[4] * 0.10f);
+
+    const float styleBlend = clamp01(metrics.styleConfidence);
+    const auto styleMix = [styleBlend](float neutral, float styled) {
+        return neutral + (styled - neutral) * styleBlend;
+    };
+    switch (metrics.style) {
+    case AudioStyle::Ambient:
+        envelope.beat *= styleMix(1.0f, 0.46f);
+        envelope.drop *= styleMix(1.0f, 0.58f);
+        envelope.detail *= styleMix(1.0f, 0.64f);
+        envelope.phrase = std::min(1.0f, envelope.phrase * styleMix(1.0f, 1.18f));
+        envelope.stereo = std::min(1.0f, envelope.stereo * styleMix(1.0f, 1.10f));
+        break;
+    case AudioStyle::Techno:
+        envelope.beat = std::min(1.0f, envelope.beat * styleMix(1.0f, 1.16f));
+        envelope.bass = std::min(1.0f, envelope.bass * styleMix(1.0f, 1.07f));
+        envelope.flux *= styleMix(1.0f, 0.88f);
+        break;
+    case AudioStyle::BassHeavy:
+        envelope.bass = std::min(1.0f, envelope.bass * styleMix(1.0f, 1.18f));
+        envelope.drop = std::min(1.0f, envelope.drop * styleMix(1.0f, 1.10f));
+        envelope.treble *= styleMix(1.0f, 0.82f);
+        break;
+    case AudioStyle::Bright:
+        envelope.treble = std::min(1.0f, envelope.treble * styleMix(1.0f, 1.18f));
+        envelope.detail = std::min(1.0f, envelope.detail * styleMix(1.0f, 1.08f));
+        envelope.bass *= styleMix(1.0f, 0.86f);
+        envelope.drop *= styleMix(1.0f, 0.86f);
+        break;
+    case AudioStyle::Wide:
+        envelope.stereo = std::min(1.0f, envelope.stereo * styleMix(1.0f, 1.22f));
+        envelope.phrase = std::min(1.0f, envelope.phrase * styleMix(1.0f, 1.08f));
+        envelope.beat *= styleMix(1.0f, 0.86f);
+        break;
+    case AudioStyle::Silence:
+        if (loudness < 0.08f) {
+            envelope.beat = 0.0f;
+            envelope.drop = 0.0f;
+            envelope.flux = 0.0f;
+            envelope.detail = 0.0f;
+        }
+        break;
+    }
+
+    const float jitterDamp = 0.42f + (1.0f - envelope.stability) * 0.58f;
+    const float clarityDamp = 0.50f + (1.0f - envelope.clarity) * 0.50f;
+    envelope.flux *= jitterDamp * clarityDamp;
+    envelope.detail *= jitterDamp * clarityDamp;
+    envelope.accent = clamp01(envelope.beat * 0.42f +
+                              envelope.drop * 0.50f +
+                              envelope.phrase * 0.20f +
+                              envelope.build * 0.14f);
+    envelope.motion = clamp01(envelope.energy * 0.42f +
+                              envelope.bass * 0.26f +
+                              envelope.beat * 0.24f +
+                              envelope.drop * 0.32f +
+                              envelope.phrase * 0.16f +
+                              envelope.detail * 0.12f);
+    envelope.camera = clamp01((envelope.bass * 0.34f +
+                               envelope.drop * 0.34f +
+                               envelope.stereo * 0.18f +
+                               envelope.phrase * 0.14f +
+                               envelope.build * 0.12f) *
+                              (0.50f + (1.0f - envelope.stability) * 0.50f) *
+                              (0.68f + (1.0f - envelope.clarity) * 0.32f));
+    return envelope;
+}
+
+AudioMetrics stabilizedMetrics(const AudioMetrics& metrics, const VisualSettings& settings)
+{
+    const MusicMotionEnvelope envelope = musicEnvelope(metrics, settings);
+    AudioMetrics shaped = metrics;
+    if (envelope.audible <= 0.001f) {
+        shaped = AudioMetrics{};
+        shaped.timeSeconds = metrics.timeSeconds;
+        shaped.beatPhase = metrics.beatPhase;
+        shaped.barPhase = metrics.barPhase;
+        shaped.phrasePhase = metrics.phrasePhase;
+        shaped.bpm = metrics.bpm;
+        return shaped;
+    }
+
+    const float jitterDamp = 0.48f + (1.0f - envelope.stability) * 0.52f;
+    const float clarityDamp = 0.56f + (1.0f - envelope.clarity) * 0.44f;
+    shaped.rms = envelope.energy;
+    shaped.peak = clamp01(envelope.energy + envelope.accent * 0.22f);
+    shaped.bass = envelope.bass;
+    shaped.lowMid = clamp01(envelope.energy * 0.42f + envelope.bass * 0.34f + metrics.lowMid * 0.18f * envelope.audible);
+    shaped.mid = clamp01(envelope.energy * 0.52f + metrics.mid * 0.18f * envelope.audible);
+    shaped.highMid = clamp01(envelope.energy * 0.32f + envelope.treble * 0.40f + metrics.highMid * 0.15f * envelope.audible);
+    shaped.treble = envelope.treble;
+    shaped.spectralFlux = envelope.flux;
+    shaped.stereoWidth = envelope.stereo;
+    shaped.onset = clamp01((envelope.beat * 0.55f + envelope.drop * 0.25f + envelope.detail * 0.25f) * jitterDamp);
+    shaped.beatConfidence = envelope.beat;
+    shaped.dropIntensity = envelope.drop;
+    shaped.phraseIntensity = envelope.phrase;
+    shaped.buildTension = envelope.build;
+    shaped.downbeatConfidence *= envelope.audible;
+    shaped.phraseConfidence *= envelope.audible;
+    shaped.sectionConfidence *= envelope.audible;
+    shaped.harmonicEnergy = clamp01(metrics.harmonicEnergy * (0.54f + envelope.energy * 0.46f));
+    shaped.keyConfidence *= envelope.audible;
+    shaped.beat = metrics.beat && envelope.beat > 0.20f;
+    shaped.downbeat = metrics.downbeat && envelope.beat > 0.20f;
+    shaped.phraseBoundary = metrics.phraseBoundary && envelope.phrase > 0.16f;
+    if (!shaped.beat && shaped.beatConfidence < 0.18f) {
+        shaped.beatConfidence = 0.0f;
+    }
+    for (float& bin : shaped.spectrum) {
+        bin = std::clamp(bin * envelope.audible * (0.76f + envelope.energy * 0.24f) * clarityDamp, 0.0f, 1.0f);
+    }
+    for (float& onset : shaped.bandOnsets) {
+        onset = std::clamp(onset * envelope.audible * jitterDamp * clarityDamp, 0.0f, 1.0f);
+    }
+    for (float& chroma : shaped.chroma) {
+        chroma = std::clamp(chroma * (0.68f + envelope.energy * 0.32f), 0.0f, 1.0f);
+    }
+    return shaped;
+}
+
 float musicResponse3D(const AudioMetrics& metrics, const VisualSettings& settings)
 {
-    const float userGain = 0.35f + response3DOf(settings) * 1.85f;
-    const float transient = (metrics.beat ? 0.38f : 0.0f) +
-                            metrics.dropIntensity * 0.9f +
-                            metrics.phraseIntensity * 0.36f +
-                            metrics.buildTension * 0.42f;
-    const float tonal = metrics.harmonicEnergy * 0.28f + metrics.keyConfidence * 0.16f;
-    const float bandDrive = metrics.rms * 0.8f +
-                            metrics.bass * 0.72f +
-                            metrics.treble * 0.48f +
-                            metrics.stereoWidth * 0.34f +
-                            metrics.spectralFlux * 0.4f +
-                            metrics.onset * 0.36f;
-    return std::clamp(0.18f + (bandDrive + transient + tonal) * userGain, 0.18f, 3.2f);
+    const MusicMotionEnvelope envelope = musicEnvelope(metrics, settings);
+    const float userGain = 0.42f + response3DOf(settings) * 1.34f;
+    const float musicalDrive = envelope.energy * 0.56f +
+                               envelope.bass * 0.46f +
+                               envelope.beat * 0.30f +
+                               envelope.drop * 0.54f +
+                               envelope.phrase * 0.24f +
+                               envelope.build * 0.18f +
+                               envelope.treble * 0.14f +
+                               envelope.stereo * 0.12f +
+                               envelope.detail * 0.16f;
+    const float readabilityDamp = (0.62f + (1.0f - envelope.stability) * 0.38f) *
+                                  (0.72f + (1.0f - envelope.clarity) * 0.28f);
+    const float cap = 1.72f + (1.0f - envelope.stability) * 0.40f + (1.0f - envelope.clarity) * 0.24f;
+    return std::clamp(0.08f + musicalDrive * userGain * readabilityDamp, 0.08f, cap);
 }
 
 float environmentDrive(const VisualSettings& settings, const EnvironmentState& environment)
@@ -616,18 +817,21 @@ Camera3D makeCamera3D(const VisualSettings& settings,
     const float minimumDimension = std::min(width, height);
     const float phase = static_cast<float>(time) * speed;
     const float response = musicResponse3D(metrics, settings);
-    const float rush = metrics.dropIntensity * response + metrics.bass * 0.35f * response;
+    const MusicMotionEnvelope envelope = musicEnvelope(metrics, settings);
+    const float cameraMotion = envelope.camera * (0.58f + (1.0f - envelope.stability) * 0.42f);
+    const float rush = (envelope.drop * 0.76f + envelope.bass * 0.34f) * response *
+                       (0.62f + (1.0f - envelope.stability) * 0.38f);
     return Camera3D{
         Vec2{width * 0.5f, height * 0.5f},
-        minimumDimension * (0.78f + depth * 0.94f + metrics.stereoWidth * 0.18f),
+        minimumDimension * (0.78f + depth * 0.94f + envelope.stereo * 0.14f),
         std::max(minimumDimension * 0.72f,
-                 minimumDimension * (1.18f + depth * 1.72f - rush * 0.22f + metrics.phraseIntensity * 0.12f)),
+                 minimumDimension * (1.18f + depth * 1.72f - rush * 0.16f + envelope.phrase * 0.10f)),
         std::sin(phase * 0.22f + metrics.phrasePhase * kPi) *
-            (0.12f + metrics.stereoWidth * 0.2f + depth * 0.12f + response * 0.025f),
+            (0.07f + envelope.stereo * 0.14f + depth * 0.08f + response * 0.012f + cameraMotion * 0.045f),
         std::cos(phase * 0.17f + metrics.buildTension * kPi) *
-            (0.07f + metrics.phraseIntensity * 0.12f + metrics.buildTension * 0.08f),
+            (0.04f + envelope.phrase * 0.08f + envelope.build * 0.06f + cameraMotion * 0.030f),
         std::sin(phase * 0.12f + metrics.beatPhase * kPi * 2.0f) *
-            (metrics.stereoWidth * 0.08f + metrics.dropIntensity * 0.04f + response * 0.01f)
+            (envelope.stereo * 0.045f + envelope.drop * 0.028f + response * 0.006f)
     };
 }
 
@@ -1011,8 +1215,16 @@ void applyObjectInteraction3D(std::vector<Object3D>& objects,
         std::clamp(interaction.normalizedY, 0.0f, 1.0f) * height
     };
     const float depthStrength = interactionDepthOf(settings);
-    const float radius = std::min(width, height) * (0.18f + depthStrength * 0.18f + interaction.velocity * 0.04f);
+    const float stability = motionStabilityOf(settings);
+    const float clarity = patternClarityOf(settings);
+    const float readability = 0.54f + (1.0f - clarity) * 0.28f + (1.0f - stability) * 0.18f;
+    const float radius = std::min(width, height) *
+                         (0.15f + depthStrength * 0.13f + interaction.velocity * 0.025f) *
+                         (0.82f + (1.0f - clarity) * 0.18f);
     const float clickBoost = interaction.pressed ? 1.0f : 0.45f;
+    const float maximumLift = std::min(width, height) * (0.10f + depthStrength * 0.14f) * readability;
+    const float tumble = 0.50f + (1.0f - clarity) * 0.32f + (1.0f - stability) * 0.18f;
+    const float glowCap = 1.10f + (1.0f - stability) * 0.42f + (1.0f - clarity) * 0.18f;
     for (Object3D& object : objects) {
         const Projected3D projected = projectPoint3D(object.position, camera);
         if (!projected.visible) {
@@ -1023,13 +1235,54 @@ void applyObjectInteraction3D(std::vector<Object3D>& objects,
             continue;
         }
         const float ripple = std::sin(time * 8.0f - influence * kPi * 2.0f);
-        const float lift = influence * depthStrength * (140.0f + interaction.velocity * 48.0f) * clickBoost;
+        const float rawLift = influence * depthStrength * (118.0f + interaction.velocity * 34.0f) * clickBoost * readability;
+        const float lift = std::min(rawLift, maximumLift);
         object.position.z -= lift * (0.75f + ripple * 0.25f);
         object.velocity.z = -lift;
-        object.rotation.x += influence * depthStrength * (0.28f + clickBoost * 0.22f);
-        object.rotation.y -= influence * depthStrength * 0.22f;
-        object.glow = std::min(1.8f, object.glow + influence * (0.55f + clickBoost * 0.45f));
-        object.scale = add(object.scale, Vec3{influence * 5.0f, influence * 5.0f, influence * 5.0f});
+        object.rotation.x += influence * depthStrength * (0.20f + clickBoost * 0.15f) * tumble;
+        object.rotation.y -= influence * depthStrength * 0.16f * tumble;
+        object.glow = std::min(glowCap, object.glow + influence * (0.34f + clickBoost * 0.28f) * readability);
+        const float scaleBoost = influence * (1.12f + (1.0f - clarity) * 2.20f + clickBoost * 0.48f);
+        object.scale = add(object.scale, Vec3{scaleBoost, scaleBoost, scaleBoost});
+    }
+}
+
+float clampMagnitude(float value, float maximum)
+{
+    return std::clamp(value, -maximum, maximum);
+}
+
+void applyPatternReadability3D(std::vector<Object3D>& objects,
+                               const VisualSettings& settings,
+                               const AudioMetrics& metrics,
+                               float minimumDimension)
+{
+    if (objects.empty()) {
+        return;
+    }
+
+    const MusicMotionEnvelope envelope = musicEnvelope(metrics, settings);
+    const float maxGlow = 0.95f +
+                          (1.0f - envelope.stability) * 0.42f +
+                          (1.0f - envelope.clarity) * 0.20f +
+                          envelope.drop * 0.20f +
+                          lightingGlowOf(settings) * 0.18f;
+    const float minZ = -minimumDimension * (0.92f + (1.0f - envelope.clarity) * 0.18f);
+    const float maxZ = minimumDimension * (2.55f + envelope.drop * 0.26f + (1.0f - envelope.clarity) * 0.30f);
+    const float maxVelocityZ = minimumDimension * (0.18f + (1.0f - envelope.stability) * 0.16f);
+    const float maxScaleXY = minimumDimension * (0.64f + (1.0f - envelope.clarity) * 0.22f + envelope.drop * 0.08f);
+    const float maxScaleZ = minimumDimension * (1.72f + (1.0f - envelope.clarity) * 0.36f + envelope.drop * 0.18f);
+    const float tumbleKeep = 0.58f + (1.0f - envelope.clarity) * 0.25f + (1.0f - envelope.stability) * 0.17f;
+
+    for (Object3D& object : objects) {
+        object.glow = std::min(object.glow, maxGlow);
+        object.position.z = std::clamp(object.position.z, minZ, maxZ);
+        object.velocity.z = clampMagnitude(object.velocity.z, maxVelocityZ);
+        object.rotation.x *= tumbleKeep;
+        object.rotation.y *= tumbleKeep;
+        object.scale.x = std::clamp(object.scale.x, -maxScaleXY, maxScaleXY);
+        object.scale.y = std::clamp(object.scale.y, -maxScaleXY, maxScaleXY);
+        object.scale.z = std::clamp(object.scale.z, -maxScaleZ, maxScaleZ);
     }
 }
 
@@ -1581,6 +1834,7 @@ void addObject3DScene(GeometryFrame& frame,
     addModeSpecific3DObjects(objects, settings.mode, metrics, colors, minimumDimension, objectDensity, personality, response, time);
 
     applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
+    applyPatternReadability3D(objects, settings, metrics, minimumDimension);
 
     for (Object3D& object : objects) {
         const Projected3D projected = projectPoint3D(object.position, camera);
@@ -3079,7 +3333,7 @@ void addArrangementSectionAccents(GeometryFrame& frame,
             });
         }
 
-        const int particles = scaledCount(20, quality);
+        const int particles = scaledCount(36, quality);
         for (int i = 0; i < particles; ++i) {
             const float unit = static_cast<float>(i) / static_cast<float>(particles);
             const float energy = spectrumAt(metrics, static_cast<std::size_t>(i * 3));
@@ -3626,31 +3880,33 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
                                            double timeSeconds) const
 {
     GeometryFrame frame;
-    const auto colors = personalityPalette(paletteColors(settings.palette), settings, metrics);
+    const AudioMetrics visualMetrics = stabilizedMetrics(metrics, settings);
+    const auto colors = personalityPalette(paletteColors(settings.palette), settings, visualMetrics);
     const float intensity = std::clamp(settings.intensity, 0.15f, 4.0f);
-    const float speed = std::clamp(settings.speed, 0.1f, 4.0f);
+    const float speed = std::clamp(settings.speed, 0.1f, 4.0f) *
+                        (0.84f + (1.0f - motionStabilityOf(settings)) * 0.16f);
     const float quality = qualityOf(settings);
     const float density = quality * complexityOf(settings);
     const float environmentStrength = environmentDrive(settings, environment);
-    const float drive = clamp01((metrics.rms * 2.0f) +
-                                (metrics.bass * 0.85f) +
-                                metrics.beatConfidence +
-                                metrics.spectralFlux * 0.35f +
-                                metrics.dropIntensity * 0.4f +
+    const float drive = clamp01((visualMetrics.rms * 2.0f) +
+                                (visualMetrics.bass * 0.85f) +
+                                visualMetrics.beatConfidence +
+                                visualMetrics.spectralFlux * 0.35f +
+                                visualMetrics.dropIntensity * 0.4f +
                                 environmentStrength * 0.16f);
     const float idlePulse = 0.5f + 0.5f * std::sin(static_cast<float>(timeSeconds) * 0.9f * speed);
     const Vec2 center{width * 0.5f, height * 0.5f};
-    const float tonalLift = metrics.harmonicEnergy * metrics.keyConfidence;
+    const float tonalLift = visualMetrics.harmonicEnergy * visualMetrics.keyConfidence;
     const ColorRGBA backgroundTint = mix(colors[4],
                                          colors[0],
-                                         0.18f + metrics.spectralCentroid * 0.1f + environmentStrength * 0.08f);
+                                         0.18f + visualMetrics.spectralCentroid * 0.1f + environmentStrength * 0.08f);
 
     frame.background = mix(ColorRGBA{0.006f, 0.008f, 0.013f, 1.0f},
                            withAlpha(backgroundTint, 1.0f),
-                           0.08f + metrics.spectralCentroid * 0.1f + drive * 0.08f +
+                           0.08f + visualMetrics.spectralCentroid * 0.1f + drive * 0.08f +
                                tonalLift * 0.035f + environmentStrength * 0.045f);
-    frame.flash = std::max(metrics.beat ? clamp01(0.18f + metrics.beatConfidence * 0.55f) : 0.0f,
-                           clamp01(metrics.dropIntensity * 0.32f));
+    frame.flash = std::max(visualMetrics.beat ? clamp01(0.16f + visualMetrics.beatConfidence * 0.46f) : 0.0f,
+                           clamp01(visualMetrics.dropIntensity * 0.26f));
 
     const float gridRadius = std::hypot(width, height) * 0.42f;
     const int gridCount = scaledCount(12, density);
@@ -3668,48 +3924,48 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
 
     switch (settings.mode) {
     case VisualMode::QuantumTunnel:
-        addQuantumTunnel(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addQuantumTunnel(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::TechnoMandala:
-        addTechnoMandala(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addTechnoMandala(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::LissajousMesh:
-        addLissajousMesh(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addLissajousMesh(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::FrequencyBloom:
-        addFrequencyBloom(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addFrequencyBloom(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::FractalCathedral:
-        addFractalCathedral(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addFractalCathedral(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::PolyrhythmLattice:
-        addPolyrhythmLattice(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addPolyrhythmLattice(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::SpectralOrigami:
-        addSpectralOrigami(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addSpectralOrigami(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::ChromaKaleidoscope:
-        addChromaKaleidoscope(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addChromaKaleidoscope(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::HyperspacePolytope:
-        addHyperspacePolytope(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addHyperspacePolytope(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::PhaseWeave:
-        addPhaseWeave(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addPhaseWeave(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::ResonanceTessellation:
-        addResonanceTessellation(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addResonanceTessellation(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::NeuralConstellation:
-        addNeuralConstellation(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addNeuralConstellation(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     case VisualMode::CymaticInterference:
-        addCymaticInterference(frame, metrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
+        addCymaticInterference(frame, visualMetrics, colors, width, height, drive, speed, intensity, density, timeSeconds);
         break;
     }
 
     addSceneTransitionOverlay(frame,
-                              metrics,
+                              visualMetrics,
                               colors,
                               width,
                               height,
@@ -3719,18 +3975,18 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
                               settings.sceneTransition,
                               settings.sceneTransitionProgress,
                               timeSeconds);
-    addSyncAccents(frame, metrics, colors, width, height, speed, intensity, density, timeSeconds);
-    addArrangementSectionAccents(frame, metrics, colors, width, height, speed, intensity, density, timeSeconds);
+    addSyncAccents(frame, visualMetrics, colors, width, height, speed, intensity, density, timeSeconds);
+    addArrangementSectionAccents(frame, visualMetrics, colors, width, height, speed, intensity, density, timeSeconds);
     if (environmentStrength > 0.0f) {
-        addEnvironmentField(frame, metrics, colors, environment, width, height, speed, intensity, density, timeSeconds);
+        addEnvironmentField(frame, visualMetrics, colors, environment, width, height, speed, intensity, density, timeSeconds);
     }
 
     if (settings.interactiveField) {
         bendTowardInteraction(frame, interaction, width, height, intensity, colors);
     }
 
-    applyDepthCues(frame, metrics, settings, colors, width, height, speed, timeSeconds);
-    addObject3DScene(frame, metrics, settings, interaction, colors, width, height, speed, intensity, density, timeSeconds);
+    applyDepthCues(frame, visualMetrics, settings, colors, width, height, speed, timeSeconds);
+    addObject3DScene(frame, visualMetrics, settings, interaction, colors, width, height, speed, intensity, density, timeSeconds);
 
     return frame;
 }

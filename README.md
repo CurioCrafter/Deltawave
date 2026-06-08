@@ -56,12 +56,12 @@ Render an audio file into a deterministic PPM frame sequence and optional MP4:
 
 ```powershell
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\offline --width 1920 --height 1080 --fps 60 --look "Acid Geometry" --trails
-.\build\vs2022\Release\VisualizerExport.exe --input song.mp3 --output captures\offline --mp4 captures\visualizer.mp4 --share --width 1920 --height 1080 --fps 60 --auto-scene --depth-3d 1.0 --object-density-3d 0.9 --lighting-glow 0.85 --color-impact 1.0 --scene-personality 0.9 --response-3d 1.0
+.\build\vs2022\Release\VisualizerExport.exe --input song.mp3 --output captures\offline --mp4 captures\visualizer.mp4 --share --width 1920 --height 1080 --fps 60 --auto-scene --depth-3d 1.0 --object-density-3d 0.9 --lighting-glow 0.85 --color-impact 1.0 --scene-personality 0.9 --response-3d 0.88 --motion-stability 0.82 --pattern-clarity 0.9
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\calibrated --sync-profile profiles\sources\live_loopback.vizsync --style-profile profiles\sources\live_loopback.vizaudio
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\library_look --user-preset "Late Set" --share
 ```
 
-The exporter writes `frame_000000.ppm` files plus `export_manifest.txt` and `analysis_timeline.csv`. Manifests include depth, 3D object density, mouse depth, lighting glow, color/personality settings, 3D response, final Auto Scene settings, and a track-intelligence summary with downbeats, phrase boundaries, average bar/phrase lock, drop/phrase/build-tension peaks, dominant style, harmonic energy, and peak primitive count. When `--mp4` is provided, it also invokes FFmpeg to encode a shareable H.264 MP4. Add `--share` to write a browsable `index.html`, `preview.bmp` contact sheet, and machine-readable `share_manifest.json` beside the frame sequence.
+The exporter writes `frame_000000.ppm` files plus `export_manifest.txt` and `analysis_timeline.csv`. Manifests include depth, 3D object density, mouse depth, lighting glow, color/personality settings, 3D response, motion stability, pattern clarity, final Auto Scene settings, and a track-intelligence summary with downbeats, phrase boundaries, average bar/phrase lock, drop/phrase/build-tension peaks, dominant style, harmonic energy, and peak primitive count. When `--mp4` is provided, it also invokes FFmpeg to encode a shareable H.264 MP4. Add `--share` to write a browsable `index.html`, `preview.bmp` contact sheet, and machine-readable `share_manifest.json` beside the frame sequence.
 Use `--style-profile` and `--sync-profile` to reproduce a learned live calibration during deterministic offline export.
 
 Batch-render a folder of tracks into a browsable gallery:

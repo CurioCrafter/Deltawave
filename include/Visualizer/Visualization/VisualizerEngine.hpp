@@ -147,7 +147,9 @@ struct VisualSettings {
     float interactionDepth = 0.65f;
     float lightingGlow = 0.62f;
     float scenePersonality = 0.5f;
-    float response3D = 1.0f;
+    float response3D = 0.88f;
+    float motionStability = 0.72f;
+    float patternClarity = 0.78f;
     float complexity = 1.0f;
     float intensity = 1.0f;
     float speed = 1.0f;
