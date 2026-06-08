@@ -56,6 +56,24 @@ std::wstring hueShiftStatus(float hueShift)
     return L"Hue shift: " + std::to_wstring(static_cast<int>(std::round(wrapUnit(hueShift) * 360.0f))) + L" deg";
 }
 
+MotionStyle nextMotionStyle(MotionStyle current, int direction)
+{
+    static constexpr std::array<MotionStyle, 7> styles = {
+        MotionStyle::Smooth,
+        MotionStyle::Mechanical,
+        MotionStyle::Liquid,
+        MotionStyle::Hyperspace,
+        MotionStyle::HeavyBass,
+        MotionStyle::AmbientDrift,
+        MotionStyle::Breakbeat
+    };
+
+    const auto it = std::find(styles.begin(), styles.end(), current);
+    const int count = static_cast<int>(styles.size());
+    const int index = it == styles.end() ? 0 : static_cast<int>(it - styles.begin());
+    return styles[static_cast<std::size_t>((index + direction + count) % count)];
+}
+
 int captureFrameRate(std::size_t framesWritten, double durationSeconds)
 {
     if (framesWritten == 0 || durationSeconds <= 0.0001) {
@@ -1187,6 +1205,18 @@ void WindowsApp::applyPanelControl(const PanelItem& item, int x)
     case PanelControl::CuratedPresetNext:
         applyCuratedPreset(1);
         break;
+    case PanelControl::MotionStylePrevious:
+        markCustomLook();
+        settings_.motionStyle = nextMotionStyle(settings_.motionStyle, -1);
+        sceneDirector_.reset();
+        setStatus(L"Motion style: " + widen(toString(settings_.motionStyle)));
+        break;
+    case PanelControl::MotionStyleNext:
+        markCustomLook();
+        settings_.motionStyle = nextMotionStyle(settings_.motionStyle, 1);
+        sceneDirector_.reset();
+        setStatus(L"Motion style: " + widen(toString(settings_.motionStyle)));
+        break;
     case PanelControl::Record:
         toggleRecording();
         break;
@@ -1449,6 +1479,12 @@ LRESULT WindowsApp::handleMessage(UINT message, WPARAM wParam, LPARAM lParam)
             return 0;
         case 'F':
             adjustColorImpact(0.1f);
+            return 0;
+        case 'G':
+            markCustomLook();
+            settings_.motionStyle = nextMotionStyle(settings_.motionStyle, 1);
+            sceneDirector_.reset();
+            setStatus(L"Motion style: " + widen(toString(settings_.motionStyle)));
             return 0;
         case 'V':
             resetCurrentAudioProfiles();

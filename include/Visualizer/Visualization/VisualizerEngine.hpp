@@ -137,9 +137,20 @@ enum class Palette {
     OceanicPulse
 };
 
+enum class MotionStyle {
+    Smooth,
+    Mechanical,
+    Liquid,
+    Hyperspace,
+    HeavyBass,
+    AmbientDrift,
+    Breakbeat
+};
+
 struct VisualSettings {
     VisualMode mode = VisualMode::QuantumTunnel;
     Palette palette = Palette::NeonVoltage;
+    MotionStyle motionStyle = MotionStyle::Liquid;
     float hueShift = 0.0f;
     float depth3D = 0.55f;
     float colorImpact = 0.65f;
@@ -166,6 +177,7 @@ struct VisualSettings {
 
 std::string_view toString(VisualMode mode);
 std::string_view toString(Palette palette);
+std::string_view toString(MotionStyle style);
 ColorRGBA hsv(float hue, float saturation, float value, float alpha = 1.0f);
 
 class VisualizerEngine {

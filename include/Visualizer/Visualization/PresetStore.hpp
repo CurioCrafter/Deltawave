@@ -23,6 +23,7 @@ struct PresetLibraryEntry {
 
 [[nodiscard]] std::optional<VisualMode> parseVisualMode(std::string_view value);
 [[nodiscard]] std::optional<Palette> parsePalette(std::string_view value);
+[[nodiscard]] std::optional<MotionStyle> parseMotionStyle(std::string_view value);
 [[nodiscard]] const std::vector<VisualPreset>& curatedPresets();
 [[nodiscard]] std::optional<std::size_t> findCuratedPresetIndex(std::string_view value);
 [[nodiscard]] std::optional<VisualPreset> findCuratedPreset(std::string_view value);

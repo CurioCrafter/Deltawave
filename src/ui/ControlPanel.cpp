@@ -47,7 +47,7 @@ ControlPanelLayout buildControlPanelLayout(float width,
     const float panelWidth = std::clamp(width * 0.24f, 292.0f, 350.0f);
     const float panelLeft = 16.0f;
     const float panelTop = 184.0f;
-    const float itemHeight = 19.0f;
+    const float itemHeight = 18.0f;
     const float gap = 1.0f;
     const float innerLeft = panelLeft + 14.0f;
     const float innerWidth = panelWidth - 28.0f;
@@ -116,6 +116,7 @@ ControlPanelLayout buildControlPanelLayout(float width,
     addFull(PanelControl::ResetAudioProfiles, "Reset Audio AI", false);
     addPair(PanelControl::SavePreset, "Save", false, PanelControl::LoadPreset, "Load", false);
     addPair(PanelControl::CuratedPresetPrevious, "Look <", false, PanelControl::CuratedPresetNext, "Look >", false);
+    addPair(PanelControl::MotionStylePrevious, "Motion <", false, PanelControl::MotionStyleNext, "Motion >", false);
     addTriple(PanelControl::UserPresetPrevious,
               "User <",
               false,

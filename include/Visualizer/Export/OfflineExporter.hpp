@@ -60,6 +60,7 @@ struct OfflineExportResult {
     float finalResponse3D = 0.0f;
     float finalMotionStability = 0.0f;
     float finalPatternClarity = 0.0f;
+    MotionStyle finalMotionStyle = MotionStyle::Liquid;
     float minimumHueShift = 1.0f;
     float maximumHueShift = 0.0f;
     float keyConfidence = 0.0f;

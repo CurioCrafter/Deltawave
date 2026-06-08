@@ -26,6 +26,8 @@ enum class PanelControl {
     SaveUserPreset,
     CuratedPresetPrevious,
     CuratedPresetNext,
+    MotionStylePrevious,
+    MotionStyleNext,
     Record,
     ModeQuantumTunnel,
     ModeTechnoMandala,

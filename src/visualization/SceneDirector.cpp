@@ -31,6 +31,7 @@ float bpmSpeedScale(float bpm)
 struct SceneTarget {
     VisualMode mode = VisualMode::QuantumTunnel;
     Palette palette = Palette::NeonVoltage;
+    MotionStyle motionStyle = MotionStyle::Liquid;
     float hueShift = 0.0f;
     float depth3D = 0.55f;
     float colorImpact = 0.65f;
@@ -65,6 +66,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     SceneTarget target;
     target.mode = base.mode;
     target.palette = base.palette;
+    target.motionStyle = base.motionStyle;
     target.hueShift = wrapUnit(base.hueShift);
     target.depth3D = base.depth3D;
     target.colorImpact = base.colorImpact;
@@ -83,6 +85,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     case AudioStyle::Silence:
         target.mode = base.mode;
         target.palette = Palette::MonochromeLaser;
+        target.motionStyle = MotionStyle::Smooth;
         target.depth3D = base.depth3D * 0.55f;
         target.colorImpact = base.colorImpact * 0.45f;
         target.intensity = base.intensity * 0.48f;
@@ -91,6 +94,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     case AudioStyle::Ambient:
         target.mode = VisualMode::FractalCathedral;
         target.palette = Palette::OceanicPulse;
+        target.motionStyle = MotionStyle::AmbientDrift;
         target.depth3D = std::max(base.depth3D, 0.62f + metrics.stereoWidth * 0.16f);
         target.colorImpact = std::max(base.colorImpact, 0.52f + metrics.harmonicEnergy * 0.16f);
         target.intensity = base.intensity * (0.72f + metrics.phraseIntensity * 0.55f);
@@ -101,6 +105,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
                           ? VisualMode::HyperspacePolytope
                           : (metrics.phraseIntensity > 0.45f ? VisualMode::TechnoMandala : VisualMode::PolyrhythmLattice);
         target.palette = metrics.treble > 0.42f ? Palette::AcidAurora : Palette::NeonVoltage;
+        target.motionStyle = metrics.spectralFlux > 0.52f ? MotionStyle::Breakbeat : MotionStyle::Mechanical;
         target.depth3D = std::max(base.depth3D, 0.68f + metrics.stereoWidth * 0.18f + metrics.dropIntensity * 0.12f);
         target.colorImpact = std::max(base.colorImpact, 0.76f + metrics.treble * 0.12f + metrics.dropIntensity * 0.08f);
         target.intensity = base.intensity * (1.08f + energy * 0.5f + metrics.dropIntensity * 0.42f);
@@ -109,6 +114,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     case AudioStyle::BassHeavy:
         target.mode = metrics.dropIntensity > 0.5f ? VisualMode::QuantumTunnel : VisualMode::PolyrhythmLattice;
         target.palette = Palette::InfraredChrome;
+        target.motionStyle = MotionStyle::HeavyBass;
         target.depth3D = std::max(base.depth3D, 0.78f + metrics.bass * 0.18f + metrics.dropIntensity * 0.12f);
         target.colorImpact = std::max(base.colorImpact, 0.72f + metrics.bass * 0.12f);
         target.intensity = base.intensity * (1.2f + metrics.bass * 0.78f + metrics.dropIntensity * 0.55f);
@@ -117,6 +123,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     case AudioStyle::Bright:
         target.mode = metrics.spectralFlux > 0.34f ? VisualMode::SpectralOrigami : VisualMode::FrequencyBloom;
         target.palette = Palette::AcidAurora;
+        target.motionStyle = metrics.onset > 0.42f ? MotionStyle::Breakbeat : MotionStyle::Liquid;
         target.depth3D = std::max(base.depth3D, 0.58f + metrics.spectralFlux * 0.16f);
         target.colorImpact = std::max(base.colorImpact, 0.84f + metrics.treble * 0.12f);
         target.intensity = base.intensity * (0.95f + metrics.treble * 0.75f + metrics.spectralFlux * 0.45f);
@@ -127,6 +134,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
                       (metrics.treble > 0.42f ? VisualMode::SpectralOrigami :
                        (metrics.phraseIntensity > 0.35f ? VisualMode::FractalCathedral : VisualMode::LissajousMesh));
         target.palette = Palette::OceanicPulse;
+        target.motionStyle = MotionStyle::Liquid;
         target.depth3D = std::max(base.depth3D, 0.76f + metrics.stereoWidth * 0.2f);
         target.colorImpact = std::max(base.colorImpact, 0.62f + metrics.stereoWidth * 0.12f + metrics.harmonicEnergy * 0.1f);
         target.intensity = base.intensity * (0.92f + metrics.stereoWidth * 0.52f + metrics.phraseIntensity * 0.3f);
@@ -160,6 +168,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         if (metrics.sectionConfidence > 0.42f) {
             target.mode = metrics.harmonicEnergy > 0.48f ? VisualMode::ChromaKaleidoscope : VisualMode::FractalCathedral;
             target.palette = Palette::OceanicPulse;
+            target.motionStyle = MotionStyle::AmbientDrift;
             target.depth3D = std::max(target.depth3D, 0.68f + metrics.stereoWidth * 0.12f);
             target.colorImpact = std::max(target.colorImpact, 0.58f + metrics.harmonicEnergy * 0.18f);
             target.intensity *= 0.72f + metrics.sectionProgress * 0.18f;
@@ -179,6 +188,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
                                          : VisualMode::TechnoMandala);
             }
             target.palette = metrics.treble > 0.32f ? Palette::AcidAurora : target.palette;
+            target.motionStyle = metrics.stereoWidth > 0.42f ? MotionStyle::Hyperspace : MotionStyle::Mechanical;
             target.depth3D = std::max(target.depth3D, 0.72f + metrics.sectionProgress * 0.12f + metrics.buildTension * 0.14f);
             target.colorImpact = std::max(target.colorImpact, 0.74f + metrics.buildTension * 0.12f + metrics.treble * 0.08f);
             target.intensity *= 1.0f + metrics.sectionProgress * 0.32f + metrics.buildTension * 0.24f + metrics.phraseIntensity * 0.18f;
@@ -195,6 +205,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
                                   : VisualMode::QuantumTunnel;
             }
             target.palette = metrics.treble > 0.4f ? Palette::AcidAurora : Palette::NeonVoltage;
+            target.motionStyle = metrics.bass > 0.58f ? MotionStyle::HeavyBass : MotionStyle::Hyperspace;
             target.depth3D = std::max(target.depth3D, 0.86f + metrics.dropIntensity * 0.1f);
             target.colorImpact = std::max(target.colorImpact, 0.82f + metrics.dropIntensity * 0.1f);
             target.intensity *= 1.16f + metrics.dropIntensity * 0.34f;
@@ -216,6 +227,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.mode = metrics.harmonicEnergy > 0.5f && metrics.keyConfidence > 0.42f
                           ? VisualMode::ResonanceTessellation
                           : (metrics.stereoWidth > 0.46f ? VisualMode::PhaseWeave : VisualMode::TechnoMandala);
+        target.motionStyle = metrics.stereoWidth > 0.46f ? MotionStyle::Hyperspace : MotionStyle::Mechanical;
         target.depth3D = std::max(target.depth3D, 0.78f + metrics.buildTension * 0.14f);
         target.colorImpact = std::max(target.colorImpact, 0.78f + metrics.buildTension * 0.1f);
         target.intensity *= 1.04f + metrics.buildTension * 0.2f;
@@ -230,6 +242,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         metrics.section != ArrangementSection::Drop) {
         target.mode = VisualMode::CymaticInterference;
         target.palette = metrics.treble > 0.36f ? Palette::AcidAurora : target.palette;
+        target.motionStyle = MotionStyle::Smooth;
         target.depth3D = std::max(target.depth3D, 0.72f + metrics.buildTension * 0.12f);
         target.colorImpact = std::max(target.colorImpact, 0.84f + metrics.harmonicEnergy * 0.1f);
         target.intensity *= 1.05f + metrics.harmonicEnergy * 0.12f + metrics.buildTension * 0.08f;
@@ -241,23 +254,28 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
                           : ((metrics.spectralFlux > 0.42f || metrics.stereoWidth > 0.5f)
                                  ? VisualMode::HyperspacePolytope
                                  : VisualMode::QuantumTunnel);
+        target.motionStyle = metrics.bass > 0.58f ? MotionStyle::HeavyBass : MotionStyle::Hyperspace;
         target.depth3D = std::max(target.depth3D, 0.92f);
         target.colorImpact = std::max(target.colorImpact, 0.88f);
         target.intensity *= 1.18f;
         target.speed *= 1.08f;
     } else if (metrics.bandOnsets[0] > 0.55f && metrics.beatConfidence > 0.5f) {
         target.mode = VisualMode::PolyrhythmLattice;
+        target.motionStyle = MotionStyle::Mechanical;
     } else if (target.mode != VisualMode::CymaticInterference &&
                (metrics.phraseIntensity > 0.62f || metrics.buildTension > 0.7f) &&
                metrics.stereoWidth > 0.25f) {
         target.mode = VisualMode::FractalCathedral;
+        target.motionStyle = MotionStyle::AmbientDrift;
     } else if (metrics.bandOnsets[4] > 0.44f && metrics.treble > 0.38f) {
         target.mode = VisualMode::SpectralOrigami;
+        target.motionStyle = MotionStyle::Breakbeat;
     } else if (target.mode != VisualMode::ResonanceTessellation &&
                target.mode != VisualMode::CymaticInterference &&
                metrics.keyConfidence > 0.58f &&
                metrics.harmonicEnergy > 0.58f) {
         target.mode = VisualMode::ChromaKaleidoscope;
+        target.motionStyle = MotionStyle::Liquid;
     }
 
     if (metrics.downbeatConfidence > 0.58f &&
@@ -266,6 +284,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         (metrics.harmonicEnergy > 0.42f || metrics.stereoWidth > 0.44f) &&
         (metrics.spectralFlux > 0.18f || metrics.phraseIntensity > 0.32f || metrics.section == ArrangementSection::Groove)) {
         target.mode = VisualMode::NeuralConstellation;
+        target.motionStyle = metrics.stereoWidth > 0.52f ? MotionStyle::Liquid : MotionStyle::Smooth;
         target.depth3D = std::max(target.depth3D, 0.72f + metrics.stereoWidth * 0.12f);
         target.colorImpact = std::max(target.colorImpact, 0.70f + metrics.harmonicEnergy * 0.12f);
         target.intensity *= 1.0f + metrics.barConfidence * 0.14f + metrics.downbeatConfidence * 0.08f;
@@ -388,6 +407,7 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
     VisualSettings resolved = base;
     resolved.mode = currentMode_;
     resolved.palette = currentPalette_;
+    resolved.motionStyle = target.motionStyle;
     resolved.hueShift = smoothedHueShift_;
     resolved.depth3D = clampSetting(smoothedDepth3D_, 0.0f, 1.0f);
     resolved.colorImpact = clampSetting(smoothedColorImpact_, 0.0f, 1.0f);

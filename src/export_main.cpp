@@ -53,6 +53,7 @@ void printUsage()
         << "  --list-user-presets   Print user preset library entries and exit\n"
         << "  --mode NAME        QuantumTunnel, TechnoMandala, LissajousMesh, FrequencyBloom, FractalCathedral, PolyrhythmLattice, SpectralOrigami, ChromaKaleidoscope, HyperspacePolytope, PhaseWeave, ResonanceTessellation, NeuralConstellation, CymaticInterference\n"
         << "  --palette NAME     NeonVoltage, InfraredChrome, AcidAurora, MonochromeLaser, OceanicPulse\n"
+        << "  --motion-style NAME  Smooth, Mechanical, Liquid, Hyperspace, HeavyBass, AmbientDrift, or Breakbeat\n"
         << "  --preset FILE      Load settings from .vizpreset\n";
 }
 
@@ -63,6 +64,7 @@ void printCuratedLooks()
         std::cout << "  " << preset.name
                   << " | " << viz::toString(preset.settings.mode)
                   << " | " << viz::toString(preset.settings.palette)
+                  << " | motion " << viz::toString(preset.settings.motionStyle)
                   << " | depth " << preset.settings.depth3D
                   << " | objects " << preset.settings.objectDensity3D
                   << " | mouse3d " << preset.settings.interactionDepth
@@ -270,6 +272,13 @@ int main(int argc, char** argv)
                 options.settings.palette = *palette;
             } else {
                 std::cerr << "Unknown palette: " << value << "\n";
+                return 2;
+            }
+        } else if ((arg == "--motion-style" || arg == "--motion") && nextValue(i, argc, argv, value)) {
+            if (const std::optional<viz::MotionStyle> style = viz::parseMotionStyle(value)) {
+                options.settings.motionStyle = *style;
+            } else {
+                std::cerr << "Unknown motion style: " << value << "\n";
                 return 2;
             }
         } else if (arg == "--preset" && nextValue(i, argc, argv, value)) {

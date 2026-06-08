@@ -45,7 +45,7 @@ bool AnalysisTimelineWriter::open(const std::filesystem::path& path, std::string
     }
 
     path_ = path;
-    output_ << "frame,timeSeconds,mode,palette,hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,"
+    output_ << "frame,timeSeconds,mode,palette,motionStyle,hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,"
             << "colorImpact,scenePersonality,response3D,motionStability,patternClarity,complexity,intensity,speed,qualityScale,"
             << "rms,peak,bass,lowMid,mid,highMid,treble,spectralFlux,onset,"
             << "beat,beatConfidence,beatPhase,barPhase,barConfidence,downbeat,downbeatConfidence,bpm,dropIntensity,phraseIntensity,"
@@ -75,6 +75,7 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << std::fixed << std::setprecision(4) << entry.timeSeconds << ","
             << '"' << toString(settings.mode) << '"' << ","
             << '"' << toString(settings.palette) << '"' << ","
+            << '"' << toString(settings.motionStyle) << '"' << ","
             << std::setprecision(3) << std::clamp(settings.hueShift, 0.0f, 1.0f) << ","
             << std::setprecision(3) << std::clamp(settings.depth3D, 0.0f, 1.0f) << ","
             << std::setprecision(3) << std::clamp(settings.objectDensity3D, 0.0f, 1.0f) << ","

@@ -176,6 +176,8 @@ bool writeManifest(const CapturePackage& package,
            << std::clamp(package.requestedSettings.scenePersonality, 0.0f, 1.0f) << ",\n";
     output << "  \"finalScenePersonality\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.finalSettings.scenePersonality, 0.0f, 1.0f) << ",\n";
+    output << "  \"requestedMotionStyle\": \"" << escapeJson(std::string(toString(package.requestedSettings.motionStyle))) << "\",\n";
+    output << "  \"finalMotionStyle\": \"" << escapeJson(std::string(toString(package.finalSettings.motionStyle))) << "\",\n";
     output << "  \"requestedResponse3D\": " << std::fixed << std::setprecision(3)
            << std::clamp(package.requestedSettings.response3D, 0.0f, 1.0f) << ",\n";
     output << "  \"finalResponse3D\": " << std::fixed << std::setprecision(3)
@@ -289,6 +291,7 @@ bool writePage(const CapturePackage& package,
     stat("Sync Profile", package.syncProfilePath.empty() ? "None" : package.syncProfilePath.filename().string());
     stat("Final Mode", std::string(toString(package.finalSettings.mode)));
     stat("Final Palette", std::string(toString(package.finalSettings.palette)));
+    stat("Motion Style", std::string(toString(package.finalSettings.motionStyle)));
     stat("Depth 3D", std::to_string(package.finalSettings.depth3D));
     stat("3D Objects", std::to_string(package.finalSettings.objectDensity3D));
     stat("Mouse 3D", std::to_string(package.finalSettings.interactionDepth));

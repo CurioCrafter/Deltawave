@@ -244,6 +244,34 @@ float visualEnergyScore(const GeometryFrame& frame)
            static_cast<float>(viz::countPrimitives(frame)) * 0.08f;
 }
 
+float objectMotionSignature(const GeometryFrame& frame)
+{
+    float kindMix = 0.0f;
+    const std::array<int, 14> signature = objectKindSignature(frame);
+    for (std::size_t i = 0; i < signature.size(); ++i) {
+        kindMix += static_cast<float>(signature[i]) * static_cast<float>(i + 1U) * 0.11f;
+    }
+    float orbitMix = 0.0f;
+    for (const Object3D& object : frame.objects3D) {
+        orbitMix += std::fabs(object.position.x) * 0.0025f +
+                    std::fabs(object.position.y) * 0.0035f +
+                    std::fabs(object.position.z) * 0.0045f +
+                    std::fabs(object.rotation.x) * 1.7f +
+                    std::fabs(object.rotation.y) * 1.3f +
+                    std::fabs(object.rotation.z) * 1.1f;
+    }
+    if (!frame.objects3D.empty()) {
+        orbitMix /= static_cast<float>(frame.objects3D.size());
+    }
+    return kindMix +
+           orbitMix +
+           averageObjectGlow(frame) * 18.0f +
+           averageObjectScale(frame) * 0.012f +
+           std::fabs(averageObjectZ(frame)) * 0.012f +
+           frame.objectDepthRange * 0.010f +
+           frame.cameraDepth * 0.002f;
+}
+
 bool objectDepthsAreSorted(const GeometryFrame& frame)
 {
     for (std::size_t i = 1; i < frame.objects3D.size(); ++i) {
@@ -735,6 +763,7 @@ void liveCapturePackageWritesShareMetadata()
     VisualSettings settings;
     settings.mode = VisualMode::ChromaKaleidoscope;
     settings.palette = Palette::OceanicPulse;
+    settings.motionStyle = MotionStyle::Liquid;
     settings.hueShift = 0.25f;
     settings.depth3D = 0.81f;
     settings.colorImpact = 0.86f;
@@ -775,6 +804,7 @@ void liveCapturePackageWritesShareMetadata()
     package.finalSettings.interactionDepth = 0.77f;
     package.finalSettings.lightingGlow = 0.91f;
     package.finalSettings.scenePersonality = 0.79f;
+    package.finalSettings.motionStyle = MotionStyle::Hyperspace;
     package.finalSettings.response3D = 0.96f;
     package.finalSettings.motionStability = 0.88f;
     package.finalSettings.patternClarity = 0.93f;
@@ -862,6 +892,10 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture manifest should include requested scene personality");
         require(manifestText.find("\"finalScenePersonality\": 0.790") != std::string::npos,
                 "live capture manifest should include final scene personality");
+        require(manifestText.find("\"requestedMotionStyle\": \"Liquid\"") != std::string::npos,
+                "live capture manifest should include requested motion style");
+        require(manifestText.find("\"finalMotionStyle\": \"Hyperspace\"") != std::string::npos,
+                "live capture manifest should include final motion style");
         require(manifestText.find("\"requestedResponse3D\": 0.740") != std::string::npos,
                 "live capture manifest should include requested 3D response");
         require(manifestText.find("\"finalResponse3D\": 0.960") != std::string::npos,
@@ -937,6 +971,8 @@ void liveCapturePackageWritesShareMetadata()
                 "live capture page should summarize color impact");
         require(pageText.find("Scene Personality") != std::string::npos,
                 "live capture page should summarize scene personality");
+        require(pageText.find("Motion Style") != std::string::npos,
+                "live capture page should summarize motion style");
         require(pageText.find("3D Response") != std::string::npos,
                 "live capture page should summarize 3D response");
         require(pageText.find("Motion Stability") != std::string::npos,
@@ -1440,6 +1476,206 @@ void songProfilesScaleMusicallyWithoutChaos()
             "bass-heavy drops should push the scene harder than a steady groove");
     require(dropFrame.flash < 0.7f, "drop flash should be intense but not a full-screen panic strobe");
     require(dropFrame.objectDepthRange < 3200.0f, "drop response should stay within a readable depth range");
+}
+
+void motionStylesCreateDistinct3DChoreography()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::HyperspacePolytope;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.86f;
+    settings.lightingGlow = 0.88f;
+    settings.scenePersonality = 0.8f;
+    settings.response3D = 0.94f;
+    settings.motionStability = 0.68f;
+    settings.patternClarity = 0.78f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.rms = 0.62f;
+    metrics.peak = 0.96f;
+    metrics.bass = 0.82f;
+    metrics.treble = 0.72f;
+    metrics.stereoWidth = 0.74f;
+    metrics.spectralFlux = 0.68f;
+    metrics.onset = 0.66f;
+    metrics.beat = true;
+    metrics.beatConfidence = 0.94f;
+    metrics.beatPhase = 0.08f;
+    metrics.dropIntensity = 0.72f;
+    metrics.phraseIntensity = 0.64f;
+    metrics.phrasePhase = 0.38f;
+    metrics.buildTension = 0.58f;
+    metrics.keyIndex = 7;
+    metrics.keyConfidence = 0.82f;
+    metrics.harmonicEnergy = 0.74f;
+    metrics.bandOnsets = {0.78f, 0.54f, 0.44f, 0.62f, 0.76f};
+
+    const MotionStyle styles[] = {
+        MotionStyle::Smooth,
+        MotionStyle::Mechanical,
+        MotionStyle::Liquid,
+        MotionStyle::Hyperspace,
+        MotionStyle::HeavyBass,
+        MotionStyle::AmbientDrift,
+        MotionStyle::Breakbeat
+    };
+    std::vector<int> signatureBuckets;
+    for (MotionStyle style : styles) {
+        settings.motionStyle = style;
+        const GeometryFrame frame = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 4.0);
+        require(!frame.objects3D.empty(), "each motion style should render 3D choreography objects");
+        require(frame.objectDepthRange > 120.0f, "each motion style should preserve visible depth");
+        signatureBuckets.push_back(static_cast<int>(std::round(objectMotionSignature(frame) * 4.0f)));
+    }
+    std::sort(signatureBuckets.begin(), signatureBuckets.end());
+    const auto uniqueEnd = std::unique(signatureBuckets.begin(), signatureBuckets.end());
+    require(std::distance(signatureBuckets.begin(), uniqueEnd) >= 5,
+            "motion styles should produce several distinct 3D choreography signatures");
+}
+
+void musicProfilesDriveDifferent3DChoreography()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::QuantumTunnel;
+    settings.motionStyle = MotionStyle::HeavyBass;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.82f;
+    settings.lightingGlow = 0.86f;
+    settings.scenePersonality = 0.76f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.72f;
+    settings.patternClarity = 0.82f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.20f;
+    ambient.peak = 0.34f;
+    ambient.bass = 0.14f;
+    ambient.lowMid = 0.22f;
+    ambient.mid = 0.28f;
+    ambient.highMid = 0.20f;
+    ambient.treble = 0.16f;
+    ambient.stereoWidth = 0.72f;
+    ambient.spectralFlux = 0.08f;
+    ambient.onset = 0.04f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.10f;
+    ambient.dropIntensity = 0.0f;
+    ambient.phraseIntensity = 0.58f;
+    ambient.phraseConfidence = 0.78f;
+    ambient.harmonicEnergy = 0.68f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.9f;
+
+    AudioMetrics bassDrop = syntheticMetrics();
+    bassDrop.rms = 0.78f;
+    bassDrop.peak = 1.0f;
+    bassDrop.bass = 0.98f;
+    bassDrop.lowMid = 0.76f;
+    bassDrop.treble = 0.30f;
+    bassDrop.stereoWidth = 0.42f;
+    bassDrop.spectralFlux = 0.44f;
+    bassDrop.onset = 0.78f;
+    bassDrop.beat = true;
+    bassDrop.beatConfidence = 0.98f;
+    bassDrop.beatPhase = 0.04f;
+    bassDrop.dropIntensity = 0.96f;
+    bassDrop.phraseIntensity = 0.70f;
+    bassDrop.buildTension = 0.74f;
+    bassDrop.style = AudioStyle::BassHeavy;
+    bassDrop.styleConfidence = 0.92f;
+    bassDrop.section = ArrangementSection::Drop;
+    bassDrop.bandOnsets = {0.94f, 0.72f, 0.44f, 0.28f, 0.18f};
+
+    AudioMetrics brightBreaks = syntheticMetrics();
+    brightBreaks.rms = 0.54f;
+    brightBreaks.peak = 0.92f;
+    brightBreaks.bass = 0.30f;
+    brightBreaks.lowMid = 0.34f;
+    brightBreaks.highMid = 0.82f;
+    brightBreaks.treble = 0.94f;
+    brightBreaks.stereoWidth = 0.62f;
+    brightBreaks.spectralFlux = 0.86f;
+    brightBreaks.onset = 0.82f;
+    brightBreaks.beat = true;
+    brightBreaks.beatConfidence = 0.72f;
+    brightBreaks.dropIntensity = 0.20f;
+    brightBreaks.phraseIntensity = 0.42f;
+    brightBreaks.keyIndex = 2;
+    brightBreaks.keyConfidence = 0.78f;
+    brightBreaks.harmonicEnergy = 0.58f;
+    brightBreaks.style = AudioStyle::Bright;
+    brightBreaks.styleConfidence = 0.88f;
+    brightBreaks.bandOnsets = {0.26f, 0.34f, 0.62f, 0.82f, 0.94f};
+
+    const GeometryFrame ambientFrame = engine.buildFrame(ambient, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame bassFrame = engine.buildFrame(bassDrop, settings, 1280.0f, 720.0f, 2.0);
+    settings.mode = VisualMode::SpectralOrigami;
+    settings.motionStyle = MotionStyle::Breakbeat;
+    const GeometryFrame brightFrame = engine.buildFrame(brightBreaks, settings, 1280.0f, 720.0f, 2.0);
+
+    require(visualEnergyScore(ambientFrame) > visualEnergyScore(GeometryFrame{}) + 1.0f,
+            "ambient music should still create visible 3D motion");
+    require(bassFrame.objectDepthRange > ambientFrame.objectDepthRange + 120.0f ||
+                std::fabs(averageObjectZ(bassFrame) - averageObjectZ(ambientFrame)) > 18.0f,
+            "bass drops should create stronger depth pressure than ambient music");
+    require(visualEnergyScore(bassFrame) > visualEnergyScore(ambientFrame) + 2.0f,
+            "bass-heavy drops should feel more physically intense than ambient profiles");
+    require(averageObjectGlow(brightFrame) > averageObjectGlow(ambientFrame),
+            "bright transient material should create more shimmer/glow than ambient profiles");
+    require(std::fabs(objectMotionSignature(bassFrame) - objectMotionSignature(brightFrame)) > 4.0f,
+            "bass and bright breakbeat profiles should not collapse into the same 3D choreography");
+}
+
+void autoSceneSelectsMotionStyleFromMusic()
+{
+    SceneDirector director;
+    VisualSettings base;
+    base.autoScene = true;
+    base.motionStyle = MotionStyle::Liquid;
+    base.mode = VisualMode::PhaseWeave;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.92f;
+    ambient.rms = 0.18f;
+    ambient.stereoWidth = 0.74f;
+    ambient.phraseIntensity = 0.62f;
+    ambient.dropIntensity = 0.0f;
+    const VisualSettings ambientSettings = director.resolve(base, ambient, 0.0);
+    require(ambientSettings.motionStyle == MotionStyle::AmbientDrift,
+            "Auto Scene should select ambient drift for ambient profiles");
+
+    AudioMetrics drop = syntheticMetrics();
+    drop.style = AudioStyle::BassHeavy;
+    drop.styleConfidence = 0.94f;
+    drop.rms = 0.82f;
+    drop.bass = 0.98f;
+    drop.dropIntensity = 0.96f;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.9f;
+    const VisualSettings dropSettings = director.resolve(base, drop, 2.0);
+    require(dropSettings.motionStyle == MotionStyle::HeavyBass,
+            "Auto Scene should select heavy-bass choreography for bass drops");
+
+    AudioMetrics bright = syntheticMetrics();
+    bright.style = AudioStyle::Bright;
+    bright.styleConfidence = 0.9f;
+    bright.treble = 0.92f;
+    bright.spectralFlux = 0.84f;
+    bright.onset = 0.76f;
+    bright.bandOnsets = {0.18f, 0.28f, 0.46f, 0.72f, 0.92f};
+    bright.section = ArrangementSection::Groove;
+    const VisualSettings brightSettings = director.resolve(base, bright, 4.0);
+    require(brightSettings.motionStyle == MotionStyle::Breakbeat,
+            "Auto Scene should select breakbeat choreography for bright transient profiles");
 }
 
 void motionStabilityAndPatternClarityReduceJitter()
@@ -2003,6 +2239,7 @@ void presetRoundTripsSettings()
     preset.name = "acid-test";
     preset.settings.mode = VisualMode::HyperspacePolytope;
     preset.settings.palette = Palette::AcidAurora;
+    preset.settings.motionStyle = MotionStyle::Hyperspace;
     preset.settings.hueShift = 0.37f;
     preset.settings.depth3D = 0.88f;
     preset.settings.colorImpact = 0.91f;
@@ -2058,7 +2295,14 @@ void presetRoundTripsSettings()
     require(parseVisualMode("chladni").has_value() &&
                 *parseVisualMode("chladni") == VisualMode::CymaticInterference,
             "cymatic interference should parse from aliases");
+    require(parseMotionStyle("heavy bass").has_value() &&
+                *parseMotionStyle("heavy bass") == MotionStyle::HeavyBass,
+            "motion style aliases should parse spaced names");
+    require(parseMotionStyle("breaks").has_value() &&
+                *parseMotionStyle("breaks") == MotionStyle::Breakbeat,
+            "motion style aliases should parse genre shorthand");
     require(loaded->settings.palette == preset.settings.palette, "preset palette should round-trip");
+    require(loaded->settings.motionStyle == MotionStyle::Hyperspace, "preset motion style should round-trip");
     require(loaded->settings.hueShift > 0.36f && loaded->settings.hueShift < 0.38f, "hue shift should round-trip");
     require(loaded->settings.depth3D > 0.87f && loaded->settings.depth3D < 0.89f,
             "3D depth should round-trip");
@@ -2150,6 +2394,11 @@ void curatedPresetBankProvidesRenderableLooks()
     bool sawNeural = false;
     bool sawCymatic = false;
     bool sawCrispStrobe = false;
+    bool sawMechanicalStyle = false;
+    bool sawHyperspaceStyle = false;
+    bool sawHeavyBassStyle = false;
+    bool sawAmbientStyle = false;
+    bool sawBreakbeatStyle = false;
     VisualizerEngine engine;
 
     for (std::size_t i = 0; i < presets.size(); ++i) {
@@ -2189,6 +2438,11 @@ void curatedPresetBankProvidesRenderableLooks()
         require(preset.settings.interactiveField, "curated presets should keep interaction available");
         require(preset.settings.environmentReactive, "curated presets should keep environment reactivity available");
         require(preset.settings.adaptiveQuality, "curated presets should keep adaptive quality available");
+        sawMechanicalStyle = sawMechanicalStyle || preset.settings.motionStyle == MotionStyle::Mechanical;
+        sawHyperspaceStyle = sawHyperspaceStyle || preset.settings.motionStyle == MotionStyle::Hyperspace;
+        sawHeavyBassStyle = sawHeavyBassStyle || preset.settings.motionStyle == MotionStyle::HeavyBass;
+        sawAmbientStyle = sawAmbientStyle || preset.settings.motionStyle == MotionStyle::AmbientDrift;
+        sawBreakbeatStyle = sawBreakbeatStyle || preset.settings.motionStyle == MotionStyle::Breakbeat;
 
         const GeometryFrame frame = engine.buildFrame(metrics,
                                                       preset.settings,
@@ -2218,6 +2472,11 @@ void curatedPresetBankProvidesRenderableLooks()
     require(sawNeural, "curated bank should include a neural constellation look");
     require(sawCymatic, "curated bank should include a cymatic interference look");
     require(sawCrispStrobe, "curated bank should include a crisp strobe look");
+    require(sawMechanicalStyle, "curated bank should include mechanical motion style");
+    require(sawHyperspaceStyle, "curated bank should include hyperspace motion style");
+    require(sawHeavyBassStyle, "curated bank should include heavy bass motion style");
+    require(sawAmbientStyle, "curated bank should include ambient drift motion style");
+    require(sawBreakbeatStyle, "curated bank should include breakbeat motion style");
 }
 
 void userPresetLibrarySavesScansAndLoads()
@@ -2230,6 +2489,7 @@ void userPresetLibrarySavesScansAndLoads()
     preset.name = "Acid Geometry / Late Set!";
     preset.settings.mode = VisualMode::NeuralConstellation;
     preset.settings.palette = Palette::AcidAurora;
+    preset.settings.motionStyle = MotionStyle::Breakbeat;
     preset.settings.hueShift = 0.27f;
     preset.settings.depth3D = 0.84f;
     preset.settings.colorImpact = 0.89f;
@@ -2292,6 +2552,8 @@ void userPresetLibrarySavesScansAndLoads()
             "loaded user preset should preserve the visual mode");
     require(loaded->settings.palette == Palette::AcidAurora,
             "loaded user preset should preserve the palette");
+    require(loaded->settings.motionStyle == MotionStyle::Breakbeat,
+            "loaded user preset should preserve motion style");
     require(loaded->settings.depth3D > 0.83f && loaded->settings.depth3D < 0.85f,
             "loaded user preset should preserve 3D depth");
     require(loaded->settings.colorImpact > 0.88f && loaded->settings.colorImpact < 0.90f,
@@ -2363,6 +2625,8 @@ void controlPanelHitTestsButtonsAndSliders()
     bool foundCymatic = false;
     bool foundLookPrevious = false;
     bool foundLookNext = false;
+    bool foundMotionPrevious = false;
+    bool foundMotionNext = false;
     bool foundUserPrevious = false;
     bool foundUserNext = false;
     bool foundSaveUser = false;
@@ -2482,6 +2746,14 @@ void controlPanelHitTestsButtonsAndSliders()
         if (item.control == PanelControl::CuratedPresetNext) {
             foundLookNext = true;
         }
+        if (item.control == PanelControl::MotionStylePrevious) {
+            require(!item.slider, "previous motion style control should be a button");
+            foundMotionPrevious = true;
+        }
+        if (item.control == PanelControl::MotionStyleNext) {
+            require(!item.slider, "next motion style control should be a button");
+            foundMotionNext = true;
+        }
         if (item.control == PanelControl::UserPresetPrevious) {
             foundUserPrevious = true;
         }
@@ -2521,6 +2793,8 @@ void controlPanelHitTestsButtonsAndSliders()
     require(foundCymatic, "cymatic interference mode control should exist");
     require(foundLookPrevious, "previous curated look control should exist");
     require(foundLookNext, "next curated look control should exist");
+    require(foundMotionPrevious, "previous motion style control should exist");
+    require(foundMotionNext, "next motion style control should exist");
     require(foundUserPrevious, "previous user preset control should exist");
     require(foundUserNext, "next user preset control should exist");
     require(foundSaveUser, "save user preset control should exist");
@@ -2701,6 +2975,7 @@ void offlineExporterWritesDeterministicFrames()
     options.maxSeconds = 0.1;
     options.settings.mode = VisualMode::QuantumTunnel;
     options.settings.palette = Palette::NeonVoltage;
+    options.settings.motionStyle = MotionStyle::HeavyBass;
     options.settings.hueShift = 0.25f;
     options.settings.depth3D = 0.83f;
     options.settings.colorImpact = 0.87f;
@@ -2777,6 +3052,10 @@ void offlineExporterWritesDeterministicFrames()
                 "offline manifest should include pattern clarity");
         require(manifestText.find("finalPatternClarity=0.820") != std::string::npos,
                 "offline manifest should include final pattern clarity");
+        require(manifestText.find("motionStyle=Heavy Bass") != std::string::npos,
+                "offline manifest should include requested motion style");
+        require(manifestText.find("finalMotionStyle=Heavy Bass") != std::string::npos,
+                "offline manifest should include final motion style");
         require(manifestText.find("complexity=1.330") != std::string::npos,
                 "offline manifest should include complexity");
         require(manifestText.find("dominantSection=") != std::string::npos,
@@ -2805,10 +3084,12 @@ void offlineExporterWritesDeterministicFrames()
     {
         std::ifstream timeline(outPath / "analysis_timeline.csv");
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
-        require(timelineText.find("frame,timeSeconds,mode,palette") != std::string::npos,
+        require(timelineText.find("frame,timeSeconds,mode,palette,motionStyle") != std::string::npos,
                 "timeline should include a CSV header");
-        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,motionStability,patternClarity,complexity") != std::string::npos,
+        require(timelineText.find("motionStyle,hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,motionStability,patternClarity,complexity") != std::string::npos,
                 "timeline should include 3D depth, object, glow, color, personality, response, stability, and clarity columns");
+        require(timelineText.find("\"Heavy Bass\"") != std::string::npos,
+                "timeline should include rendered motion style");
         require(timelineText.find("\"Quantum Tunnel\"") != std::string::npos,
                 "timeline should include rendered visual mode");
         require(timelineText.find("section,sectionConfidence,sectionProgress") != std::string::npos,
@@ -2842,6 +3123,7 @@ void offlineExporterWritesSharePackage()
     options.maxSeconds = 0.1;
     options.settings.mode = VisualMode::SpectralOrigami;
     options.settings.palette = Palette::AcidAurora;
+    options.settings.motionStyle = MotionStyle::Breakbeat;
     options.settings.hueShift = 0.42f;
     options.settings.depth3D = 0.79f;
     options.settings.colorImpact = 0.86f;
@@ -2925,6 +3207,10 @@ void offlineExporterWritesSharePackage()
                 "share manifest should include pattern clarity");
         require(manifestText.find("\"finalPatternClarity\": 0.860") != std::string::npos,
                 "share manifest should include final pattern clarity");
+        require(manifestText.find("\"motionStyle\": \"Breakbeat\"") != std::string::npos,
+                "share manifest should include requested motion style");
+        require(manifestText.find("\"finalMotionStyle\": \"Breakbeat\"") != std::string::npos,
+                "share manifest should include final motion style");
         require(manifestText.find("\"complexity\": 1.250") != std::string::npos,
                 "share manifest should include complexity");
         require(manifestText.find("\"dominantSection\":") != std::string::npos,
@@ -2978,6 +3264,8 @@ void offlineExporterWritesSharePackage()
                 "share page should summarize color impact");
         require(pageText.find("Scene Personality") != std::string::npos,
                 "share page should summarize scene personality");
+        require(pageText.find("Motion Style") != std::string::npos,
+                "share page should summarize motion style");
         require(pageText.find("3D Response") != std::string::npos,
                 "share page should summarize 3D response");
         require(pageText.find("Motion Stability") != std::string::npos,
@@ -3022,6 +3310,7 @@ void batchExporterWritesGalleryForAudioDirectory()
     options.maxSeconds = 0.1;
     options.settings.mode = VisualMode::ResonanceTessellation;
     options.settings.palette = Palette::AcidAurora;
+    options.settings.motionStyle = MotionStyle::Mechanical;
     options.settings.complexity = 1.2f;
     options.settings.depth3D = 0.8f;
     options.settings.colorImpact = 0.84f;
@@ -3069,6 +3358,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch manifest should include deterministic output folders");
         require(manifestText.find("\"mode\": \"Resonance Tessellation\"") != std::string::npos,
                 "batch manifest should include selected visual mode");
+        require(manifestText.find("\"motionStyle\": \"Mechanical\"") != std::string::npos,
+                "batch manifest should include configured motion style");
         require(manifestText.find("\"depth3D\": 0.800") != std::string::npos,
                 "batch manifest should include configured 3D depth");
         require(manifestText.find("\"colorImpact\": 0.840") != std::string::npos,
@@ -3111,6 +3402,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch index should link machine-readable metadata");
         require(indexText.find("React: 0.95") != std::string::npos,
                 "batch index should summarize 3D response");
+        require(indexText.find("Motion: Mechanical") != std::string::npos,
+                "batch index should summarize motion style");
         require(indexText.find("Stable: 0.79") != std::string::npos,
                 "batch index should summarize motion stability");
         require(indexText.find("Clear: 0.87") != std::string::npos,
@@ -3129,7 +3422,7 @@ void batchExporterWritesGalleryForAudioDirectory()
         const std::string timelineText((std::istreambuf_iterator<char>(timeline)), std::istreambuf_iterator<char>());
         require(timelineText.find("\"Resonance Tessellation\"") != std::string::npos,
                 "batch timeline should contain rendered mode name");
-        require(timelineText.find("hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,motionStability,patternClarity,complexity") != std::string::npos,
+        require(timelineText.find("motionStyle,hueShift,depth3D,objectDensity3D,interactionDepth,lightingGlow,colorImpact,scenePersonality,response3D,motionStability,patternClarity,complexity") != std::string::npos,
                 "batch timeline should contain 3D object, glow, color, personality, response, stability, and clarity columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "batch timeline should contain phrase structure columns");
@@ -3207,6 +3500,9 @@ int main()
         {"object3DModesProduceDistinctSignatures", viz::tests::object3DModesProduceDistinctSignatures},
         {"object3DRespondsStronglyToMusicAcrossModes", viz::tests::object3DRespondsStronglyToMusicAcrossModes},
         {"songProfilesScaleMusicallyWithoutChaos", viz::tests::songProfilesScaleMusicallyWithoutChaos},
+        {"motionStylesCreateDistinct3DChoreography", viz::tests::motionStylesCreateDistinct3DChoreography},
+        {"musicProfilesDriveDifferent3DChoreography", viz::tests::musicProfilesDriveDifferent3DChoreography},
+        {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},

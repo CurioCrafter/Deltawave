@@ -241,6 +241,7 @@ bool writeManifest(const BatchExportOptions& options,
     output << "  \"look\": \"" << escapeJson(options.lookName.empty() ? "Custom" : options.lookName) << "\",\n";
     output << "  \"mode\": \"" << escapeJson(std::string(toString(options.settings.mode))) << "\",\n";
     output << "  \"palette\": \"" << escapeJson(std::string(toString(options.settings.palette))) << "\",\n";
+    output << "  \"motionStyle\": \"" << escapeJson(std::string(toString(options.settings.motionStyle))) << "\",\n";
     output << "  \"depth3D\": " << std::fixed << std::setprecision(3)
            << std::clamp(options.settings.depth3D, 0.0f, 1.0f) << ",\n";
     output << "  \"colorImpact\": " << std::fixed << std::setprecision(3)
@@ -370,6 +371,7 @@ bool writeIndex(const BatchExportOptions& options,
            << " discovered audio files from <code>" << escapeHtml(slashPath(inputRoot)) << "</code>.</p>\n";
     output << "<p>Look: " << escapeHtml(options.lookName.empty() ? "Custom" : options.lookName)
            << " | Mode: " << escapeHtml(std::string(toString(options.settings.mode)))
+           << " | Motion: " << escapeHtml(std::string(toString(options.settings.motionStyle)))
            << " | Depth: " << escapeHtml(formatFloat(options.settings.depth3D, 2))
            << " | Objects: " << escapeHtml(formatFloat(options.settings.objectDensity3D, 2))
            << " | Mouse 3D: " << escapeHtml(formatFloat(options.settings.interactionDepth, 2))

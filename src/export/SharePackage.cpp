@@ -126,6 +126,8 @@ bool writeShareManifest(const OfflineExportOptions& options,
     output << "  \"look\": \"" << escapeJson(options.lookName.empty() ? "Custom" : options.lookName) << "\",\n";
     output << "  \"mode\": \"" << escapeJson(std::string(toString(options.settings.mode))) << "\",\n";
     output << "  \"palette\": \"" << escapeJson(std::string(toString(options.settings.palette))) << "\",\n";
+    output << "  \"motionStyle\": \"" << escapeJson(std::string(toString(options.settings.motionStyle))) << "\",\n";
+    output << "  \"finalMotionStyle\": \"" << escapeJson(std::string(toString(result.finalMotionStyle))) << "\",\n";
     output << "  \"hueShift\": " << std::fixed << std::setprecision(3)
            << std::clamp(options.settings.hueShift, 0.0f, 1.0f) << ",\n";
     output << "  \"finalHueShift\": " << std::fixed << std::setprecision(3)
@@ -272,6 +274,8 @@ bool writeSharePage(const OfflineExportOptions& options,
     stat("Look", options.lookName.empty() ? "Custom" : options.lookName);
     stat("Mode", std::string(toString(options.settings.mode)));
     stat("Palette", std::string(toString(options.settings.palette)));
+    stat("Motion Style", std::string(toString(options.settings.motionStyle)));
+    stat("Final Motion Style", std::string(toString(result.finalMotionStyle)));
     stat("Hue Shift", std::to_string(options.settings.hueShift));
     stat("Final Hue Shift", std::to_string(result.finalHueShift));
     stat("Depth 3D", std::to_string(options.settings.depth3D));

@@ -78,6 +78,8 @@ bool writeManifest(const OfflineExportOptions& options,
     output << "look=" << (options.lookName.empty() ? "Custom" : options.lookName) << "\n";
     output << "mode=" << toString(options.settings.mode) << "\n";
     output << "palette=" << toString(options.settings.palette) << "\n";
+    output << "motionStyle=" << toString(options.settings.motionStyle) << "\n";
+    output << "finalMotionStyle=" << toString(result.finalMotionStyle) << "\n";
     output << "hueShift=" << std::fixed << std::setprecision(3)
            << std::clamp(options.settings.hueShift, 0.0f, 1.0f) << "\n";
     output << "finalHueShift=" << std::fixed << std::setprecision(3)
@@ -318,6 +320,7 @@ bool exportAudioToFrames(const OfflineExportOptions& options,
         result.finalResponse3D = renderSettings.response3D;
         result.finalMotionStability = renderSettings.motionStability;
         result.finalPatternClarity = renderSettings.patternClarity;
+        result.finalMotionStyle = renderSettings.motionStyle;
         result.minimumHueShift = std::min(result.minimumHueShift, renderSettings.hueShift);
         result.maximumHueShift = std::max(result.maximumHueShift, renderSettings.hueShift);
         if (metrics.beat) {

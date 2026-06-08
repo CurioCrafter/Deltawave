@@ -61,6 +61,55 @@ float parseFloat(std::string_view value, float fallback)
     }
 }
 
+MotionStyle curatedMotionStyleFor(std::string_view name, VisualMode mode)
+{
+    const std::string normalized = normalize(name);
+    if (normalized.find("warehouse") != std::string::npos ||
+        normalized.find("strobe") != std::string::npos ||
+        normalized.find("tessellation") != std::string::npos) {
+        return MotionStyle::Mechanical;
+    }
+    if (normalized.find("hyperspace") != std::string::npos) {
+        return MotionStyle::Hyperspace;
+    }
+    if (normalized.find("breakbeat") != std::string::npos) {
+        return MotionStyle::Breakbeat;
+    }
+    if (normalized.find("loom") != std::string::npos ||
+        normalized.find("cathedral") != std::string::npos) {
+        return MotionStyle::AmbientDrift;
+    }
+    if (normalized.find("glass") != std::string::npos ||
+        normalized.find("neural") != std::string::npos ||
+        normalized.find("cymatic") != std::string::npos) {
+        return MotionStyle::Smooth;
+    }
+
+    switch (mode) {
+    case VisualMode::QuantumTunnel:
+        return MotionStyle::HeavyBass;
+    case VisualMode::PolyrhythmLattice:
+    case VisualMode::TechnoMandala:
+        return MotionStyle::Mechanical;
+    case VisualMode::HyperspacePolytope:
+        return MotionStyle::Hyperspace;
+    case VisualMode::FractalCathedral:
+        return MotionStyle::AmbientDrift;
+    case VisualMode::SpectralOrigami:
+        return MotionStyle::Breakbeat;
+    case VisualMode::ChromaKaleidoscope:
+    case VisualMode::FrequencyBloom:
+    case VisualMode::PhaseWeave:
+    case VisualMode::ResonanceTessellation:
+        return MotionStyle::Liquid;
+    case VisualMode::LissajousMesh:
+    case VisualMode::NeuralConstellation:
+    case VisualMode::CymaticInterference:
+        return MotionStyle::Smooth;
+    }
+    return MotionStyle::Liquid;
+}
+
 VisualPreset makeCuratedPreset(std::string name,
                                VisualMode mode,
                                Palette palette,
@@ -84,6 +133,7 @@ VisualPreset makeCuratedPreset(std::string name,
     preset.name = std::move(name);
     preset.settings.mode = mode;
     preset.settings.palette = palette;
+    preset.settings.motionStyle = curatedMotionStyleFor(preset.name, mode);
     preset.settings.hueShift = hueShift;
     preset.settings.depth3D = depth3D;
     preset.settings.colorImpact = colorImpact;
@@ -180,6 +230,38 @@ std::optional<Palette> parsePalette(std::string_view value)
     }
     if (normalized == "oceanicpulse" || normalized == "oceanic" || normalized == "5") {
         return Palette::OceanicPulse;
+    }
+    return std::nullopt;
+}
+
+std::optional<MotionStyle> parseMotionStyle(std::string_view value)
+{
+    const std::string normalized = normalize(value);
+    if (normalized == "smooth" || normalized == "silky" || normalized == "1") {
+        return MotionStyle::Smooth;
+    }
+    if (normalized == "mechanical" || normalized == "machine" || normalized == "sequencer" ||
+        normalized == "grid" || normalized == "2") {
+        return MotionStyle::Mechanical;
+    }
+    if (normalized == "liquid" || normalized == "fluid" || normalized == "flow" || normalized == "3") {
+        return MotionStyle::Liquid;
+    }
+    if (normalized == "hyperspace" || normalized == "hyper" || normalized == "fold" ||
+        normalized == "space" || normalized == "4") {
+        return MotionStyle::Hyperspace;
+    }
+    if (normalized == "heavybass" || normalized == "bass" || normalized == "sub" ||
+        normalized == "subbass" || normalized == "5") {
+        return MotionStyle::HeavyBass;
+    }
+    if (normalized == "ambientdrift" || normalized == "ambient" || normalized == "drift" ||
+        normalized == "slow" || normalized == "6") {
+        return MotionStyle::AmbientDrift;
+    }
+    if (normalized == "breakbeat" || normalized == "breaks" || normalized == "jungle" ||
+        normalized == "chop" || normalized == "7") {
+        return MotionStyle::Breakbeat;
     }
     return std::nullopt;
 }
@@ -520,6 +602,7 @@ bool savePreset(const std::filesystem::path& path,
     output << "name=" << preset.name << "\n";
     output << "mode=" << toString(preset.settings.mode) << "\n";
     output << "palette=" << toString(preset.settings.palette) << "\n";
+    output << "motionStyle=" << toString(preset.settings.motionStyle) << "\n";
     output << "hueShift=" << preset.settings.hueShift << "\n";
     output << "depth3D=" << preset.settings.depth3D << "\n";
     output << "colorImpact=" << preset.settings.colorImpact << "\n";
@@ -582,6 +665,11 @@ std::optional<VisualPreset> loadPreset(const std::filesystem::path& path, std::s
     if (const auto it = values.find("palette"); it != values.end()) {
         if (const std::optional<Palette> palette = parsePalette(it->second)) {
             preset.settings.palette = *palette;
+        }
+    }
+    if (const auto it = values.find("motionstyle"); it != values.end()) {
+        if (const std::optional<MotionStyle> style = parseMotionStyle(it->second)) {
+            preset.settings.motionStyle = *style;
         }
     }
     if (const auto it = values.find("hueshift"); it != values.end()) {

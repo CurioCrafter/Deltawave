@@ -201,6 +201,35 @@ struct MusicMotionEnvelope {
     float clarity = 0.0f;
 };
 
+struct MusicChoreography {
+    float audible = 0.0f;
+    float bassPressure = 0.0f;
+    float beatPulse = 0.0f;
+    float grooveSwing = 0.0f;
+    float trebleSparkle = 0.0f;
+    float stereoDrift = 0.0f;
+    float melodicOrbit = 0.0f;
+    float phraseLift = 0.0f;
+    float buildTension = 0.0f;
+    float dropImpact = 0.0f;
+    float inertia = 0.0f;
+    float breath = 0.0f;
+    float snap = 0.0f;
+    float orbit = 0.0f;
+    float fold = 0.0f;
+    float weave = 0.0f;
+    float shimmer = 0.0f;
+    float parallax = 0.0f;
+    float foreground = 0.0f;
+    float midground = 0.0f;
+    float background = 0.0f;
+    float stability = 0.0f;
+    float clarity = 0.0f;
+    MotionStyle style = MotionStyle::Liquid;
+};
+
+float wrapUnit(float value);
+
 MusicMotionEnvelope musicEnvelope(const AudioMetrics& metrics, const VisualSettings& settings)
 {
     MusicMotionEnvelope envelope;
@@ -307,6 +336,150 @@ MusicMotionEnvelope musicEnvelope(const AudioMetrics& metrics, const VisualSetti
                               (0.50f + (1.0f - envelope.stability) * 0.50f) *
                               (0.68f + (1.0f - envelope.clarity) * 0.32f));
     return envelope;
+}
+
+MusicChoreography buildMusicChoreography(const AudioMetrics& metrics,
+                                         const VisualSettings& settings,
+                                         VisualMode mode,
+                                         double time,
+                                         float speed)
+{
+    const MusicMotionEnvelope envelope = musicEnvelope(metrics, settings);
+    const float phase = static_cast<float>(time) * speed;
+    const float beatPhase = clamp01(metrics.beatPhase);
+    const float phrasePhase = clamp01(metrics.phrasePhase);
+    const float barPhase = clamp01(metrics.barPhase);
+    const float beatDecay = std::pow(clamp01(1.0f - beatPhase), 2.55f);
+    const float phraseWave = 0.5f + 0.5f * std::sin(phrasePhase * 2.0f * kPi);
+    const float barSwing = std::sin((barPhase * 2.0f + 0.25f) * kPi);
+    const float melodicSeed = metrics.keyIndex >= 0
+                                  ? static_cast<float>((metrics.keyIndex % 12 + 12) % 12) / 12.0f
+                                  : metrics.spectralCentroid;
+    const float harmonicOrbit = wrapUnit(melodicSeed +
+                                         metrics.harmonicEnergy * 0.18f +
+                                         metrics.keyConfidence * 0.13f +
+                                         std::sin(phase * 0.045f) * 0.035f);
+
+    MusicChoreography motion;
+    motion.audible = envelope.audible;
+    motion.style = settings.motionStyle;
+    motion.stability = envelope.stability;
+    motion.clarity = envelope.clarity;
+    motion.bassPressure = envelope.bass * (0.70f + response3DOf(settings) * 0.64f);
+    motion.beatPulse = clamp01(envelope.beat * 0.62f + beatDecay * envelope.beat * 0.42f);
+    motion.grooveSwing = barSwing * envelope.beat * (0.24f + envelope.bass * 0.22f + envelope.stereo * 0.16f);
+    motion.trebleSparkle = clamp01(envelope.treble * 0.66f + envelope.detail * 0.44f);
+    motion.stereoDrift = (std::sin(phase * 0.09f + envelope.stereo * kPi) * 0.55f +
+                          std::sin(phase * 0.027f + metrics.sectionProgress * kPi) * 0.45f) *
+                         envelope.stereo;
+    motion.melodicOrbit = harmonicOrbit;
+    motion.phraseLift = clamp01(envelope.phrase * 0.72f + phraseWave * envelope.phrase * 0.28f);
+    motion.buildTension = envelope.build;
+    motion.dropImpact = clamp01(envelope.drop * 0.78f + envelope.accent * 0.28f);
+    motion.inertia = clamp01((envelope.energy * 0.28f +
+                              envelope.bass * 0.24f +
+                              envelope.phrase * 0.24f +
+                              envelope.stereo * 0.16f +
+                              beatDecay * envelope.beat * 0.18f) *
+                             (0.58f + (1.0f - envelope.stability) * 0.42f));
+    motion.breath = std::sin(phase * (0.20f + envelope.energy * 0.08f) + phrasePhase * 2.0f * kPi) *
+                    (0.22f + motion.bassPressure * 0.28f + motion.phraseLift * 0.20f);
+    motion.snap = clamp01(motion.beatPulse * 0.72f + motion.dropImpact * 0.34f);
+    motion.orbit = wrapUnit(harmonicOrbit + phase * (0.018f + envelope.stereo * 0.024f + envelope.phrase * 0.016f));
+    motion.fold = clamp01(motion.buildTension * 0.52f + motion.dropImpact * 0.38f + metrics.harmonicEnergy * 0.18f);
+    motion.weave = std::sin(phase * (0.16f + envelope.stereo * 0.08f) + harmonicOrbit * 2.0f * kPi) *
+                   clamp01(envelope.stereo * 0.48f + envelope.phrase * 0.24f + envelope.detail * 0.18f);
+    motion.shimmer = clamp01(motion.trebleSparkle * (0.48f + (1.0f - envelope.clarity) * 0.24f) +
+                             envelope.flux * 0.32f);
+    motion.parallax = clamp01(envelope.stereo * 0.44f + motion.bassPressure * 0.22f + motion.phraseLift * 0.18f);
+    motion.foreground = clamp01(motion.dropImpact * 0.40f + motion.beatPulse * 0.28f + motion.trebleSparkle * 0.22f);
+    motion.midground = clamp01(envelope.energy * 0.36f + motion.phraseLift * 0.28f + motion.grooveSwing * motion.grooveSwing * 0.20f);
+    motion.background = clamp01(motion.bassPressure * 0.24f + motion.stereoDrift * motion.stereoDrift * 0.20f + motion.buildTension * 0.26f);
+
+    switch (motion.style) {
+    case MotionStyle::Smooth:
+        motion.snap *= 0.56f;
+        motion.grooveSwing *= 0.62f;
+        motion.inertia = std::min(1.0f, motion.inertia * 1.18f);
+        motion.breath = motion.breath * 1.16f;
+        motion.shimmer *= 0.72f;
+        break;
+    case MotionStyle::Mechanical:
+        motion.grooveSwing = std::round(motion.grooveSwing * 5.0f) / 5.0f;
+        motion.snap = std::min(1.0f, motion.snap * 1.25f);
+        motion.breath *= 0.58f;
+        motion.fold = std::min(1.0f, motion.fold * 1.10f);
+        break;
+    case MotionStyle::Liquid:
+        motion.weave = std::min(1.0f, motion.weave * 1.20f);
+        motion.orbit = wrapUnit(motion.orbit + std::sin(phase * 0.075f) * 0.025f);
+        motion.snap *= 0.80f;
+        motion.breath *= 1.12f;
+        break;
+    case MotionStyle::Hyperspace:
+        motion.fold = std::min(1.0f, motion.fold * 1.28f);
+        motion.parallax = std::min(1.0f, motion.parallax * 1.18f);
+        motion.stereoDrift *= 1.18f;
+        motion.dropImpact = std::min(1.0f, motion.dropImpact * 1.10f);
+        break;
+    case MotionStyle::HeavyBass:
+        motion.bassPressure = std::min(1.0f, motion.bassPressure * 1.34f);
+        motion.dropImpact = std::min(1.0f, motion.dropImpact * 1.16f);
+        motion.trebleSparkle *= 0.76f;
+        motion.breath *= 1.20f;
+        break;
+    case MotionStyle::AmbientDrift:
+        motion.beatPulse *= 0.42f;
+        motion.snap *= 0.36f;
+        motion.phraseLift = std::min(1.0f, motion.phraseLift * 1.26f + envelope.energy * 0.10f);
+        motion.stereoDrift *= 1.22f;
+        motion.inertia = std::min(1.0f, motion.inertia * 1.30f + envelope.energy * 0.08f);
+        motion.shimmer *= 0.62f;
+        break;
+    case MotionStyle::Breakbeat:
+        motion.snap = std::min(1.0f, motion.snap * 1.34f + envelope.flux * 0.18f);
+        motion.grooveSwing *= 1.22f;
+        motion.trebleSparkle = std::min(1.0f, motion.trebleSparkle * 1.18f);
+        motion.inertia *= 0.90f;
+        break;
+    }
+
+    switch (mode) {
+    case VisualMode::QuantumTunnel:
+        motion.bassPressure = std::min(1.0f, motion.bassPressure * 1.16f);
+        motion.fold = std::min(1.0f, motion.fold * 0.80f + motion.bassPressure * 0.18f);
+        break;
+    case VisualMode::TechnoMandala:
+        motion.snap = std::min(1.0f, motion.snap * 1.14f);
+        motion.orbit = wrapUnit(motion.orbit + beatPhase * 0.06f);
+        break;
+    case VisualMode::PolyrhythmLattice:
+        motion.grooveSwing *= 1.28f;
+        motion.snap = std::min(1.0f, motion.snap * 1.12f);
+        break;
+    case VisualMode::NeuralConstellation:
+        motion.phraseLift = std::min(1.0f, motion.phraseLift * 1.10f + metrics.barConfidence * 0.10f);
+        motion.melodicOrbit = wrapUnit(motion.melodicOrbit + metrics.barPhase * 0.10f);
+        break;
+    case VisualMode::HyperspacePolytope:
+        motion.fold = std::min(1.0f, motion.fold * 1.24f);
+        motion.parallax = std::min(1.0f, motion.parallax * 1.20f);
+        break;
+    case VisualMode::CymaticInterference:
+        motion.breath = std::sin(phase * 0.12f + metrics.phrasePhase * 2.0f * kPi) *
+                        (0.18f + metrics.harmonicEnergy * 0.34f + motion.buildTension * 0.20f);
+        motion.shimmer = std::min(1.0f, motion.shimmer * 0.88f + metrics.harmonicEnergy * 0.18f);
+        break;
+    default:
+        break;
+    }
+
+    const float readability = 0.62f + (1.0f - motion.clarity) * 0.18f + (1.0f - motion.stability) * 0.20f;
+    motion.bassPressure = clamp01(motion.bassPressure * readability);
+    motion.dropImpact = clamp01(motion.dropImpact * readability);
+    motion.snap = clamp01(motion.snap * readability);
+    motion.shimmer = clamp01(motion.shimmer * (0.78f + (1.0f - motion.clarity) * 0.22f));
+    return motion;
 }
 
 AudioMetrics stabilizedMetrics(const AudioMetrics& metrics, const VisualSettings& settings)
@@ -818,20 +991,27 @@ Camera3D makeCamera3D(const VisualSettings& settings,
     const float phase = static_cast<float>(time) * speed;
     const float response = musicResponse3D(metrics, settings);
     const MusicMotionEnvelope envelope = musicEnvelope(metrics, settings);
+    const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
     const float cameraMotion = envelope.camera * (0.58f + (1.0f - envelope.stability) * 0.42f);
-    const float rush = (envelope.drop * 0.76f + envelope.bass * 0.34f) * response *
+    const float rush = (choreography.dropImpact * 0.74f + choreography.bassPressure * 0.40f) * response *
                        (0.62f + (1.0f - envelope.stability) * 0.38f);
+    const float cinematic = 0.52f + (1.0f - choreography.stability) * 0.24f + choreography.parallax * 0.24f;
     return Camera3D{
         Vec2{width * 0.5f, height * 0.5f},
-        minimumDimension * (0.78f + depth * 0.94f + envelope.stereo * 0.14f),
+        minimumDimension * (0.78f + depth * 0.94f + envelope.stereo * 0.12f + choreography.phraseLift * 0.035f),
         std::max(minimumDimension * 0.72f,
-                 minimumDimension * (1.18f + depth * 1.72f - rush * 0.16f + envelope.phrase * 0.10f)),
-        std::sin(phase * 0.22f + metrics.phrasePhase * kPi) *
-            (0.07f + envelope.stereo * 0.14f + depth * 0.08f + response * 0.012f + cameraMotion * 0.045f),
-        std::cos(phase * 0.17f + metrics.buildTension * kPi) *
-            (0.04f + envelope.phrase * 0.08f + envelope.build * 0.06f + cameraMotion * 0.030f),
-        std::sin(phase * 0.12f + metrics.beatPhase * kPi * 2.0f) *
-            (envelope.stereo * 0.045f + envelope.drop * 0.028f + response * 0.006f)
+                 minimumDimension * (1.18f + depth * 1.72f - rush * 0.13f +
+                                     choreography.phraseLift * 0.10f + choreography.fold * 0.04f)),
+        (std::sin(phase * 0.17f + choreography.orbit * 2.0f * kPi) * 0.65f +
+         choreography.stereoDrift * 0.35f) *
+            (0.06f + envelope.stereo * 0.12f + depth * 0.07f + response * 0.010f + cameraMotion * 0.035f) *
+            cinematic,
+        (std::cos(phase * 0.13f + metrics.buildTension * kPi + choreography.melodicOrbit * kPi) * 0.72f +
+         choreography.breath * 0.28f) *
+            (0.035f + choreography.phraseLift * 0.065f + choreography.buildTension * 0.052f + cameraMotion * 0.026f) *
+            cinematic,
+        std::sin(phase * 0.10f + metrics.beatPhase * kPi * 2.0f + choreography.grooveSwing) *
+            (envelope.stereo * 0.034f + choreography.dropImpact * 0.020f + choreography.snap * 0.010f + response * 0.004f)
     };
 }
 
@@ -1788,6 +1968,348 @@ void addModeSpecific3DObjects(std::vector<Object3D>& objects,
     }
 }
 
+int choreographyKindIndex(Object3DKind kind)
+{
+    switch (kind) {
+    case Object3DKind::Polyhedron:
+        return 0;
+    case Object3DKind::Shard:
+        return 1;
+    case Object3DKind::Ribbon:
+        return 2;
+    case Object3DKind::Node:
+        return 3;
+    case Object3DKind::Link:
+        return 4;
+    case Object3DKind::Plate:
+        return 5;
+    case Object3DKind::TunnelRib:
+        return 6;
+    case Object3DKind::Particle:
+        return 7;
+    case Object3DKind::DepthPlane:
+        return 8;
+    case Object3DKind::Column:
+        return 9;
+    case Object3DKind::Cage:
+        return 10;
+    case Object3DKind::WaveSurface:
+        return 11;
+    case Object3DKind::Orbiter:
+        return 12;
+    case Object3DKind::Anchor:
+        return 13;
+    }
+    return 0;
+}
+
+Vec3 transformChoreographyPoint(Vec3 point,
+                                Object3DKind kind,
+                                VisualMode mode,
+                                const MusicChoreography& motion,
+                                float minimumDimension,
+                                float unit,
+                                float seed)
+{
+    const float invMin = minimumDimension > 0.0f ? 1.0f / minimumDimension : 1.0f;
+    const float depthUnit = clamp01(point.z * invMin * 0.36f + 0.48f);
+    const float angle = std::atan2(point.y, point.x);
+    const float radius = std::sqrt(point.x * point.x + point.y * point.y);
+    const float rhythmicSign = std::sin((unit + seed) * kPi * 8.0f) >= 0.0f ? 1.0f : -1.0f;
+
+    switch (mode) {
+    case VisualMode::QuantumTunnel: {
+        const float twist = (motion.bassPressure * 0.10f + motion.dropImpact * 0.12f + motion.breath * 0.035f) *
+                            (0.45f + depthUnit * 0.75f);
+        const float c = std::cos(twist);
+        const float s = std::sin(twist);
+        const float x = point.x * c - point.y * s;
+        const float y = point.x * s + point.y * c;
+        const float compression = std::clamp(1.0f - motion.bassPressure * (0.05f + depthUnit * 0.10f) +
+                                             motion.breath * 0.035f,
+                                             0.72f,
+                                             1.22f);
+        point.x = x * compression;
+        point.y = y * compression;
+        point.z -= minimumDimension * (motion.bassPressure * (0.045f + depthUnit * 0.11f) +
+                                       motion.dropImpact * 0.055f);
+        break;
+    }
+    case VisualMode::TechnoMandala: {
+        const float lock = motion.snap * (0.06f + std::fmod(unit * 8.0f, 1.0f) * 0.025f);
+        const float step = std::round((angle + motion.orbit * 2.0f * kPi) / (kPi / 8.0f)) * (kPi / 8.0f);
+        const float targetAngle = angle + (step - angle) * lock + motion.grooveSwing * 0.10f;
+        const float pulseRadius = radius * (1.0f + motion.beatPulse * 0.08f * rhythmicSign);
+        point.x = std::cos(targetAngle) * pulseRadius;
+        point.y = std::sin(targetAngle) * pulseRadius;
+        point.z += minimumDimension * (motion.phraseLift * 0.035f + motion.snap * 0.045f * rhythmicSign);
+        break;
+    }
+    case VisualMode::PolyrhythmLattice: {
+        const float step = std::round((point.x + minimumDimension) / std::max(1.0f, minimumDimension * 0.055f));
+        point.x += rhythmicSign * minimumDimension * motion.grooveSwing * 0.045f;
+        point.y += std::sin(step * 0.75f + motion.orbit * 2.0f * kPi) * minimumDimension * motion.beatPulse * 0.024f;
+        point.z += rhythmicSign * minimumDimension * (motion.snap * 0.055f + motion.bassPressure * 0.035f);
+        break;
+    }
+    case VisualMode::NeuralConstellation: {
+        const float clusters = 3.0f + std::round(motion.melodicOrbit * 4.0f);
+        const float clusterAngle = std::round((angle / (2.0f * kPi)) * clusters) / clusters * 2.0f * kPi +
+                                   motion.melodicOrbit * 2.0f * kPi;
+        const Vec3 attractor{
+            std::cos(clusterAngle) * minimumDimension * (0.12f + motion.stereoDrift * 0.035f),
+            std::sin(clusterAngle) * minimumDimension * (0.09f + motion.phraseLift * 0.035f),
+            point.z + minimumDimension * (motion.phraseLift * 0.08f + motion.beatPulse * 0.025f)
+        };
+        const float clusterStrength = std::clamp(motion.phraseLift * 0.15f + motion.beatPulse * 0.06f, 0.0f, 0.24f);
+        point = add(scale(point, 1.0f - clusterStrength), scale(attractor, clusterStrength));
+        break;
+    }
+    case VisualMode::HyperspacePolytope: {
+        rotatePlane(point.x, point.z, motion.fold * (0.10f + unit * 0.08f) + motion.stereoDrift * 0.035f);
+        rotatePlane(point.y, point.z, motion.dropImpact * 0.07f + motion.parallax * 0.035f);
+        point.z += std::sin(seed * 3.0f + motion.orbit * 2.0f * kPi) * minimumDimension * motion.fold * 0.09f;
+        break;
+    }
+    case VisualMode::CymaticInterference: {
+        const float wave = std::sin(radius * invMin * 18.0f + motion.melodicOrbit * 2.0f * kPi + seed * 1.7f);
+        point.z += wave * minimumDimension * (motion.shimmer * 0.052f + motion.buildTension * 0.048f);
+        point.x *= 1.0f + wave * motion.breath * 0.025f;
+        point.y *= 1.0f - wave * motion.breath * 0.020f;
+        break;
+    }
+    case VisualMode::PhaseWeave:
+    case VisualMode::LissajousMesh: {
+        point.x += std::sin(point.z * invMin * 4.0f + motion.orbit * 2.0f * kPi) *
+                   minimumDimension * motion.weave * 0.055f;
+        point.y += std::cos(point.x * invMin * 3.0f + motion.melodicOrbit * 2.0f * kPi) *
+                   minimumDimension * motion.stereoDrift * 0.045f;
+        point.z += std::sin(seed + motion.orbit * 2.0f * kPi) * minimumDimension * motion.phraseLift * 0.05f;
+        break;
+    }
+    case VisualMode::SpectralOrigami:
+    case VisualMode::FractalCathedral: {
+        rotatePlane(point.y, point.z, motion.fold * 0.06f + motion.phraseLift * 0.035f);
+        point.y -= minimumDimension * motion.phraseLift * (kind == Object3DKind::Column ? 0.045f : 0.028f);
+        point.z += rhythmicSign * minimumDimension * motion.buildTension * 0.035f;
+        break;
+    }
+    case VisualMode::ChromaKaleidoscope:
+    case VisualMode::FrequencyBloom:
+    case VisualMode::ResonanceTessellation: {
+        const float harmonicAngle = angle + motion.melodicOrbit * 2.0f * kPi * 0.12f + motion.shimmer * rhythmicSign * 0.035f;
+        const float spread = radius * (1.0f + motion.trebleSparkle * 0.055f + motion.phraseLift * 0.025f);
+        point.x = std::cos(harmonicAngle) * spread + motion.stereoDrift * minimumDimension * 0.035f * depthUnit;
+        point.y = std::sin(harmonicAngle) * spread;
+        point.z += minimumDimension * (motion.shimmer * 0.035f * rhythmicSign + motion.phraseLift * 0.025f);
+        break;
+    }
+    }
+
+    point.x += motion.stereoDrift * minimumDimension * 0.030f * (depthUnit - 0.5f);
+    point.z += minimumDimension * (motion.foreground * (0.5f - depthUnit) * 0.050f -
+                                   motion.background * depthUnit * 0.030f);
+    return point;
+}
+
+void applyMotionStyleDisplacement(Vec3& point,
+                                  const MusicChoreography& motion,
+                                  float minimumDimension,
+                                  float unit,
+                                  float seed)
+{
+    const float phase = motion.orbit * 2.0f * kPi + seed;
+    const float rhythm = std::sin(unit * kPi * 10.0f + phase) >= 0.0f ? 1.0f : -1.0f;
+    switch (motion.style) {
+    case MotionStyle::Smooth:
+        point.x += std::sin(phase * 0.34f) * minimumDimension * motion.phraseLift * 0.018f;
+        point.y += std::cos(phase * 0.27f) * minimumDimension * motion.breath * 0.020f;
+        point.z += std::sin(phase * 0.21f) * minimumDimension * motion.inertia * 0.026f;
+        break;
+    case MotionStyle::Mechanical: {
+        const float cell = std::max(1.0f, minimumDimension * (0.022f + motion.snap * 0.012f));
+        point.x = std::round(point.x / cell) * cell + rhythm * minimumDimension * motion.grooveSwing * 0.022f;
+        point.y = std::round(point.y / cell) * cell;
+        point.z += rhythm * minimumDimension * (motion.snap * 0.070f + motion.beatPulse * 0.032f);
+        break;
+    }
+    case MotionStyle::Liquid:
+        rotatePlane(point.x, point.y, std::sin(phase) * (0.035f + motion.weave * 0.040f));
+        point.z += std::cos(phase * 0.71f) * minimumDimension * (motion.weave * 0.050f + motion.stereoDrift * 0.018f);
+        break;
+    case MotionStyle::Hyperspace:
+        rotatePlane(point.x, point.z, motion.fold * (0.050f + unit * 0.070f));
+        rotatePlane(point.y, point.z, motion.parallax * (0.040f + std::fabs(motion.stereoDrift) * 0.030f));
+        point.z += std::sin(phase * 1.3f) * minimumDimension * (motion.fold * 0.080f + motion.dropImpact * 0.035f);
+        break;
+    case MotionStyle::HeavyBass:
+        point.z -= minimumDimension * (motion.bassPressure * (0.075f + unit * 0.055f) + motion.dropImpact * 0.050f);
+        point.x *= 1.0f - motion.bassPressure * 0.025f;
+        point.y *= 1.0f - motion.bassPressure * 0.020f;
+        break;
+    case MotionStyle::AmbientDrift:
+        point.x += std::sin(phase * 0.19f + unit) * minimumDimension * (motion.stereoDrift * 0.045f + motion.phraseLift * 0.018f);
+        point.y += std::cos(phase * 0.23f + seed) * minimumDimension * motion.phraseLift * 0.034f;
+        point.z += std::sin(phase * 0.17f + seed) * minimumDimension * motion.inertia * 0.045f;
+        break;
+    case MotionStyle::Breakbeat:
+        point.x += rhythm * minimumDimension * (motion.snap * 0.038f + motion.trebleSparkle * 0.018f);
+        point.y += std::sin(phase * 2.0f) * minimumDimension * motion.trebleSparkle * 0.026f;
+        point.z += rhythm * minimumDimension * (motion.snap * 0.062f + motion.shimmer * 0.040f);
+        break;
+    }
+}
+
+void applyMusicChoreography3D(std::vector<Object3D>& objects,
+                              VisualMode mode,
+                              const MusicChoreography& motion,
+                              float minimumDimension)
+{
+    if (objects.empty() || motion.audible <= 0.001f) {
+        return;
+    }
+
+    const float rotationCap = 0.16f + (1.0f - motion.stability) * 0.18f;
+    const float scaleCap = 0.10f + (1.0f - motion.clarity) * 0.12f;
+    const std::size_t count = objects.size();
+    for (std::size_t i = 0; i < count; ++i) {
+        Object3D& object = objects[i];
+        const float unit = count > 1U ? static_cast<float>(i) / static_cast<float>(count - 1U) : 0.0f;
+        const float seed = unit * 13.371f + static_cast<float>(choreographyKindIndex(object.kind)) * 0.217f;
+        const Vec3 before = object.position;
+        object.position = transformChoreographyPoint(object.position, object.kind, mode, motion, minimumDimension, unit, seed);
+        applyMotionStyleDisplacement(object.position, motion, minimumDimension, unit, seed);
+        if (object.kind == Object3DKind::Link) {
+            object.target = transformChoreographyPoint(object.target, object.kind, mode, motion, minimumDimension, unit + 0.13f, seed + 0.41f);
+            applyMotionStyleDisplacement(object.target, motion, minimumDimension, unit + 0.13f, seed + 0.41f);
+        }
+        object.velocity = subtract(object.position, before);
+
+        const float rhythmicSign = std::sin(seed * 5.0f + motion.orbit * 2.0f * kPi) >= 0.0f ? 1.0f : -1.0f;
+        object.rotation.x += std::clamp(motion.fold * 0.08f + motion.phraseLift * 0.05f, -rotationCap, rotationCap);
+        object.rotation.y += std::clamp(motion.stereoDrift * 0.06f + motion.weave * 0.04f, -rotationCap, rotationCap);
+        object.rotation.z += std::clamp((motion.snap * 0.10f + motion.grooveSwing * 0.12f) * rhythmicSign,
+                                        -rotationCap,
+                                        rotationCap);
+
+        const float liftScale = 1.0f + std::clamp(motion.bassPressure * 0.055f +
+                                                  motion.beatPulse * 0.040f +
+                                                  motion.dropImpact * 0.045f +
+                                                  motion.shimmer * 0.018f,
+                                                  0.0f,
+                                                  scaleCap);
+        if (object.kind == Object3DKind::Column || object.kind == Object3DKind::TunnelRib) {
+            object.scale.y *= 1.0f + std::clamp(motion.bassPressure * 0.075f + motion.snap * 0.035f, 0.0f, scaleCap);
+            object.scale.z *= 1.0f + std::clamp(motion.fold * 0.060f + motion.dropImpact * 0.035f, 0.0f, scaleCap);
+        } else if (object.kind == Object3DKind::WaveSurface || object.kind == Object3DKind::DepthPlane) {
+            object.scale.x *= 1.0f + std::clamp(motion.phraseLift * 0.050f + motion.shimmer * 0.030f, 0.0f, scaleCap);
+            object.scale.y *= 1.0f + std::clamp(motion.buildTension * 0.045f + motion.breath * 0.025f, -scaleCap, scaleCap);
+        } else {
+            object.scale = scale(object.scale, liftScale);
+        }
+
+        switch (motion.style) {
+        case MotionStyle::Mechanical:
+            object.rotation.z += rhythmicSign * motion.snap * 0.055f;
+            break;
+        case MotionStyle::Hyperspace:
+            object.scale.z *= 1.0f + std::clamp(motion.fold * 0.045f, 0.0f, scaleCap);
+            break;
+        case MotionStyle::HeavyBass:
+            object.scale = scale(object.scale, 1.0f + std::clamp(motion.bassPressure * 0.035f, 0.0f, scaleCap));
+            break;
+        case MotionStyle::Breakbeat:
+            object.glow += motion.snap * 0.12f + motion.trebleSparkle * 0.05f;
+            break;
+        case MotionStyle::AmbientDrift:
+            object.glow += motion.phraseLift * 0.035f;
+            break;
+        case MotionStyle::Liquid:
+            object.rotation.y += motion.weave * 0.040f;
+            break;
+        case MotionStyle::Smooth:
+            object.glow += motion.inertia * 0.025f;
+            break;
+        }
+
+        object.glow = std::min(1.8f,
+                               object.glow +
+                                   motion.trebleSparkle * 0.10f +
+                                   motion.beatPulse * 0.08f +
+                                   motion.dropImpact * 0.11f +
+                                   motion.phraseLift * 0.05f);
+    }
+}
+
+void addChoreographyDepthObjects3D(std::vector<Object3D>& objects,
+                                   VisualMode mode,
+                                   const MusicChoreography& motion,
+                                   const std::array<ColorRGBA, 5>& colors,
+                                   float minimumDimension,
+                                   float density,
+                                   float response,
+                                   double time)
+{
+    if (motion.audible <= 0.001f) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const int count = scaledCount(3 + static_cast<int>(std::round(motion.foreground * 4.0f + motion.shimmer * 2.0f)),
+                                  density * 0.52f);
+    for (int i = 0; i < count; ++i) {
+        const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, count));
+        const float angle = unit * 2.0f * kPi + motion.orbit * 2.0f * kPi + phase * (0.08f + motion.stereoDrift * 0.035f);
+        const float lane = static_cast<float>(i % 3) - 1.0f;
+        Object3DKind kind = Object3DKind::Orbiter;
+        switch (mode) {
+        case VisualMode::QuantumTunnel:
+            kind = Object3DKind::TunnelRib;
+            break;
+        case VisualMode::PolyrhythmLattice:
+        case VisualMode::TechnoMandala:
+            kind = Object3DKind::Column;
+            break;
+        case VisualMode::HyperspacePolytope:
+        case VisualMode::ChromaKaleidoscope:
+            kind = Object3DKind::Cage;
+            break;
+        case VisualMode::NeuralConstellation:
+            kind = Object3DKind::Anchor;
+            break;
+        case VisualMode::CymaticInterference:
+        case VisualMode::FrequencyBloom:
+        case VisualMode::ResonanceTessellation:
+            kind = Object3DKind::WaveSurface;
+            break;
+        case VisualMode::LissajousMesh:
+        case VisualMode::PhaseWeave:
+        case VisualMode::SpectralOrigami:
+        case VisualMode::FractalCathedral:
+            kind = Object3DKind::Ribbon;
+            break;
+        }
+
+        const float radius = minimumDimension * (0.10f + unit * 0.18f + motion.parallax * 0.06f);
+        const float z = minimumDimension * (-0.42f + unit * 1.06f +
+                                            motion.bassPressure * 0.16f +
+                                            motion.dropImpact * (lane < 0.0f ? -0.08f : 0.14f));
+        Object3D object = makeObject3D(kind,
+                                       Vec3{std::cos(angle) * radius + lane * motion.stereoDrift * minimumDimension * 0.06f,
+                                            std::sin(angle * (1.0f + motion.grooveSwing * 0.18f)) * radius * 0.62f,
+                                            z},
+                                       Vec3{minimumDimension * (0.012f + motion.foreground * 0.020f + motion.shimmer * 0.010f),
+                                            minimumDimension * (0.028f + motion.phraseLift * 0.050f + motion.bassPressure * 0.024f),
+                                            minimumDimension * (0.012f + motion.fold * 0.030f)},
+                                       Vec3{motion.fold * 0.36f + unit,
+                                            angle + motion.stereoDrift * 0.20f,
+                                            phase * (0.16f + motion.snap * 0.12f)},
+                                       withAlpha(colors[(i + 2) % 4], 0.20f + motion.foreground * 0.22f + motion.phraseLift * 0.12f),
+                                       0.18f + motion.trebleSparkle * 0.28f + motion.dropImpact * 0.34f + response * 0.08f);
+        objects.push_back(object);
+    }
+}
+
 void addObject3DScene(GeometryFrame& frame,
                       const AudioMetrics& metrics,
                       const VisualSettings& settings,
@@ -1811,8 +2333,9 @@ void addObject3DScene(GeometryFrame& frame,
     const float personality = scenePersonalityOf(settings);
     const float response = musicResponse3D(metrics, settings);
     const Camera3D camera = makeCamera3D(settings, metrics, width, height, speed, time);
+    const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
     std::vector<Object3D> objects;
-    objects.reserve(260);
+    objects.reserve(360);
 
     switch (profile) {
     case Scene3DProfile::TechnoMachine:
@@ -1832,6 +2355,8 @@ void addObject3DScene(GeometryFrame& frame,
         break;
     }
     addModeSpecific3DObjects(objects, settings.mode, metrics, colors, minimumDimension, objectDensity, personality, response, time);
+    addChoreographyDepthObjects3D(objects, settings.mode, choreography, colors, minimumDimension, objectDensity, response, time);
+    applyMusicChoreography3D(objects, settings.mode, choreography, minimumDimension);
 
     applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
     applyPatternReadability3D(objects, settings, metrics, minimumDimension);
@@ -3820,6 +4345,27 @@ std::string_view toString(Palette palette)
         return "Monochrome Laser";
     case Palette::OceanicPulse:
         return "Oceanic Pulse";
+    }
+    return "Unknown";
+}
+
+std::string_view toString(MotionStyle style)
+{
+    switch (style) {
+    case MotionStyle::Smooth:
+        return "Smooth";
+    case MotionStyle::Mechanical:
+        return "Mechanical";
+    case MotionStyle::Liquid:
+        return "Liquid";
+    case MotionStyle::Hyperspace:
+        return "Hyperspace";
+    case MotionStyle::HeavyBass:
+        return "Heavy Bass";
+    case MotionStyle::AmbientDrift:
+        return "Ambient Drift";
+    case MotionStyle::Breakbeat:
+        return "Breakbeat";
     }
     return "Unknown";
 }

@@ -14,6 +14,8 @@ Visualizer is a C++20 Windows music-visualization application built around inten
 - Keyboard customization for curated looks, visual mode, palette, hue shift, 3D depth, color impact, complexity, intensity, speed, HUD, fullscreen, source profile reset, and recording.
 - True 3D object scene layer with x/y/z transforms, perspective camera projection, depth sorting, lighting/fog cues, projected wire objects, and mode-specific 3D compositions layered into every procedural mode.
 - Thirteen mode-specific 3D scene identities using tunnel volumes, machine cages, ribbon meshes, bloom surfaces, cathedral spires, rhythm columns, origami planes, prism cages, polytope cages, phase currents, resonance fields, neural anchors, and cymatic wave surfaces.
+- Motion-choreography layer that turns audio into bass pressure, beat pulse, groove swing, treble sparkle, stereo drift, melodic orbit, phrase lift, build tension, and drop impact channels.
+- Seven motion personalities: Smooth, Mechanical, Liquid, Hyperspace, Heavy Bass, Ambient Drift, and Breakbeat, usable from presets, the live panel, keyboard, and deterministic exporters.
 - High-gain music-to-3D response control that makes bass, RMS, beat/drop, treble, stereo width, phrase/build tension, and harmony drive object count, scale, z motion, camera push, glow, and scene accents.
 - Stronger palette personality pass that makes hue shift affect the whole frame with harmonic/key steering, saturation/contrast lift, accent colors, and background tinting.
 - Mouse-reactive geometric field that bends rings, particles, beams, and line meshes, plus depth-aware 3D object lifting and click impulses around the pointer.
@@ -56,12 +58,12 @@ Render an audio file into a deterministic PPM frame sequence and optional MP4:
 
 ```powershell
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\offline --width 1920 --height 1080 --fps 60 --look "Acid Geometry" --trails
-.\build\vs2022\Release\VisualizerExport.exe --input song.mp3 --output captures\offline --mp4 captures\visualizer.mp4 --share --width 1920 --height 1080 --fps 60 --auto-scene --depth-3d 1.0 --object-density-3d 0.9 --lighting-glow 0.85 --color-impact 1.0 --scene-personality 0.9 --response-3d 0.88 --motion-stability 0.82 --pattern-clarity 0.9
+.\build\vs2022\Release\VisualizerExport.exe --input song.mp3 --output captures\offline --mp4 captures\visualizer.mp4 --share --width 1920 --height 1080 --fps 60 --auto-scene --depth-3d 1.0 --object-density-3d 0.9 --lighting-glow 0.85 --color-impact 1.0 --scene-personality 0.9 --motion-style Hyperspace --response-3d 0.88 --motion-stability 0.82 --pattern-clarity 0.9
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\calibrated --sync-profile profiles\sources\live_loopback.vizsync --style-profile profiles\sources\live_loopback.vizaudio
 .\build\vs2022\Release\VisualizerExport.exe --input song.wav --output captures\library_look --user-preset "Late Set" --share
 ```
 
-The exporter writes `frame_000000.ppm` files plus `export_manifest.txt` and `analysis_timeline.csv`. Manifests include depth, 3D object density, mouse depth, lighting glow, color/personality settings, 3D response, motion stability, pattern clarity, final Auto Scene settings, and a track-intelligence summary with downbeats, phrase boundaries, average bar/phrase lock, drop/phrase/build-tension peaks, dominant style, harmonic energy, and peak primitive count. When `--mp4` is provided, it also invokes FFmpeg to encode a shareable H.264 MP4. Add `--share` to write a browsable `index.html`, `preview.bmp` contact sheet, and machine-readable `share_manifest.json` beside the frame sequence.
+The exporter writes `frame_000000.ppm` files plus `export_manifest.txt` and `analysis_timeline.csv`. Manifests include motion style, depth, 3D object density, mouse depth, lighting glow, color/personality settings, 3D response, motion stability, pattern clarity, final Auto Scene settings, and a track-intelligence summary with downbeats, phrase boundaries, average bar/phrase lock, drop/phrase/build-tension peaks, dominant style, harmonic energy, and peak primitive count. When `--mp4` is provided, it also invokes FFmpeg to encode a shareable H.264 MP4. Add `--share` to write a browsable `index.html`, `preview.bmp` contact sheet, and machine-readable `share_manifest.json` beside the frame sequence.
 Use `--style-profile` and `--sync-profile` to reproduce a learned live calibration during deterministic offline export.
 
 Batch-render a folder of tracks into a browsable gallery:
@@ -110,6 +112,7 @@ The benchmark reports average analyzer/geometry time, separate analysis and geom
 - `E`: toggle environment-reactive layer
 - `T`: toggle decaying trails
 - `C`: cycle palette
+- `G`: cycle motion style
 - `U`: advance hue shift
 - `D`: increase 3D depth
 - `F`: increase color impact
@@ -124,7 +127,7 @@ The benchmark reports average analyzer/geometry time, separate analysis and geom
 - `F11`: fullscreen
 - `Esc`: quit
 
-The on-screen control panel exposes the same core controls with buttons and sliders, including 3D depth, object density, mouse depth, glow, color impact, scene personality, previous/next curated look buttons, and user preset library save/cycle buttons. On wide windows, a right-side inspector keeps source, active look, user preset count, profile, decoded-format, playback-progress, and capture metadata visible while visuals run.
+The on-screen control panel exposes the same core controls with buttons and sliders, including 3D depth, object density, mouse depth, glow, color impact, scene personality, motion style, previous/next curated look buttons, and user preset library save/cycle buttons. On wide windows, a right-side inspector keeps source, active look, user preset count, profile, decoded-format, playback-progress, and capture metadata visible while visuals run.
 
 ## Capture
 

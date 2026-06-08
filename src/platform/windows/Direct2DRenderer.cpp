@@ -269,6 +269,7 @@ void Direct2DRenderer::drawHud(const AudioMetrics& metrics,
          << L"  Glow " << (settings.lightingGlow * 100.0f) << L"%"
          << L"  Color " << (settings.colorImpact * 100.0f) << L"%"
          << L"  Persona " << (settings.scenePersonality * 100.0f) << L"%"
+         << L"  Motion " << widen(toString(settings.motionStyle))
          << L"  React " << (settings.response3D * 100.0f) << L"%"
          << L"  Stable " << (settings.motionStability * 100.0f) << L"%"
          << L"  Clear " << (settings.patternClarity * 100.0f) << L"%"
@@ -300,7 +301,7 @@ void Direct2DRenderer::drawHud(const AudioMetrics& metrics,
     if (recording) {
         text << L"  REC " << recordedFrames;
     }
-    text << L"\nO audio  L loopback  V reset AI  0-9 modes  M tessellate  Y neural  Z cymatic  B/N looks  [/] user looks  K save user  A scene  E env  T trails  C palette  U hue  D depth  F color  X complexity  I interact  S/P files  R record  H HUD  F11 fullscreen\n";
+    text << L"\nO audio  L loopback  V reset AI  0-9 modes  M tessellate  Y neural  Z cymatic  B/N looks  [/] user looks  K save user  A scene  E env  T trails  C palette  G motion  U hue  D depth  F color  X complexity  I interact  S/P files  R record  H HUD  F11 fullscreen\n";
     const std::string hudLook = inspector.activeLook.empty() ? "Custom" : inspector.activeLook;
     text << L"Source " << widen(inspector.sourceLabel)
          << L"  Look " << widen(hudLook)
