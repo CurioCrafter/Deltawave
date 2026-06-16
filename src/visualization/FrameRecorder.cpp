@@ -110,6 +110,9 @@ bool FrameRecorder::writeFrame(const GeometryFrame& frame, const FrameRenderOpti
         if (line.points.size() < 2) {
             continue;
         }
+        if (line.filled && line.closed && line.points.size() >= 3U) {
+            drawFilledPolygon(line.points, line.color);
+        }
         for (std::size_t i = 1; i < line.points.size(); ++i) {
             drawLine(line.points[i - 1], line.points[i], line.strokeWidth, line.color);
         }
@@ -184,6 +187,52 @@ void FrameRecorder::drawLine(Vec2 a, Vec2 b, float width, ColorRGBA color)
                 if ((ox * ox + oy * oy) <= radius * radius) {
                     blendPixel(x + ox, y + oy, color);
                 }
+            }
+        }
+    }
+}
+
+void FrameRecorder::drawFilledPolygon(const std::vector<Vec2>& points, ColorRGBA color)
+{
+    if (points.size() < 3U) {
+        return;
+    }
+
+    float minX = points.front().x;
+    float maxX = minX;
+    float minY = points.front().y;
+    float maxY = minY;
+    for (Vec2 point : points) {
+        minX = std::min(minX, point.x);
+        maxX = std::max(maxX, point.x);
+        minY = std::min(minY, point.y);
+        maxY = std::max(maxY, point.y);
+    }
+
+    const int left = std::max(0, static_cast<int>(std::floor(minX)));
+    const int right = std::min(width_ - 1, static_cast<int>(std::ceil(maxX)));
+    const int top = std::max(0, static_cast<int>(std::floor(minY)));
+    const int bottom = std::min(height_ - 1, static_cast<int>(std::ceil(maxY)));
+    if (left > right || top > bottom) {
+        return;
+    }
+
+    for (int y = top; y <= bottom; ++y) {
+        for (int x = left; x <= right; ++x) {
+            const float px = static_cast<float>(x) + 0.5f;
+            const float py = static_cast<float>(y) + 0.5f;
+            bool inside = false;
+            for (std::size_t i = 0, j = points.size() - 1U; i < points.size(); j = i++) {
+                const Vec2 a = points[i];
+                const Vec2 b = points[j];
+                const bool crosses = ((a.y > py) != (b.y > py)) &&
+                                     (px < (b.x - a.x) * (py - a.y) / ((b.y - a.y) + 0.0001f) + a.x);
+                if (crosses) {
+                    inside = !inside;
+                }
+            }
+            if (inside) {
+                blendPixel(x, y, color);
             }
         }
     }

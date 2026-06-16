@@ -52,6 +52,7 @@ struct Polyline {
     float strokeWidth = 1.0f;
     ColorRGBA color{};
     bool closed = false;
+    bool filled = false;
 };
 
 enum class Object3DKind {
@@ -112,9 +113,13 @@ struct GeometryFrame {
     int authored2DPrimitiveCount = 0;
     int retained2DPrimitiveCount = 0;
     int projected3DPrimitiveCount = 0;
+    int projected3DFaceCount = 0;
     float authored2DVisualWeight = 0.0f;
     float retained2DVisualWeight = 0.0f;
     float projected3DVisualWeight = 0.0f;
+    float projected3DFillVisualWeight = 0.0f;
+    float projected3DMaterialContrast = 0.0f;
+    float depthFogStrength = 0.0f;
     float threeDDominance = 0.0f;
     float cameraDepth = 0.0f;
     float cameraYaw = 0.0f;

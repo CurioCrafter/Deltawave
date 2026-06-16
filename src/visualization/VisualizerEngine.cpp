@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <initializer_list>
 #include <vector>
 
 namespace viz {
@@ -99,6 +100,29 @@ Vec3 scale(Vec3 value, float amount)
 float length(Vec3 value)
 {
     return std::sqrt(value.x * value.x + value.y * value.y + value.z * value.z);
+}
+
+float dot(Vec3 a, Vec3 b)
+{
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+Vec3 cross(Vec3 a, Vec3 b)
+{
+    return Vec3{
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    };
+}
+
+Vec3 normalize(Vec3 value)
+{
+    const float magnitude = length(value);
+    if (magnitude <= 0.0001f) {
+        return Vec3{};
+    }
+    return scale(value, 1.0f / magnitude);
 }
 
 float distance2(Vec2 a, Vec2 b)
@@ -750,6 +774,9 @@ int primitiveFootprint(const GeometryFrame& frame)
     int count = static_cast<int>(frame.rings.size() + frame.beams.size() + frame.particles.size());
     for (const Polyline& line : frame.polylines) {
         count += static_cast<int>(line.points.size());
+        if (line.filled) {
+            count += static_cast<int>(line.points.size()) * 2;
+        }
     }
     return count;
 }
@@ -767,8 +794,11 @@ float primitiveVisualWeight(const GeometryFrame& frame)
         weight += particle.color.a * std::max(0.6f, particle.radius) * 1.6f;
     }
     for (const Polyline& line : frame.polylines) {
-        weight += line.color.a * std::max(0.2f, line.strokeWidth) *
-                  static_cast<float>(std::max<std::size_t>(1U, line.points.size()));
+        const float pointWeight = static_cast<float>(std::max<std::size_t>(1U, line.points.size()));
+        weight += line.color.a * std::max(0.2f, line.strokeWidth) * pointWeight;
+        if (line.filled) {
+            weight += line.color.a * std::max(1.0f, line.strokeWidth * 3.0f) * pointWeight * 2.8f;
+        }
     }
     return weight;
 }
@@ -1722,6 +1752,64 @@ void addProjectedPolyline(GeometryFrame& frame,
     });
 }
 
+float polygonArea(const std::vector<Vec2>& points)
+{
+    if (points.size() < 3U) {
+        return 0.0f;
+    }
+    float area = 0.0f;
+    for (std::size_t i = 0; i < points.size(); ++i) {
+        const Vec2 a = points[i];
+        const Vec2 b = points[(i + 1U) % points.size()];
+        area += a.x * b.y - b.x * a.y;
+    }
+    return std::fabs(area) * 0.5f;
+}
+
+bool addProjectedFace(GeometryFrame& frame,
+                      const Camera3D& camera,
+                      const std::vector<Vec3>& points,
+                      ColorRGBA color,
+                      float strokeWidth)
+{
+    if (points.size() < 3U) {
+        return false;
+    }
+
+    std::vector<Vec2> projected;
+    projected.reserve(points.size());
+    float perspective = 0.0f;
+    for (Vec3 point : points) {
+        const Projected3D projectedPoint = projectPoint3D(point, camera);
+        if (!projectedPoint.visible) {
+            return false;
+        }
+        projected.push_back(projectedPoint.point);
+        perspective += projectedPoint.perspective;
+    }
+
+    const float area = polygonArea(projected);
+    if (area < 8.0f) {
+        return false;
+    }
+
+    perspective /= static_cast<float>(projected.size());
+    const float width = std::max(0.35f, strokeWidth * std::clamp(perspective, 0.22f, 2.6f));
+    frame.polylines.push_back(Polyline{
+        std::move(projected),
+        width,
+        color,
+        true,
+        true
+    });
+    frame.projected3DFaceCount += 1;
+    frame.projected3DFillVisualWeight += std::sqrt(area) * color.a;
+    frame.projected3DMaterialContrast = std::max(
+        frame.projected3DMaterialContrast,
+        std::fabs(luminance(color) - luminance(frame.background)) * color.a);
+    return true;
+}
+
 void renderWireObject3D(GeometryFrame& frame,
                         const Camera3D& camera,
                         const Object3D& object,
@@ -1732,6 +1820,32 @@ void renderWireObject3D(GeometryFrame& frame,
     const ColorRGBA color = shade3DColor(object.color, depthUnit, object.glow, light, lightingGlow);
     const float stroke = 1.0f + object.glow * 1.8f;
     const auto world = [&](Vec3 local) { return objectLocalToWorld(object, local); };
+    const float largestScale = std::max({object.scale.x, object.scale.y, object.scale.z});
+    const Vec3 keyLight = normalize(Vec3{-0.34f, -0.58f, -0.74f});
+    const auto addMaterialFace = [&](std::initializer_list<Vec3> locals, float alphaBias, float lightBias = 0.0f) {
+        if (locals.size() < 3U || largestScale < 4.0f) {
+            return;
+        }
+
+        std::vector<Vec3> facePoints;
+        facePoints.reserve(locals.size());
+        for (Vec3 local : locals) {
+            facePoints.push_back(world(local));
+        }
+
+        const Vec3 normal = normalize(cross(subtract(facePoints[1], facePoints[0]),
+                                           subtract(facePoints[2], facePoints[0])));
+        const float faceLight = std::clamp(0.30f + std::fabs(dot(normal, keyLight)) * 0.62f + lightBias,
+                                           0.18f,
+                                           1.12f);
+        ColorRGBA faceColor = shade3DColor(object.color, depthUnit, object.glow, faceLight, lightingGlow);
+        faceColor = withAlpha(faceColor,
+                              faceColor.a *
+                                  std::clamp(alphaBias * (0.96f + lightingGlow * 0.42f + object.glow * 0.055f),
+                                             0.06f,
+                                             0.86f));
+        addProjectedFace(frame, camera, facePoints, faceColor, stroke * 0.28f);
+    };
 
     if (object.kind == Object3DKind::TunnelRib) {
         const int sides = std::max(4, static_cast<int>(std::round(5.0f + object.scale.z * 8.0f)));
@@ -1747,6 +1861,12 @@ void renderWireObject3D(GeometryFrame& frame,
     }
 
     if (object.kind == Object3DKind::Shard) {
+        addMaterialFace({Vec3{0.0f, -1.0f, 0.0f},
+                         Vec3{0.58f, 0.05f, 0.28f},
+                         Vec3{0.0f, 1.0f, 0.0f},
+                         Vec3{-0.42f, 0.1f, -0.34f}},
+                        0.55f,
+                        0.10f);
         const std::vector<Vec3> points = {
             world(Vec3{0.0f, -1.0f, 0.0f}),
             world(Vec3{0.58f, 0.05f, 0.28f}),
@@ -1760,6 +1880,12 @@ void renderWireObject3D(GeometryFrame& frame,
     }
 
     if (object.kind == Object3DKind::Plate) {
+        addMaterialFace({Vec3{-1.0f, -1.0f, 0.0f},
+                         Vec3{1.0f, -1.0f, 0.0f},
+                         Vec3{1.0f, 1.0f, 0.0f},
+                         Vec3{-1.0f, 1.0f, 0.0f}},
+                        0.48f,
+                        0.04f);
         const int ridges = 4;
         for (int i = -ridges; i <= ridges; ++i) {
             const float u = static_cast<float>(i) / static_cast<float>(ridges);
@@ -1784,6 +1910,12 @@ void renderWireObject3D(GeometryFrame& frame,
     }
 
     if (object.kind == Object3DKind::DepthPlane) {
+        addMaterialFace({Vec3{-1.0f, -1.0f, 0.0f},
+                         Vec3{1.0f, -1.0f, 0.0f},
+                         Vec3{1.0f, 1.0f, 0.0f},
+                         Vec3{-1.0f, 1.0f, 0.0f}},
+                        0.30f,
+                        -0.03f);
         const int grid = 4;
         for (int i = -grid; i <= grid; ++i) {
             const float u = static_cast<float>(i) / static_cast<float>(grid);
@@ -1823,6 +1955,16 @@ void renderWireObject3D(GeometryFrame& frame,
             top.push_back(world(Vec3{std::cos(angle), -1.0f, std::sin(angle)}));
             bottom.push_back(world(Vec3{std::cos(angle), 1.0f, std::sin(angle)}));
         }
+        for (int i = 0; i < sides; i += 2) {
+            const float a0 = (static_cast<float>(i) / static_cast<float>(sides)) * 2.0f * kPi;
+            const float a1 = (static_cast<float>((i + 1) % sides) / static_cast<float>(sides)) * 2.0f * kPi;
+            addMaterialFace({Vec3{std::cos(a0), -1.0f, std::sin(a0)},
+                             Vec3{std::cos(a1), -1.0f, std::sin(a1)},
+                             Vec3{std::cos(a1), 1.0f, std::sin(a1)},
+                             Vec3{std::cos(a0), 1.0f, std::sin(a0)}},
+                            0.38f,
+                            0.02f);
+        }
         addProjectedPolyline(frame, camera, top, color, stroke * 0.72f, true);
         addProjectedPolyline(frame, camera, bottom, withAlpha(color, color.a * 0.72f), stroke * 0.6f, true);
         for (int i = 0; i < sides; ++i) {
@@ -1846,6 +1988,18 @@ void renderWireObject3D(GeometryFrame& frame,
             {0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4},
             {0, 4}, {1, 5}, {2, 6}, {3, 7}, {0, 6}, {1, 7}, {2, 4}, {3, 5}
         };
+        addMaterialFace({Vec3{-1.0f, -1.0f, -1.0f},
+                         Vec3{1.0f, -1.0f, -1.0f},
+                         Vec3{1.0f, 1.0f, -1.0f},
+                         Vec3{-1.0f, 1.0f, -1.0f}},
+                        0.24f,
+                        -0.04f);
+        addMaterialFace({Vec3{-1.0f, -1.0f, 1.0f},
+                         Vec3{1.0f, -1.0f, 1.0f},
+                         Vec3{1.0f, 1.0f, 1.0f},
+                         Vec3{-1.0f, 1.0f, 1.0f}},
+                        0.32f,
+                        0.06f);
         for (const auto& edge : cageEdges) {
             addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], color, stroke * 0.86f);
         }
@@ -1853,6 +2007,12 @@ void renderWireObject3D(GeometryFrame& frame,
     }
 
     if (object.kind == Object3DKind::WaveSurface) {
+        addMaterialFace({Vec3{-1.0f, -1.0f, 0.0f},
+                         Vec3{1.0f, -1.0f, 0.0f},
+                         Vec3{1.0f, 1.0f, 0.0f},
+                         Vec3{-1.0f, 1.0f, 0.0f}},
+                        0.28f,
+                        0.02f);
         constexpr int rows = 5;
         constexpr int columns = 10;
         for (int y = -rows; y <= rows; y += 2) {
@@ -1961,6 +2121,24 @@ void renderWireObject3D(GeometryFrame& frame,
         {4, 5}, {5, 6}, {6, 7}, {7, 4},
         {0, 4}, {1, 5}, {2, 6}, {3, 7}
     };
+    addMaterialFace({Vec3{-1.0f, -1.0f, -1.0f},
+                     Vec3{1.0f, -1.0f, -1.0f},
+                     Vec3{1.0f, 1.0f, -1.0f},
+                     Vec3{-1.0f, 1.0f, -1.0f}},
+                    0.28f,
+                    -0.02f);
+    addMaterialFace({Vec3{-1.0f, -1.0f, 1.0f},
+                     Vec3{1.0f, -1.0f, 1.0f},
+                     Vec3{1.0f, 1.0f, 1.0f},
+                     Vec3{-1.0f, 1.0f, 1.0f}},
+                    0.42f,
+                    0.08f);
+    addMaterialFace({Vec3{1.0f, -1.0f, -1.0f},
+                     Vec3{1.0f, -1.0f, 1.0f},
+                     Vec3{1.0f, 1.0f, 1.0f},
+                     Vec3{1.0f, 1.0f, -1.0f}},
+                    0.28f,
+                    0.02f);
     for (const auto& edge : edges) {
         addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], color, stroke);
     }
@@ -4395,6 +4573,9 @@ void addObject3DScene(GeometryFrame& frame,
     frame.projected3DPrimitiveCount = std::max(0, primitiveFootprint(frame) - primitiveFootprintBefore3D);
     frame.projected3DVisualWeight = std::max(0.0f, primitiveVisualWeight(frame) - visualWeightBefore3D);
     frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
+    frame.depthFogStrength = std::clamp(depth * lightingGlow * (range / std::max(1.0f, minimumDimension * 1.45f)),
+                                        0.0f,
+                                        1.0f);
     frame.objects3D = std::move(objects);
     frame.scene3DName = mode3DName(settings.mode);
     frame.sceneIntent = intent.primary;

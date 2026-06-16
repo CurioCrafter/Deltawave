@@ -141,6 +141,13 @@ float averagePolylinePointDistance(const GeometryFrame& frame, Vec2 center)
     return count > 0 ? total / static_cast<float>(count) : 0.0f;
 }
 
+int filledPolylineCount(const GeometryFrame& frame)
+{
+    return static_cast<int>(std::count_if(frame.polylines.begin(), frame.polylines.end(), [](const Polyline& line) {
+        return line.filled;
+    }));
+}
+
 bool containsObjectKind(const GeometryFrame& frame, Object3DKind kind)
 {
     return std::any_of(frame.objects3D.begin(), frame.objects3D.end(), [kind](const Object3D& object) {
@@ -798,6 +805,32 @@ void recorderWritesPpmFrame()
     require(std::filesystem::file_size(framePath) > 160U * 90U * 3U, "PPM should contain header and pixels");
     recorder.stop();
     std::filesystem::remove_all(root);
+}
+
+void recorderFillsMaterialPolygons()
+{
+    GeometryFrame frame;
+    frame.background = ColorRGBA{0.0f, 0.0f, 0.0f, 1.0f};
+    frame.polylines.push_back(Polyline{
+        {Vec2{8.0f, 8.0f}, Vec2{56.0f, 8.0f}, Vec2{56.0f, 56.0f}, Vec2{8.0f, 56.0f}},
+        1.0f,
+        ColorRGBA{0.1f, 0.8f, 1.0f, 0.70f},
+        true,
+        true
+    });
+
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "visualizer_fill_polygon_test";
+    std::filesystem::remove_all(root);
+
+    FrameRecorder recorder;
+    std::string error;
+    require(recorder.startSession(root, 64, 64, error), "fill recorder should start: " + error);
+    require(recorder.writeFrame(frame, error), "fill recorder should write: " + error);
+    recorder.stop();
+
+    const std::uint64_t filledSum = sumPpmPixelBytes(root / "frame_000000.ppm");
+    std::filesystem::remove_all(root);
+    require(filledSum > 280000U, "filled material polygon should affect the interior pixels, not just the outline");
 }
 
 void recorderTrailsPersistPreviousFrame()
@@ -3013,6 +3046,56 @@ void object3DDepthSortsAndProjects()
     require(!frame.particles.empty(), "3D object projection should produce visible nodes/particles");
 }
 
+void threeDScenesRenderMaterialFacesAndDepthHaze()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::TechnoMandala;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.88f;
+    settings.lightingGlow = 0.92f;
+    settings.colorImpact = 0.95f;
+    settings.scenePersonality = 0.86f;
+    settings.response3D = 0.95f;
+    settings.motionStability = 0.86f;
+    settings.patternClarity = 0.90f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.rms = 0.55f;
+    metrics.peak = 0.84f;
+    metrics.bass = 0.62f;
+    metrics.lowMid = 0.46f;
+    metrics.mid = 0.24f;
+    metrics.stereoWidth = 0.44f;
+    metrics.beat = true;
+    metrics.beatConfidence = 0.94f;
+    metrics.barConfidence = 0.88f;
+    metrics.downbeatConfidence = 0.76f;
+    metrics.dropIntensity = 0.42f;
+    metrics.style = AudioStyle::Techno;
+    metrics.styleConfidence = 0.92f;
+    metrics.section = ArrangementSection::Groove;
+    metrics.sectionConfidence = 0.86f;
+
+    const GeometryFrame frame = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 2.25);
+
+    require(frame.projected3DFaceCount >= 18,
+            "3D scenes should render filled material faces, not only wire outlines");
+    require(filledPolylineCount(frame) >= frame.projected3DFaceCount,
+            "projected material faces should be represented by filled polylines");
+    require(frame.projected3DFillVisualWeight > 35.0f,
+            "filled 3D faces should contribute visible material weight");
+    require(frame.projected3DMaterialContrast > 0.05f,
+            "3D material shading should create contrast against the background");
+    require(frame.depthFogStrength > 0.08f,
+            "deep 3D scenes should report depth haze/fog strength");
+    require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.8f,
+            "filled material pass should keep the frame strongly 3D dominant");
+}
+
 void mouseDepthInteractionMoves3DObjects()
 {
     VisualizerEngine engine;
@@ -4748,6 +4831,7 @@ int main()
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
+        {"threeDScenesRenderMaterialFacesAndDepthHaze", viz::tests::threeDScenesRenderMaterialFacesAndDepthHaze},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
         {"objectDensity3DControlsObjectCount", viz::tests::objectDensity3DControlsObjectCount},
@@ -4771,6 +4855,7 @@ int main()
         {"batchExporterWritesGalleryForAudioDirectory", viz::tests::batchExporterWritesGalleryForAudioDirectory},
         {"videoEncoderBuildsShareCommand", viz::tests::videoEncoderBuildsShareCommand},
         {"recorderWritesPpmFrame", viz::tests::recorderWritesPpmFrame},
+        {"recorderFillsMaterialPolygons", viz::tests::recorderFillsMaterialPolygons},
         {"recorderTrailsPersistPreviousFrame", viz::tests::recorderTrailsPersistPreviousFrame},
         {"supportBundleWritesDiagnosticsWithoutCopyingLargeMedia", viz::tests::supportBundleWritesDiagnosticsWithoutCopyingLargeMedia},
         {"liveCapturePackageWritesShareMetadata", viz::tests::liveCapturePackageWritesShareMetadata}

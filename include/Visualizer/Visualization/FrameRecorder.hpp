@@ -45,6 +45,7 @@ private:
     void fadeToward(ColorRGBA color, float persistence);
     void blendPixel(int x, int y, ColorRGBA color);
     void drawLine(Vec2 a, Vec2 b, float width, ColorRGBA color);
+    void drawFilledPolygon(const std::vector<Vec2>& points, ColorRGBA color);
     void drawDisc(Vec2 center, float radius, ColorRGBA color);
     void drawRing(const Ring& ring);
     bool flushPpm(std::string& error);

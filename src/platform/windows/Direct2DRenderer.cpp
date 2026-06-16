@@ -210,6 +210,32 @@ void Direct2DRenderer::drawPolyline(const Polyline& line)
         return;
     }
 
+    if (line.filled && line.closed && line.points.size() >= 3U && factory_ != nullptr) {
+        ID2D1PathGeometry* geometry = nullptr;
+        ID2D1GeometrySink* sink = nullptr;
+        HRESULT hr = factory_->CreatePathGeometry(&geometry);
+        if (SUCCEEDED(hr)) {
+            hr = geometry->Open(&sink);
+        }
+        if (SUCCEEDED(hr)) {
+            sink->BeginFigure(point(line.points.front()), D2D1_FIGURE_BEGIN_FILLED);
+            std::vector<D2D1_POINT_2F> projected;
+            projected.reserve(line.points.size() - 1U);
+            for (std::size_t i = 1; i < line.points.size(); ++i) {
+                projected.push_back(point(line.points[i]));
+            }
+            sink->AddLines(projected.data(), static_cast<UINT32>(projected.size()));
+            sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+            hr = sink->Close();
+        }
+        if (SUCCEEDED(hr)) {
+            brush_->SetColor(toD2D(line.color));
+            renderTarget_->FillGeometry(geometry, brush_);
+        }
+        safeRelease(sink);
+        safeRelease(geometry);
+    }
+
     brush_->SetColor(toD2D(line.color));
     for (std::size_t i = 1; i < line.points.size(); ++i) {
         renderTarget_->DrawLine(point(line.points[i - 1]), point(line.points[i]), brush_, line.strokeWidth);
@@ -292,7 +318,10 @@ void Direct2DRenderer::drawHud(const GeometryFrame& frame,
          << L"  Intent " << widen(frame.sceneIntentName)
          << L"  3D x" << std::setprecision(1) << frame.threeDDominance
          << L"  2D " << frame.retained2DPrimitiveCount << L"/" << frame.authored2DPrimitiveCount
-         << L"  Projected " << frame.projected3DPrimitiveCount << L"\n";
+         << L"  Projected " << frame.projected3DPrimitiveCount
+         << L"  Faces " << frame.projected3DFaceCount
+         << L"  Fill " << std::setprecision(1) << frame.projected3DFillVisualWeight
+         << L"  Haze " << std::setprecision(0) << (frame.depthFogStrength * 100.0f) << L"%\n";
     text << L"FPS " << std::setprecision(1) << performance.fps
          << L"  Frame " << performance.averageFrameMs << L"ms"
          << L"  Core " << performance.averageCoreMs << L"ms"
