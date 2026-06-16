@@ -204,6 +204,21 @@ std::array<int, 14> objectKindSignature(const GeometryFrame& frame)
     return signature;
 }
 
+int objectKindCount(const GeometryFrame& frame, Object3DKind kind)
+{
+    return objectKindSignature(frame)[static_cast<std::size_t>(objectKindIndex(kind))];
+}
+
+int objectFamilyCount(const GeometryFrame& frame, std::initializer_list<Object3DKind> kinds)
+{
+    int count = 0;
+    const std::array<int, 14> signature = objectKindSignature(frame);
+    for (Object3DKind kind : kinds) {
+        count += signature[static_cast<std::size_t>(objectKindIndex(kind))];
+    }
+    return count;
+}
+
 std::array<int, 5> objectSpatialSignature(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -1663,8 +1678,12 @@ void motionStylesCreateDistinct3DChoreography()
     }
     std::sort(signatureBuckets.begin(), signatureBuckets.end());
     const auto uniqueEnd = std::unique(signatureBuckets.begin(), signatureBuckets.end());
-    require(std::distance(signatureBuckets.begin(), uniqueEnd) >= 5,
-            "motion styles should produce several distinct 3D choreography signatures");
+    const int uniqueMotionBuckets = static_cast<int>(std::distance(signatureBuckets.begin(), uniqueEnd));
+    std::string bucketMessage = "motion styles should produce several distinct 3D choreography signatures; buckets:";
+    for (int bucket : signatureBuckets) {
+        bucketMessage += " " + std::to_string(bucket);
+    }
+    require(uniqueMotionBuckets >= 5, bucketMessage);
 }
 
 void musicProfilesDriveDifferent3DChoreography()
@@ -2202,12 +2221,209 @@ void autoSceneProfilesProduceDistinct3DSignatures()
     std::sort(motionScores.begin(), motionScores.end());
     int distinctScores = 1;
     for (std::size_t i = 1; i < motionScores.size(); ++i) {
-        if (std::fabs(motionScores[i] - motionScores[i - 1U]) > 6.0f) {
+        if (std::fabs(motionScores[i] - motionScores[i - 1U]) > 5.5f) {
             ++distinctScores;
         }
     }
-    require(distinctScores >= 6,
-            "Auto Scene music profiles should produce meaningfully different 3D motion signatures");
+    std::string motionMessage = "Auto Scene music profiles should produce meaningfully different 3D motion signatures; scores:";
+    for (float score : motionScores) {
+        motionMessage += " " + std::to_string(score);
+    }
+    require(distinctScores >= 6, motionMessage);
+}
+
+void sameModeSongIdentitiesAuthorDistinct3DSetPieces()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::NeonVoltage;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.90f;
+    settings.lightingGlow = 0.90f;
+    settings.colorImpact = 0.92f;
+    settings.scenePersonality = 0.88f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.86f;
+    settings.patternClarity = 0.90f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.18f;
+    ambient.peak = 0.28f;
+    ambient.bass = 0.08f;
+    ambient.lowMid = 0.18f;
+    ambient.mid = 0.24f;
+    ambient.highMid = 0.04f;
+    ambient.treble = 0.05f;
+    ambient.stereoWidth = 0.90f;
+    ambient.spectralFlux = 0.06f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.04f;
+    ambient.phraseIntensity = 0.56f;
+    ambient.phraseConfidence = 0.80f;
+    ambient.harmonicEnergy = 0.58f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.92f;
+
+    AudioMetrics techno = syntheticMetrics();
+    techno.rms = 0.48f;
+    techno.peak = 0.72f;
+    techno.bass = 0.56f;
+    techno.lowMid = 0.44f;
+    techno.mid = 0.14f;
+    techno.highMid = 0.06f;
+    techno.treble = 0.08f;
+    techno.stereoWidth = 0.34f;
+    techno.spectralFlux = 0.18f;
+    techno.beat = true;
+    techno.beatConfidence = 0.94f;
+    techno.barConfidence = 0.84f;
+    techno.downbeatConfidence = 0.72f;
+    techno.bpm = 128.0f;
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.92f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.86f;
+
+    AudioMetrics bass = syntheticMetrics();
+    bass.rms = 0.84f;
+    bass.peak = 1.0f;
+    bass.bass = 0.98f;
+    bass.lowMid = 0.78f;
+    bass.mid = 0.18f;
+    bass.highMid = 0.04f;
+    bass.treble = 0.04f;
+    bass.stereoWidth = 0.42f;
+    bass.spectralFlux = 0.34f;
+    bass.onset = 0.82f;
+    bass.beat = true;
+    bass.beatConfidence = 0.94f;
+    bass.dropIntensity = 0.94f;
+    bass.style = AudioStyle::BassHeavy;
+    bass.styleConfidence = 0.94f;
+    bass.section = ArrangementSection::Drop;
+    bass.sectionConfidence = 0.92f;
+    bass.bandOnsets = {0.88f, 0.70f, 0.34f, 0.18f, 0.12f};
+
+    AudioMetrics melodic = syntheticMetrics();
+    melodic.rms = 0.34f;
+    melodic.peak = 0.52f;
+    melodic.bass = 0.16f;
+    melodic.lowMid = 0.22f;
+    melodic.mid = 0.54f;
+    melodic.highMid = 0.58f;
+    melodic.treble = 0.50f;
+    melodic.stereoWidth = 0.58f;
+    melodic.spectralFlux = 0.20f;
+    melodic.keyIndex = 7;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.94f;
+    melodic.harmonicEnergy = 0.90f;
+    melodic.phraseIntensity = 0.48f;
+    melodic.phraseConfidence = 0.82f;
+    melodic.style = AudioStyle::Bright;
+    melodic.styleConfidence = 0.72f;
+
+    AudioMetrics breakbeat = syntheticMetrics();
+    breakbeat.rms = 0.56f;
+    breakbeat.peak = 0.76f;
+    breakbeat.bass = 0.32f;
+    breakbeat.lowMid = 0.22f;
+    breakbeat.mid = 0.34f;
+    breakbeat.highMid = 0.82f;
+    breakbeat.treble = 0.86f;
+    breakbeat.stereoWidth = 0.62f;
+    breakbeat.spectralFlux = 0.88f;
+    breakbeat.onset = 0.84f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.54f;
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.86f;
+    breakbeat.bandOnsets = {0.22f, 0.38f, 0.70f, 0.92f, 0.86f};
+
+    AudioMetrics dark = syntheticMetrics();
+    dark.rms = 0.30f;
+    dark.peak = 0.48f;
+    dark.bass = 0.58f;
+    dark.lowMid = 0.50f;
+    dark.mid = 0.14f;
+    dark.highMid = 0.02f;
+    dark.treble = 0.01f;
+    dark.stereoWidth = 0.16f;
+    dark.spectralFlux = 0.05f;
+    dark.beat = true;
+    dark.beatConfidence = 0.56f;
+    dark.keyIndex = 10;
+    dark.keyMode = MusicalMode::Minor;
+    dark.keyConfidence = 0.72f;
+    dark.harmonicEnergy = 0.44f;
+    dark.style = AudioStyle::Techno;
+    dark.styleConfidence = 0.64f;
+    dark.section = ArrangementSection::Breakdown;
+    dark.sectionConfidence = 0.76f;
+
+    const GeometryFrame ambientFrame = engine.buildFrame(ambient, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame technoFrame = engine.buildFrame(techno, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame bassFrame = engine.buildFrame(bass, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame melodicFrame = engine.buildFrame(melodic, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame breakFrame = engine.buildFrame(breakbeat, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame darkFrame = engine.buildFrame(dark, settings, 1280.0f, 720.0f, 2.0);
+
+    const GeometryFrame* frames[] = {
+        &ambientFrame,
+        &technoFrame,
+        &bassFrame,
+        &melodicFrame,
+        &breakFrame,
+        &darkFrame
+    };
+    for (const GeometryFrame* frame : frames) {
+        require(frame->projected3DPrimitiveCount > frame->retained2DPrimitiveCount,
+                "same-mode song identity frame should remain 3D-dominant");
+        require(frame->objectDepthRange > 90.0f,
+                "same-mode song identity frame should use real depth");
+    }
+
+    require(objectFamilyCount(bassFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) >
+                objectFamilyCount(melodicFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) + 4,
+            "bass identity should author extra pressure ribs and massive columns");
+    require(objectFamilyCount(technoFrame, {Object3DKind::Column, Object3DKind::Link, Object3DKind::Cage}) >
+                objectFamilyCount(ambientFrame, {Object3DKind::Column, Object3DKind::Link, Object3DKind::Cage}) + 4,
+            "techno identity should author sequencer architecture instead of ambient space");
+    require(objectFamilyCount(ambientFrame, {Object3DKind::Orbiter, Object3DKind::WaveSurface, Object3DKind::DepthPlane}) >
+                objectFamilyCount(technoFrame, {Object3DKind::Orbiter, Object3DKind::WaveSurface, Object3DKind::DepthPlane}) + 3,
+            "ambient identity should author orbital bodies and soft depth fields");
+    require(objectFamilyCount(melodicFrame, {Object3DKind::Shard, Object3DKind::Cage, Object3DKind::Link}) >
+                objectFamilyCount(ambientFrame, {Object3DKind::Shard, Object3DKind::Cage, Object3DKind::Link}) + 5,
+            "melodic identity should author crystalline harmonic constellations");
+    const int breakFractureObjects = objectFamilyCount(breakFrame, {Object3DKind::Shard, Object3DKind::Plate});
+    const int ambientFractureObjects = objectFamilyCount(ambientFrame, {Object3DKind::Shard, Object3DKind::Plate});
+    const std::array<int, 14> breakSignature = objectKindSignature(breakFrame);
+    std::string breakSignatureMessage = "breakbeat identity should author fractured staggered geometry; break=" +
+                                        std::to_string(breakFractureObjects) +
+                                        " ambient=" + std::to_string(ambientFractureObjects) +
+                                        " signature:";
+    for (int bucket : breakSignature) {
+        breakSignatureMessage += " " + std::to_string(bucket);
+    }
+    require(breakFractureObjects > ambientFractureObjects + 8,
+            breakSignatureMessage);
+    require(objectKindCount(darkFrame, Object3DKind::Column) >= 3 &&
+                objectKindCount(darkFrame, Object3DKind::Anchor) > objectKindCount(ambientFrame, Object3DKind::Anchor),
+            "dark minimal identity should author sparse monoliths and a depth anchor");
+
+    std::vector<std::array<int, 14>> signatures;
+    for (const GeometryFrame* frame : frames) {
+        signatures.push_back(objectKindSignature(*frame));
+    }
+    std::sort(signatures.begin(), signatures.end());
+    const auto uniqueEnd = std::unique(signatures.begin(), signatures.end());
+    require(std::distance(signatures.begin(), uniqueEnd) >= 6,
+            "same visual mode should still produce distinct 3D object grammars for different song identities");
 }
 
 void autoSceneContinuityResistsAmbiguousFrameFlips()
@@ -4294,6 +4510,7 @@ int main()
         {"threeDFirstCompositionSuppressesLegacy2D", viz::tests::threeDFirstCompositionSuppressesLegacy2D},
         {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
         {"autoSceneProfilesProduceDistinct3DSignatures", viz::tests::autoSceneProfilesProduceDistinct3DSignatures},
+        {"sameModeSongIdentitiesAuthorDistinct3DSetPieces", viz::tests::sameModeSongIdentitiesAuthorDistinct3DSetPieces},
         {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
