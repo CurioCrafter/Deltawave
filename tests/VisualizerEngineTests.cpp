@@ -284,6 +284,57 @@ Vec3 objectRoleCentroid(const GeometryFrame& frame, Object3DRole role)
     return Vec3{total.x * invCount, total.y * invCount, total.z * invCount};
 }
 
+float objectRoleVisualSignature(const GeometryFrame& frame, Object3DRole role)
+{
+    if (frame.objects3D.empty()) {
+        return 0.0f;
+    }
+
+    float totalGlow = 0.0f;
+    float totalScale = 0.0f;
+    float totalVelocity = 0.0f;
+    float totalRed = 0.0f;
+    float totalGreen = 0.0f;
+    float totalBlue = 0.0f;
+    float totalAlpha = 0.0f;
+    float kindMix = 0.0f;
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role) {
+            continue;
+        }
+
+        totalGlow += object.glow;
+        totalScale += (std::fabs(object.scale.x) + std::fabs(object.scale.y) + std::fabs(object.scale.z)) / 3.0f;
+        totalVelocity += std::fabs(object.velocity.x) * 0.006f +
+                         std::fabs(object.velocity.y) * 0.008f +
+                         std::fabs(object.velocity.z) * 0.010f;
+        totalRed += object.color.r;
+        totalGreen += object.color.g;
+        totalBlue += object.color.b;
+        totalAlpha += object.color.a;
+        kindMix += static_cast<float>(objectKindIndex(object.kind) + 1) * 0.37f;
+        ++count;
+    }
+    if (count == 0) {
+        return 0.0f;
+    }
+
+    const float invCount = 1.0f / static_cast<float>(count);
+    const Vec3 centroid = objectRoleCentroid(frame, role);
+    return centroid.x * 0.006f +
+           centroid.y * 0.008f +
+           centroid.z * 0.007f +
+           totalGlow * invCount * 18.0f +
+           totalScale * invCount * 0.014f +
+           totalVelocity * invCount +
+           totalRed * invCount * 8.0f +
+           totalGreen * invCount * 9.0f +
+           totalBlue * invCount * 10.0f +
+           totalAlpha * invCount * 5.0f +
+           kindMix * invCount;
+}
+
 std::array<int, 5> objectSpatialSignature(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -1549,8 +1600,9 @@ void hueShiftChangesRenderedPalette()
     require(countPrimitives(base) == countPrimitives(shifted),
             "hue shift should recolor without changing geometry density");
     require(!base.polylines.empty() && !shifted.polylines.empty(), "frequency bloom should generate projected 3D color geometry");
-    require(colorDistance(base.polylines.front().color, shifted.polylines.front().color) > 0.2f,
-            "hue shift should visibly change projected 3D colors");
+    const float projectedHueDelta = colorDistance(base.polylines.front().color, shifted.polylines.front().color);
+    require(projectedHueDelta > 0.2f,
+            "hue shift should visibly change projected 3D colors; delta=" + std::to_string(projectedHueDelta));
     require(colorDistance(base.background, shifted.background) > 0.01f,
             "hue shift should influence background tint");
 }
@@ -3503,6 +3555,274 @@ void musicalPartsAuthorSeparateMotifFamilies()
     require(convergedFrame.sceneRoleDistrictSpread3D < separatedFrame.sceneRoleDistrictSpread3D * 0.92f &&
                 convergedFrame.sceneRoleDistrictSpread3D > 0.22f,
             "earned convergence should pull role motifs together without collapsing into one unreadable blob");
+}
+
+void musicalRolesOwnDifferent3DScoreParts()
+{
+    struct Profile {
+        const char* name;
+        Object3DRole expectedRole;
+        AudioMetrics metrics;
+    };
+
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.96f;
+    settings.lightingGlow = 0.94f;
+    settings.colorImpact = 0.96f;
+    settings.scenePersonality = 0.96f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.96f;
+    settings.complexity = 1.28f;
+    settings.intensity = 1.12f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.94f;
+
+    auto baseProfile = [] {
+        AudioMetrics metrics = syntheticMetrics();
+        metrics.rms = 0.42f;
+        metrics.peak = 0.66f;
+        metrics.bass = 0.30f;
+        metrics.lowMid = 0.30f;
+        metrics.mid = 0.34f;
+        metrics.highMid = 0.28f;
+        metrics.treble = 0.24f;
+        metrics.stereoWidth = 0.58f;
+        metrics.spectralFlux = 0.18f;
+        metrics.onset = 0.16f;
+        metrics.beat = true;
+        metrics.beatConfidence = 0.48f;
+        metrics.barConfidence = 0.42f;
+        metrics.downbeatConfidence = 0.30f;
+        metrics.phraseIntensity = 0.34f;
+        metrics.phraseConfidence = 0.62f;
+        metrics.harmonicEnergy = 0.44f;
+        metrics.keyIndex = 4;
+        metrics.keyMode = MusicalMode::Minor;
+        metrics.keyConfidence = 0.46f;
+        metrics.style = AudioStyle::Wide;
+        metrics.styleConfidence = 0.62f;
+        metrics.section = ArrangementSection::Groove;
+        metrics.sectionConfidence = 0.72f;
+        metrics.bassRole = 0.06f;
+        metrics.drumRole = 0.06f;
+        metrics.melodyRole = 0.06f;
+        metrics.harmonyRole = 0.06f;
+        metrics.spaceRole = 0.06f;
+        metrics.fractureRole = 0.06f;
+        metrics.shadowRole = 0.06f;
+        metrics.convergenceRole = 0.02f;
+        metrics.roleSeparation = 0.90f;
+        return metrics;
+    };
+
+    AudioMetrics bass = baseProfile();
+    bass.style = AudioStyle::BassHeavy;
+    bass.styleConfidence = 0.92f;
+    bass.bass = 0.94f;
+    bass.lowMid = 0.74f;
+    bass.dropIntensity = 0.48f;
+    bass.bassRole = 0.92f;
+    bass.drumRole = 0.20f;
+    bass.shadowRole = 0.22f;
+
+    AudioMetrics drums = baseProfile();
+    drums.style = AudioStyle::Techno;
+    drums.styleConfidence = 0.94f;
+    drums.beatConfidence = 0.96f;
+    drums.barConfidence = 0.86f;
+    drums.downbeatConfidence = 0.74f;
+    drums.stereoWidth = 0.34f;
+    drums.drumRole = 0.94f;
+    drums.bassRole = 0.28f;
+    drums.fractureRole = 0.18f;
+
+    AudioMetrics melody = baseProfile();
+    melody.style = AudioStyle::Bright;
+    melody.styleConfidence = 0.82f;
+    melody.bass = 0.12f;
+    melody.mid = 0.58f;
+    melody.highMid = 0.66f;
+    melody.treble = 0.52f;
+    melody.harmonicEnergy = 0.86f;
+    melody.keyMode = MusicalMode::Major;
+    melody.keyConfidence = 0.92f;
+    melody.melodyRole = 0.92f;
+    melody.harmonyRole = 0.28f;
+
+    AudioMetrics harmony = baseProfile();
+    harmony.style = AudioStyle::Ambient;
+    harmony.styleConfidence = 0.78f;
+    harmony.stereoWidth = 0.70f;
+    harmony.harmonicEnergy = 0.90f;
+    harmony.keyConfidence = 0.88f;
+    harmony.phraseConfidence = 0.88f;
+    harmony.phraseIntensity = 0.64f;
+    harmony.harmonyRole = 0.92f;
+    harmony.melodyRole = 0.34f;
+    harmony.spaceRole = 0.24f;
+
+    AudioMetrics space = baseProfile();
+    space.style = AudioStyle::Ambient;
+    space.styleConfidence = 0.92f;
+    space.beat = false;
+    space.beatConfidence = 0.05f;
+    space.barConfidence = 0.04f;
+    space.stereoWidth = 0.96f;
+    space.spectralFlux = 0.04f;
+    space.onset = 0.02f;
+    space.spaceRole = 0.94f;
+    space.harmonyRole = 0.22f;
+
+    AudioMetrics fracture = baseProfile();
+    fracture.style = AudioStyle::Bright;
+    fracture.styleConfidence = 0.86f;
+    fracture.highMid = 0.86f;
+    fracture.treble = 0.82f;
+    fracture.spectralFlux = 0.90f;
+    fracture.onset = 0.86f;
+    fracture.beatConfidence = 0.54f;
+    fracture.fractureRole = 0.94f;
+    fracture.drumRole = 0.22f;
+
+    AudioMetrics shadow = baseProfile();
+    shadow.style = AudioStyle::BassHeavy;
+    shadow.styleConfidence = 0.70f;
+    shadow.bass = 0.54f;
+    shadow.lowMid = 0.56f;
+    shadow.highMid = 0.02f;
+    shadow.treble = 0.01f;
+    shadow.stereoWidth = 0.16f;
+    shadow.keyMode = MusicalMode::Minor;
+    shadow.keyConfidence = 0.76f;
+    shadow.shadowRole = 0.94f;
+    shadow.bassRole = 0.22f;
+
+    const Profile profiles[] = {
+        {"bass", Object3DRole::Bass, bass},
+        {"drums", Object3DRole::Drums, drums},
+        {"melody", Object3DRole::Melody, melody},
+        {"harmony", Object3DRole::Harmony, harmony},
+        {"space", Object3DRole::Space, space},
+        {"fracture", Object3DRole::Fracture, fracture},
+        {"shadow", Object3DRole::Shadow, shadow}
+    };
+
+    std::vector<int> signatureBuckets;
+    std::vector<GeometryFrame> frames;
+    for (const Profile& profile : profiles) {
+        VisualizerEngine engine;
+        GeometryFrame frame = engine.buildFrame(profile.metrics, settings, 1280.0f, 720.0f, 4.0);
+        const int owned = objectRoleCount(frame, profile.expectedRole);
+        require(owned >= 8,
+                std::string(profile.name) + " profile should author a visible role-owned 3D section; owned=" +
+                    std::to_string(owned));
+        require(frame.sceneRoleCrosstalk3D < 0.34f,
+                std::string(profile.name) + " profile should not be dominated by bridge/filler crosstalk; crosstalk=" +
+                    std::to_string(frame.sceneRoleCrosstalk3D));
+        require(frame.sceneRoleLegibility3D > 0.30f &&
+                    frame.sceneMusicalStructure3D > 0.32f,
+                std::string(profile.name) + " profile should read as structured musical 3D geometry; legibility=" +
+                    std::to_string(frame.sceneRoleLegibility3D) +
+                    " structure=" + std::to_string(frame.sceneMusicalStructure3D));
+        signatureBuckets.push_back(static_cast<int>(std::round(objectRoleVisualSignature(frame, profile.expectedRole) * 2.0f)));
+        frames.push_back(frame);
+    }
+
+    std::sort(signatureBuckets.begin(), signatureBuckets.end());
+    const auto uniqueEnd = std::unique(signatureBuckets.begin(), signatureBuckets.end());
+    std::string roleBucketText;
+    for (int bucket : signatureBuckets) {
+        roleBucketText += std::to_string(bucket) + " ";
+    }
+    require(std::distance(signatureBuckets.begin(), uniqueEnd) >= 6,
+            "bass, drums, melody, harmony, space, fracture, and shadow should not share the same 3D/material signature; buckets=" +
+                roleBucketText);
+
+    const GeometryFrame& bassFrame = frames[0];
+    const GeometryFrame& drumFrame = frames[1];
+    const GeometryFrame& melodyFrame = frames[2];
+    const GeometryFrame& spaceFrame = frames[4];
+    const GeometryFrame& fractureFrame = frames[5];
+    const GeometryFrame& shadowFrame = frames[6];
+
+    require(objectRoleCentroid(spaceFrame, Object3DRole::Space).z >
+                objectRoleCentroid(bassFrame, Object3DRole::Bass).z + 240.0f,
+            "space music should open a deeper 3D volume than bass pressure");
+    require(centroidDistance(objectRoleCentroid(drumFrame, Object3DRole::Drums),
+                             objectRoleCentroid(melodyFrame, Object3DRole::Melody)) > 260.0f,
+            "drums and melody should occupy visibly different stage regions");
+    require(objectRoleCentroid(fractureFrame, Object3DRole::Fracture).x >
+                objectRoleCentroid(drumFrame, Object3DRole::Drums).x + 220.0f,
+            "fracture/cut music should not collapse onto the drum machinery lane");
+    require(objectRoleCentroid(shadowFrame, Object3DRole::Shadow).y >
+                objectRoleCentroid(melodyFrame, Object3DRole::Melody).y + 170.0f,
+            "dark/shadow music should become a lower monumental mass, not another melodic braid");
+
+    VisualizerEngine layeredEngine;
+    AudioMetrics layered = baseProfile();
+    layered.rms = 0.52f;
+    layered.peak = 0.78f;
+    layered.bass = 0.54f;
+    layered.lowMid = 0.42f;
+    layered.mid = 0.52f;
+    layered.highMid = 0.42f;
+    layered.treble = 0.34f;
+    layered.stereoWidth = 0.72f;
+    layered.spectralFlux = 0.26f;
+    layered.onset = 0.20f;
+    layered.beatConfidence = 0.78f;
+    layered.barConfidence = 0.74f;
+    layered.phraseConfidence = 0.68f;
+    layered.harmonicEnergy = 0.70f;
+    layered.bassRole = 0.76f;
+    layered.drumRole = 0.74f;
+    layered.melodyRole = 0.68f;
+    layered.harmonyRole = 0.62f;
+    layered.spaceRole = 0.58f;
+    layered.fractureRole = 0.46f;
+    layered.shadowRole = 0.42f;
+    layered.convergenceRole = 0.02f;
+    layered.roleSeparation = 0.96f;
+
+    AudioMetrics drop = layered;
+    drop.dropIntensity = 0.86f;
+    drop.phraseBoundary = true;
+    drop.phraseConfidence = 0.92f;
+    drop.phraseIntensity = 0.84f;
+    drop.downbeat = true;
+    drop.downbeatConfidence = 0.90f;
+    drop.convergenceRole = 0.90f;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.94f;
+
+    const GeometryFrame separated = layeredEngine.buildFrame(layered, settings, 1280.0f, 720.0f, 5.0);
+    const GeometryFrame converged = layeredEngine.buildFrame(drop, settings, 1280.0f, 720.0f, 5.8);
+
+    require(separated.sceneExplicitRoleShare3D > 0.50f,
+            "layered music should be led by role-owned geometry after score partitioning; explicit=" +
+                std::to_string(separated.sceneExplicitRoleShare3D));
+    require(separated.sceneRoleBridgeShare3D < 0.13f &&
+                separated.sceneRoleCrosstalk3D < 0.27f,
+            "layered pre-drop music should keep connective glue quiet until the song earns convergence; bridge=" +
+                std::to_string(separated.sceneRoleBridgeShare3D) +
+                " crosstalk=" + std::to_string(separated.sceneRoleCrosstalk3D));
+    require(separated.sceneRoleLegibility3D > 0.40f &&
+                separated.sceneMusicalStructure3D > 0.40f,
+            "layered pre-drop music should read as a score of separate 3D parts, not one busy mesh; legibility=" +
+                std::to_string(separated.sceneRoleLegibility3D) +
+                " structure=" + std::to_string(separated.sceneMusicalStructure3D));
+    require(converged.sceneConvergence3D > separated.sceneConvergence3D + 0.34f &&
+                converged.sceneRoleDistrictSpread3D < separated.sceneRoleDistrictSpread3D * 0.94f,
+            "drop/phrase cues should converge the score only after the separate roles are established");
+    require(converged.sceneRoleLegibility3D > 0.28f &&
+                converged.sceneMusicalStructure3D > 0.30f,
+            "earned convergence should still preserve readable role geometry instead of collapsing into noise");
 }
 
 void songSectionsMoveRolesWithDistinctEmotionalDirection()
@@ -7346,6 +7666,7 @@ int main()
         {"musicalRoleDistrictsConvergeOnlyWhenEarned", viz::tests::musicalRoleDistrictsConvergeOnlyWhenEarned},
         {"layeredMusicalPartsStayReadableBeforeConvergence", viz::tests::layeredMusicalPartsStayReadableBeforeConvergence},
         {"musicalPartsAuthorSeparateMotifFamilies", viz::tests::musicalPartsAuthorSeparateMotifFamilies},
+        {"musicalRolesOwnDifferent3DScoreParts", viz::tests::musicalRolesOwnDifferent3DScoreParts},
         {"songSectionsMoveRolesWithDistinctEmotionalDirection", viz::tests::songSectionsMoveRolesWithDistinctEmotionalDirection},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
