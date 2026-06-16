@@ -249,6 +249,14 @@ int objectFamilyCount(const GeometryFrame& frame, std::initializer_list<Object3D
     return count;
 }
 
+int objectRoleFamilyCount(const GeometryFrame& frame, Object3DRole role, std::initializer_list<Object3DKind> kinds)
+{
+    return static_cast<int>(std::count_if(frame.objects3D.begin(), frame.objects3D.end(), [role, kinds](const Object3D& object) {
+        return object.musicRole == role &&
+               std::find(kinds.begin(), kinds.end(), object.kind) != kinds.end();
+    }));
+}
+
 int objectRoleCount(const GeometryFrame& frame, Object3DRole role)
 {
     return static_cast<int>(std::count_if(frame.objects3D.begin(), frame.objects3D.end(), [role](const Object3D& object) {
@@ -3299,6 +3307,169 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
     require(convergedFrame.sceneMusicalStructure3D > 0.28f,
             "earned convergence should remain a readable musical structure, not collapse into cheap motion noise; structure=" +
                 std::to_string(convergedFrame.sceneMusicalStructure3D));
+}
+
+void musicalPartsAuthorSeparateMotifFamilies()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::NeonVoltage;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.96f;
+    settings.lightingGlow = 0.94f;
+    settings.scenePersonality = 0.95f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.95f;
+    settings.complexity = 1.30f;
+    settings.intensity = 1.18f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.94f;
+
+    AudioMetrics separated = syntheticMetrics();
+    separated.rms = 0.50f;
+    separated.peak = 0.76f;
+    separated.bass = 0.55f;
+    separated.lowMid = 0.44f;
+    separated.mid = 0.52f;
+    separated.highMid = 0.42f;
+    separated.treble = 0.34f;
+    separated.stereoWidth = 0.72f;
+    separated.spectralFlux = 0.28f;
+    separated.onset = 0.22f;
+    separated.beat = true;
+    separated.beatConfidence = 0.76f;
+    separated.beatPhase = 0.36f;
+    separated.barConfidence = 0.72f;
+    separated.barPhase = 0.44f;
+    separated.downbeat = false;
+    separated.downbeatConfidence = 0.30f;
+    separated.dropIntensity = 0.10f;
+    separated.phraseBoundary = false;
+    separated.phraseIntensity = 0.34f;
+    separated.phraseConfidence = 0.66f;
+    separated.harmonicEnergy = 0.70f;
+    separated.keyIndex = 5;
+    separated.keyMode = MusicalMode::Minor;
+    separated.keyConfidence = 0.76f;
+    separated.style = AudioStyle::Techno;
+    separated.styleConfidence = 0.74f;
+    separated.section = ArrangementSection::Groove;
+    separated.sectionConfidence = 0.82f;
+    separated.bassRole = 0.76f;
+    separated.drumRole = 0.74f;
+    separated.melodyRole = 0.66f;
+    separated.harmonyRole = 0.62f;
+    separated.spaceRole = 0.58f;
+    separated.fractureRole = 0.48f;
+    separated.shadowRole = 0.44f;
+    separated.convergenceRole = 0.03f;
+    separated.roleSeparation = 0.94f;
+
+    AudioMetrics converged = separated;
+    converged.dropIntensity = 0.86f;
+    converged.phraseBoundary = true;
+    converged.phraseConfidence = 0.92f;
+    converged.phraseIntensity = 0.82f;
+    converged.downbeat = true;
+    converged.downbeatConfidence = 0.88f;
+    converged.convergenceRole = 0.90f;
+    converged.section = ArrangementSection::Drop;
+    converged.sectionConfidence = 0.92f;
+
+    const GeometryFrame separatedFrame = engine.buildFrame(separated, settings, 1280.0f, 720.0f, 7.0);
+    const GeometryFrame convergedFrame = engine.buildFrame(converged, settings, 1280.0f, 720.0f, 7.0);
+
+    const int bassMotifs = objectRoleFamilyCount(separatedFrame,
+                                                 Object3DRole::Bass,
+                                                 {Object3DKind::TunnelRib, Object3DKind::Column, Object3DKind::WaveSurface});
+    const int drumMotifs = objectRoleFamilyCount(separatedFrame,
+                                                 Object3DRole::Drums,
+                                                 {Object3DKind::Column, Object3DKind::Cage, Object3DKind::Plate});
+    const int melodyMotifs = objectRoleFamilyCount(separatedFrame,
+                                                   Object3DRole::Melody,
+                                                   {Object3DKind::Ribbon, Object3DKind::Shard, Object3DKind::Node});
+    const int harmonyMotifs = objectRoleFamilyCount(separatedFrame,
+                                                    Object3DRole::Harmony,
+                                                    {Object3DKind::Cage, Object3DKind::DepthPlane, Object3DKind::WaveSurface});
+    const int spaceMotifs = objectRoleFamilyCount(separatedFrame,
+                                                  Object3DRole::Space,
+                                                  {Object3DKind::DepthPlane, Object3DKind::WaveSurface, Object3DKind::Orbiter});
+    const int fractureMotifs = objectRoleFamilyCount(separatedFrame,
+                                                     Object3DRole::Fracture,
+                                                     {Object3DKind::Plate, Object3DKind::Shard});
+    const int shadowMotifs = objectRoleFamilyCount(separatedFrame,
+                                                   Object3DRole::Shadow,
+                                                   {Object3DKind::Column, Object3DKind::Anchor});
+
+    require(bassMotifs >= 10 &&
+                drumMotifs >= 14 &&
+                melodyMotifs >= 12 &&
+                harmonyMotifs >= 8 &&
+                spaceMotifs >= 10 &&
+                fractureMotifs >= 8 &&
+                shadowMotifs >= 6,
+            "layered music should author visible role-owned 3D motif families for every musical part; bass=" +
+                std::to_string(bassMotifs) +
+                " drums=" + std::to_string(drumMotifs) +
+                " melody=" + std::to_string(melodyMotifs) +
+                " harmony=" + std::to_string(harmonyMotifs) +
+                " space=" + std::to_string(spaceMotifs) +
+                " fracture=" + std::to_string(fractureMotifs) +
+                " shadow=" + std::to_string(shadowMotifs));
+
+    require(bassMotifs > objectRoleFamilyCount(separatedFrame, Object3DRole::Bass, {Object3DKind::Link}) + 8,
+            "bass should read as pressure ribs/columns instead of connector noise");
+    require(melodyMotifs > objectRoleFamilyCount(separatedFrame, Object3DRole::Melody, {Object3DKind::Link}) + 5,
+            "melody should read as a crystalline braid instead of relationship lines");
+    require(spaceMotifs > objectRoleFamilyCount(separatedFrame, Object3DRole::Space, {Object3DKind::Link}) + 8,
+            "space should read as depth shells/orbiters instead of connector noise");
+    require(fractureMotifs > objectRoleFamilyCount(separatedFrame, Object3DRole::Fracture, {Object3DKind::Link}) + 6,
+            "fracture should read as cut plates/shards instead of blended links");
+
+    require(separatedFrame.sceneRoleBridgeShare3D < 0.17f,
+            "pre-drop layered music should keep bridges secondary so separate parts remain readable; bridge=" +
+                std::to_string(separatedFrame.sceneRoleBridgeShare3D));
+    require(separatedFrame.sceneRoleCrosstalk3D < 0.34f,
+            "pre-drop layered music should not mesh all parts together; crosstalk=" +
+                std::to_string(separatedFrame.sceneRoleCrosstalk3D));
+    require(separatedFrame.sceneRoleVocabulary3D > 0.43f &&
+                separatedFrame.sceneRoleSilhouetteContrast3D > 0.18f &&
+                separatedFrame.sceneRoleMotionContrast3D > 0.22f,
+            "separate musical parts should differ by object vocabulary, silhouette, and motion; vocabulary=" +
+                std::to_string(separatedFrame.sceneRoleVocabulary3D) +
+                " silhouette=" + std::to_string(separatedFrame.sceneRoleSilhouetteContrast3D) +
+                " motion=" + std::to_string(separatedFrame.sceneRoleMotionContrast3D));
+    require(separatedFrame.sceneMusicalStructure3D > 0.36f,
+            "separate musical parts should read as composed 3D musical architecture; structure=" +
+                std::to_string(separatedFrame.sceneMusicalStructure3D));
+
+    const Vec3 bassCenter = objectRoleCentroid(separatedFrame, Object3DRole::Bass);
+    const Vec3 drumCenter = objectRoleCentroid(separatedFrame, Object3DRole::Drums);
+    const Vec3 melodyCenter = objectRoleCentroid(separatedFrame, Object3DRole::Melody);
+    const Vec3 spaceCenter = objectRoleCentroid(separatedFrame, Object3DRole::Space);
+    const Vec3 fractureCenter = objectRoleCentroid(separatedFrame, Object3DRole::Fracture);
+    const Vec3 shadowCenter = objectRoleCentroid(separatedFrame, Object3DRole::Shadow);
+
+    require(centroidDistance(bassCenter, melodyCenter) > 260.0f,
+            "bass pressure and melody braid should occupy clearly different 3D areas");
+    require(centroidDistance(drumCenter, melodyCenter) > 220.0f,
+            "drums should not be buried inside the melody district");
+    require(spaceCenter.z > bassCenter.z + 180.0f,
+            "space/atmosphere should sit behind bass pressure instead of sharing the same depth");
+    require(fractureCenter.x > drumCenter.x + 170.0f,
+            "fracture cuts should occupy their own lateral district away from drum machinery");
+    require(shadowCenter.y > melodyCenter.y + 120.0f,
+            "shadow/monolith mass should sit apart from the melodic braid");
+
+    require(convergedFrame.sceneConvergence3D > separatedFrame.sceneConvergence3D + 0.34f,
+            "drop/phrase cues should increase convergence after separate motifs are established");
+    require(convergedFrame.sceneRoleDistrictSpread3D < separatedFrame.sceneRoleDistrictSpread3D * 0.92f &&
+                convergedFrame.sceneRoleDistrictSpread3D > 0.22f,
+            "earned convergence should pull role motifs together without collapsing into one unreadable blob");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -6742,6 +6913,7 @@ int main()
         {"analyzerRolesDriveSeparate3DObjectFamilies", viz::tests::analyzerRolesDriveSeparate3DObjectFamilies},
         {"musicalRoleDistrictsConvergeOnlyWhenEarned", viz::tests::musicalRoleDistrictsConvergeOnlyWhenEarned},
         {"layeredMusicalPartsStayReadableBeforeConvergence", viz::tests::layeredMusicalPartsStayReadableBeforeConvergence},
+        {"musicalPartsAuthorSeparateMotifFamilies", viz::tests::musicalPartsAuthorSeparateMotifFamilies},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
         {"cinematicFramingKeeps3DScenesReadable", viz::tests::cinematicFramingKeeps3DScenesReadable},
