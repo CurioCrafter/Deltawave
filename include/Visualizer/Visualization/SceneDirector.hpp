@@ -14,6 +14,7 @@ public:
 
 private:
     bool initialized_ = false;
+    bool continuityInitialized_ = false;
     double lastTimeSeconds_ = 0.0;
     double lastModeSwitchSeconds_ = -100.0;
     double transitionStartSeconds_ = -100.0;
@@ -32,6 +33,13 @@ private:
     float smoothedPatternClarity_ = 0.78f;
     float smoothedIntensity_ = 1.0f;
     float smoothedSpeed_ = 1.0f;
+    float quietMemory_ = 0.0f;
+    float ambientMemory_ = 0.0f;
+    float technoMemory_ = 0.0f;
+    float bassMemory_ = 0.0f;
+    float melodicMemory_ = 0.0f;
+    float breakMemory_ = 0.0f;
+    float darkMemory_ = 0.0f;
 
     void initialize(const VisualSettings& base, double timeSeconds);
 };

@@ -2210,6 +2210,110 @@ void autoSceneProfilesProduceDistinct3DSignatures()
             "Auto Scene music profiles should produce meaningfully different 3D motion signatures");
 }
 
+void autoSceneContinuityResistsAmbiguousFrameFlips()
+{
+    VisualSettings base;
+    base.autoScene = true;
+    base.mode = VisualMode::QuantumTunnel;
+    base.depth3D = 1.0f;
+    base.objectDensity3D = 0.86f;
+    base.lightingGlow = 0.88f;
+    base.scenePersonality = 0.86f;
+    base.response3D = 1.0f;
+    base.motionStability = 0.86f;
+    base.patternClarity = 0.90f;
+
+    SceneDirector technoDirector;
+    AudioMetrics techno = syntheticMetrics();
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.90f;
+    techno.rms = 0.34f;
+    techno.bass = 0.58f;
+    techno.highMid = 0.08f;
+    techno.treble = 0.07f;
+    techno.spectralFlux = 0.16f;
+    techno.beat = true;
+    techno.beatConfidence = 0.84f;
+    techno.barConfidence = 0.72f;
+    techno.downbeatConfidence = 0.64f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.84f;
+    (void)technoDirector.resolve(base, techno, 0.0);
+    (void)technoDirector.resolve(base, techno, 0.6);
+    (void)technoDirector.resolve(base, techno, 1.2);
+
+    AudioMetrics ambiguousQuiet = techno;
+    ambiguousQuiet.style = AudioStyle::Ambient;
+    ambiguousQuiet.styleConfidence = 0.56f;
+    ambiguousQuiet.rms = 0.13f;
+    ambiguousQuiet.bass = 0.56f;
+    ambiguousQuiet.beat = false;
+    ambiguousQuiet.beatConfidence = 0.0f;
+    ambiguousQuiet.downbeatConfidence = 0.0f;
+    ambiguousQuiet.spectralFlux = 0.02f;
+    ambiguousQuiet.harmonicEnergy = 0.56f;
+    ambiguousQuiet.keyConfidence = 0.12f;
+    const VisualSettings heldTechno = technoDirector.resolve(base, ambiguousQuiet, 1.8);
+    require(heldTechno.mode == VisualMode::TechnoMandala ||
+                heldTechno.mode == VisualMode::PolyrhythmLattice,
+            "song continuity should keep established techno in mechanical 3D architecture through ambiguous quiet frames");
+    require(heldTechno.motionStyle == MotionStyle::Mechanical,
+            "song continuity should preserve locked techno motion language");
+
+    SceneDirector ambientDirector;
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.style = AudioStyle::Wide;
+    ambient.styleConfidence = 0.82f;
+    ambient.rms = 0.18f;
+    ambient.bass = 0.16f;
+    ambient.lowMid = 0.22f;
+    ambient.highMid = 0.10f;
+    ambient.treble = 0.12f;
+    ambient.stereoWidth = 0.78f;
+    ambient.spectralFlux = 0.06f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.04f;
+    ambient.barConfidence = 0.12f;
+    ambient.downbeatConfidence = 0.0f;
+    ambient.harmonicEnergy = 0.60f;
+    ambient.keyConfidence = 0.18f;
+    (void)ambientDirector.resolve(base, ambient, 0.0);
+    (void)ambientDirector.resolve(base, ambient, 0.7);
+    (void)ambientDirector.resolve(base, ambient, 1.4);
+
+    AudioMetrics falseTechno = ambient;
+    falseTechno.style = AudioStyle::Techno;
+    falseTechno.styleConfidence = 0.52f;
+    falseTechno.bass = 0.44f;
+    falseTechno.beatConfidence = 0.24f;
+    falseTechno.barConfidence = 0.46f;
+    falseTechno.spectralFlux = 0.10f;
+    const VisualSettings heldAmbient = ambientDirector.resolve(base, falseTechno, 2.1);
+    require(heldAmbient.mode == VisualMode::PhaseWeave ||
+                heldAmbient.mode == VisualMode::LissajousMesh,
+            "song continuity should keep established ambient material in spacious 3D fields through false techno frames");
+    require(heldAmbient.motionStyle == MotionStyle::AmbientDrift,
+            "song continuity should preserve ambient drift motion language");
+
+    AudioMetrics breakbeat = ambient;
+    breakbeat.rms = 0.32f;
+    breakbeat.bass = 0.28f;
+    breakbeat.highMid = 0.56f;
+    breakbeat.treble = 0.58f;
+    breakbeat.spectralFlux = 0.62f;
+    breakbeat.onset = 0.70f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.62f;
+    breakbeat.bandOnsets = {0.18f, 0.22f, 0.34f, 0.68f, 0.72f};
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.78f;
+    const VisualSettings breakOverride = ambientDirector.resolve(base, breakbeat, 2.7);
+    require(breakOverride.mode == VisualMode::SpectralOrigami,
+            "hard breakbeat transients should still override continuity immediately");
+    require(breakOverride.motionStyle == MotionStyle::Breakbeat,
+            "hard breakbeat transients should select breakbeat choreography");
+}
+
 void autoSceneSelectsMotionStyleFromMusic()
 {
     SceneDirector director;
@@ -4190,6 +4294,7 @@ int main()
         {"threeDFirstCompositionSuppressesLegacy2D", viz::tests::threeDFirstCompositionSuppressesLegacy2D},
         {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
         {"autoSceneProfilesProduceDistinct3DSignatures", viz::tests::autoSceneProfilesProduceDistinct3DSignatures},
+        {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
