@@ -55,7 +55,8 @@ private:
     void drawPolyline(const Polyline& line);
     void drawBeam(const Beam& beam);
     void drawParticle(const Particle& particle);
-    void drawHud(const AudioMetrics& metrics,
+    void drawHud(const GeometryFrame& frame,
+                 const AudioMetrics& metrics,
                  const VisualSettings& settings,
                  const PerformanceStats& performance,
                  const RuntimeInspectorState& inspector,

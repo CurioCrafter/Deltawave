@@ -154,6 +154,11 @@ bool containsAnyObjectKind(const GeometryFrame& frame, std::initializer_list<Obj
     });
 }
 
+bool intentIs(SceneIntent actual, std::initializer_list<SceneIntent> expected)
+{
+    return std::find(expected.begin(), expected.end(), actual) != expected.end();
+}
+
 int objectKindIndex(Object3DKind kind)
 {
     switch (kind) {
@@ -703,7 +708,9 @@ void arrangementSectionsAddVisualAccents()
     drop.beatConfidence = 0.86f;
     const GeometryFrame dropFrame = engine.buildFrame(drop, settings, 1280.0f, 720.0f, 2.0);
     require(dropFrame.flash > neutralFrame.flash, "drop sections should add flash accents");
-    require(dropFrame.particles.size() > neutralFrame.particles.size(), "drop sections should add burst particles");
+    require(dropFrame.projected3DPrimitiveCount > neutralFrame.projected3DPrimitiveCount ||
+                visualEnergyScore(dropFrame) > visualEnergyScore(neutralFrame) + 1.0f,
+            "drop sections should add visible 3D burst energy");
 }
 
 void recorderWritesPpmFrame()
@@ -1011,8 +1018,10 @@ void interactionChangesGeometry()
 
     const GeometryFrame neutral = engine.buildFrame(metrics, settings, 800.0f, 600.0f, 4.0);
     const GeometryFrame interactive = engine.buildFrame(metrics, settings, interaction, 800.0f, 600.0f, 4.0);
-    require(interactive.rings.size() > neutral.rings.size(), "interaction should add field rings");
-    require(interactive.beams.size() > neutral.beams.size(), "interaction should add field beams");
+    require(std::fabs(averageObjectZ(interactive) - averageObjectZ(neutral)) > 0.1f ||
+                std::fabs(interactive.projected3DVisualWeight - neutral.projected3DVisualWeight) > 0.1f,
+            "interaction should change depth-aware 3D geometry");
+    require(interactive.threeDDominance > 0.5f, "interaction should keep 3D as the visible layer");
     require(!interactive.polylines.empty(), "interactive frame should still preserve mode polylines");
     require(interactive.polylines.front().points.front().x != neutral.polylines.front().points.front().x ||
                 interactive.polylines.front().points.front().y != neutral.polylines.front().points.front().y,
@@ -1066,8 +1075,9 @@ void syncMetricsAddVisualAccents()
     const GeometryFrame phraseFrame = engine.buildFrame(phraseBuild, settings, 960.0f, 540.0f, 3.0);
     require(countPrimitives(phraseFrame) > countPrimitives(neutral),
             "phrase build tension should add global sync geometry before a drop");
-    require(phraseFrame.beams.size() > neutral.beams.size(),
-            "phrase build tension should add tension spokes");
+    require(visualEnergyScore(phraseFrame) > visualEnergyScore(neutral) + 0.8f ||
+                phraseFrame.projected3DPrimitiveCount > neutral.projected3DPrimitiveCount,
+            "phrase build tension should add visible 3D tension energy");
     require(syncFrame.flash > neutral.flash, "drop intensity should contribute to visual flash");
 }
 
@@ -1632,6 +1642,237 @@ void musicProfilesDriveDifferent3DChoreography()
             "bright transient material should create more shimmer/glow than ambient profiles");
     require(std::fabs(objectMotionSignature(bassFrame) - objectMotionSignature(brightFrame)) > 4.0f,
             "bass and bright breakbeat profiles should not collapse into the same 3D choreography");
+}
+
+void threeDFirstCompositionSuppressesLegacy2D()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::CymaticInterference;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.9f;
+    settings.lightingGlow = 0.9f;
+    settings.scenePersonality = 0.82f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.84f;
+    settings.patternClarity = 0.9f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.rms = 0.68f;
+    metrics.peak = 0.96f;
+    metrics.bass = 0.72f;
+    metrics.lowMid = 0.58f;
+    metrics.highMid = 0.76f;
+    metrics.treble = 0.82f;
+    metrics.stereoWidth = 0.76f;
+    metrics.spectralFlux = 0.64f;
+    metrics.onset = 0.56f;
+    metrics.beat = true;
+    metrics.beatConfidence = 0.92f;
+    metrics.dropIntensity = 0.58f;
+    metrics.phraseIntensity = 0.82f;
+    metrics.phraseConfidence = 0.8f;
+    metrics.buildTension = 0.72f;
+    metrics.keyIndex = 4;
+    metrics.keyMode = MusicalMode::Major;
+    metrics.keyConfidence = 0.84f;
+    metrics.harmonicEnergy = 0.86f;
+    metrics.bandOnsets = {0.66f, 0.52f, 0.46f, 0.58f, 0.72f};
+
+    const GeometryFrame frame = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 4.0);
+
+    require(frame.authored2DPrimitiveCount > frame.retained2DPrimitiveCount * 2,
+            "3D-first composition should substantially thin legacy screen-space primitive counts");
+    require(frame.authored2DVisualWeight > frame.retained2DVisualWeight * 4.0f,
+            "3D-first composition should strongly fade legacy 2D visual weight");
+    require(frame.projected3DPrimitiveCount > frame.retained2DPrimitiveCount,
+            "projected 3D primitives should outnumber retained 2D composition guides");
+    require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.5f,
+            "projected 3D visual weight should dominate the retained 2D layer");
+    require(frame.threeDDominance > 1.5f, "frame should report visible 3D dominance");
+    require(!frame.objects3D.empty(), "3D-first frame should still be authored as 3D objects");
+}
+
+void sceneIntentProfilesProduceDistinct3DInterpretations()
+{
+    struct Profile {
+        const char* name;
+        AudioMetrics metrics;
+        std::initializer_list<SceneIntent> expected;
+    };
+
+    AudioMetrics silence{};
+    silence.style = AudioStyle::Silence;
+    silence.section = ArrangementSection::Silence;
+    silence.beatPhase = 0.4f;
+    silence.barPhase = 0.2f;
+    silence.phrasePhase = 0.3f;
+
+    AudioMetrics low = syntheticMetrics();
+    low.rms = 0.05f;
+    low.peak = 0.09f;
+    low.bass = 0.04f;
+    low.lowMid = 0.03f;
+    low.mid = 0.03f;
+    low.highMid = 0.02f;
+    low.treble = 0.02f;
+    low.stereoWidth = 0.08f;
+    low.spectralFlux = 0.02f;
+    low.beat = false;
+    low.beatConfidence = 0.04f;
+    low.style = AudioStyle::Silence;
+
+    AudioMetrics techno = syntheticMetrics();
+    techno.rms = 0.48f;
+    techno.bass = 0.62f;
+    techno.lowMid = 0.54f;
+    techno.treble = 0.28f;
+    techno.stereoWidth = 0.34f;
+    techno.spectralFlux = 0.22f;
+    techno.beat = true;
+    techno.beatConfidence = 0.95f;
+    techno.barConfidence = 0.82f;
+    techno.downbeatConfidence = 0.76f;
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.92f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.82f;
+
+    AudioMetrics bassDrop = syntheticMetrics();
+    bassDrop.rms = 0.82f;
+    bassDrop.peak = 1.0f;
+    bassDrop.bass = 0.98f;
+    bassDrop.lowMid = 0.82f;
+    bassDrop.treble = 0.22f;
+    bassDrop.stereoWidth = 0.42f;
+    bassDrop.spectralFlux = 0.40f;
+    bassDrop.onset = 0.86f;
+    bassDrop.beat = true;
+    bassDrop.beatConfidence = 0.96f;
+    bassDrop.dropIntensity = 0.98f;
+    bassDrop.style = AudioStyle::BassHeavy;
+    bassDrop.styleConfidence = 0.94f;
+    bassDrop.section = ArrangementSection::Drop;
+    bassDrop.sectionConfidence = 0.92f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.18f;
+    ambient.peak = 0.28f;
+    ambient.bass = 0.10f;
+    ambient.lowMid = 0.18f;
+    ambient.mid = 0.24f;
+    ambient.treble = 0.16f;
+    ambient.stereoWidth = 0.88f;
+    ambient.spectralFlux = 0.06f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.06f;
+    ambient.phraseIntensity = 0.54f;
+    ambient.phraseConfidence = 0.76f;
+    ambient.harmonicEnergy = 0.58f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.9f;
+
+    AudioMetrics melodic = syntheticMetrics();
+    melodic.rms = 0.38f;
+    melodic.bass = 0.22f;
+    melodic.mid = 0.58f;
+    melodic.highMid = 0.60f;
+    melodic.treble = 0.52f;
+    melodic.stereoWidth = 0.54f;
+    melodic.spectralFlux = 0.22f;
+    melodic.keyIndex = 7;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.94f;
+    melodic.harmonicEnergy = 0.92f;
+    melodic.phraseConfidence = 0.84f;
+
+    AudioMetrics breakbeat = syntheticMetrics();
+    breakbeat.rms = 0.56f;
+    breakbeat.bass = 0.34f;
+    breakbeat.highMid = 0.82f;
+    breakbeat.treble = 0.88f;
+    breakbeat.stereoWidth = 0.62f;
+    breakbeat.spectralFlux = 0.92f;
+    breakbeat.onset = 0.88f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.56f;
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.86f;
+    breakbeat.bandOnsets = {0.28f, 0.42f, 0.72f, 0.92f, 0.86f};
+
+    AudioMetrics darkMinimal = syntheticMetrics();
+    darkMinimal.rms = 0.30f;
+    darkMinimal.bass = 0.56f;
+    darkMinimal.lowMid = 0.50f;
+    darkMinimal.mid = 0.20f;
+    darkMinimal.highMid = 0.08f;
+    darkMinimal.treble = 0.04f;
+    darkMinimal.stereoWidth = 0.18f;
+    darkMinimal.spectralFlux = 0.05f;
+    darkMinimal.beat = true;
+    darkMinimal.beatConfidence = 0.62f;
+    darkMinimal.keyIndex = 10;
+    darkMinimal.keyMode = MusicalMode::Minor;
+    darkMinimal.keyConfidence = 0.72f;
+    darkMinimal.style = AudioStyle::Techno;
+    darkMinimal.styleConfidence = 0.64f;
+    darkMinimal.section = ArrangementSection::Breakdown;
+    darkMinimal.sectionConfidence = 0.76f;
+
+    const Profile profiles[] = {
+        {"silence", silence, {SceneIntent::Calm}},
+        {"low-volume", low, {SceneIntent::Calm, SceneIntent::Minimal}},
+        {"techno", techno, {SceneIntent::Groove, SceneIntent::Industrial}},
+        {"bass drop", bassDrop, {SceneIntent::Drop, SceneIntent::Heavy}},
+        {"ambient", ambient, {SceneIntent::Spacious, SceneIntent::Calm, SceneIntent::Melodic}},
+        {"melodic", melodic, {SceneIntent::Melodic, SceneIntent::Bright}},
+        {"breakbeat", breakbeat, {SceneIntent::Chaotic, SceneIntent::Bright}},
+        {"dark minimal", darkMinimal, {SceneIntent::Dark, SceneIntent::Minimal, SceneIntent::Industrial}}
+    };
+
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.86f;
+    settings.lightingGlow = 0.86f;
+    settings.scenePersonality = 0.8f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.82f;
+    settings.patternClarity = 0.88f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.9f;
+
+    std::vector<SceneIntent> intents;
+    std::vector<std::array<int, 14>> signatures;
+    for (std::size_t i = 0; i < std::size(profiles); ++i) {
+        const GeometryFrame frame = engine.buildFrame(profiles[i].metrics,
+                                                      settings,
+                                                      1280.0f,
+                                                      720.0f,
+                                                      1.0 + static_cast<double>(i) * 0.4);
+        require(intentIs(frame.sceneIntent, profiles[i].expected),
+                std::string(profiles[i].name) + " profile resolved to " + std::string(toString(frame.sceneIntent)) +
+                    " instead of an appropriate musical scene intent");
+        require(frame.projected3DPrimitiveCount > 0, "profile should project visible 3D geometry");
+        require(frame.threeDDominance > 0.75f, "profile should keep projected 3D visually dominant");
+        intents.push_back(frame.sceneIntent);
+        signatures.push_back(objectKindSignature(frame));
+    }
+
+    std::sort(intents.begin(), intents.end());
+    const auto uniqueIntentEnd = std::unique(intents.begin(), intents.end());
+    require(std::distance(intents.begin(), uniqueIntentEnd) >= 6,
+            "music profiles should not collapse into a small set of scene intents");
+
+    std::sort(signatures.begin(), signatures.end());
+    const auto uniqueSignatureEnd = std::unique(signatures.begin(), signatures.end());
+    require(std::distance(signatures.begin(), uniqueSignatureEnd) >= 6,
+            "music profiles should create meaningfully different 3D object signatures");
 }
 
 void autoSceneSelectsMotionStyleFromMusic()
@@ -3098,6 +3339,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include bar and downbeat columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "timeline should include phrase structure columns");
+        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance") != std::string::npos,
+                "timeline should include scene intent and 3D dominance columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
                 "timeline should include adaptive audio profile columns");
     }
@@ -3426,6 +3669,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain 3D object, glow, color, personality, response, stability, and clarity columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "batch timeline should contain phrase structure columns");
+        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance") != std::string::npos,
+                "batch timeline should contain scene intent and 3D dominance columns");
     }
 
     std::filesystem::remove_all(root);
@@ -3502,6 +3747,8 @@ int main()
         {"songProfilesScaleMusicallyWithoutChaos", viz::tests::songProfilesScaleMusicallyWithoutChaos},
         {"motionStylesCreateDistinct3DChoreography", viz::tests::motionStylesCreateDistinct3DChoreography},
         {"musicProfilesDriveDifferent3DChoreography", viz::tests::musicProfilesDriveDifferent3DChoreography},
+        {"threeDFirstCompositionSuppressesLegacy2D", viz::tests::threeDFirstCompositionSuppressesLegacy2D},
+        {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},

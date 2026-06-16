@@ -178,7 +178,7 @@ void Direct2DRenderer::render(const GeometryFrame& frame,
             brush_->SetColor(D2D1::ColorF(frame.background.r, frame.background.g, frame.background.b, 0.82f));
             renderTarget_->FillRectangle(D2D1::RectF(0.0f, 0.0f, renderSize.width, 190.0f), brush_);
         }
-        drawHud(metrics, settings, performance, inspector, status, recording, recordedFrames);
+        drawHud(frame, metrics, settings, performance, inspector, status, recording, recordedFrames);
         drawControlPanel(settings, recording);
         drawRuntimeInspector(inspector);
     }
@@ -233,7 +233,8 @@ void Direct2DRenderer::drawParticle(const Particle& particle)
     renderTarget_->FillEllipse(D2D1::Ellipse(point(particle.position), particle.radius, particle.radius), brush_);
 }
 
-void Direct2DRenderer::drawHud(const AudioMetrics& metrics,
+void Direct2DRenderer::drawHud(const GeometryFrame& frame,
+                               const AudioMetrics& metrics,
                                const VisualSettings& settings,
                                const PerformanceStats& performance,
                                const RuntimeInspectorState& inspector,
@@ -287,6 +288,11 @@ void Direct2DRenderer::drawHud(const AudioMetrics& metrics,
          << L"  Sync " << (metrics.syncAdaptation * 100.0f) << L"%"
          << L"  BeatSens " << std::setprecision(2) << metrics.beatSensitivity
          << L"  SectionSens " << metrics.sectionSensitivity << L"\n";
+    text << L"3D Scene " << widen(frame.scene3DName)
+         << L"  Intent " << widen(frame.sceneIntentName)
+         << L"  3D x" << std::setprecision(1) << frame.threeDDominance
+         << L"  2D " << frame.retained2DPrimitiveCount << L"/" << frame.authored2DPrimitiveCount
+         << L"  Projected " << frame.projected3DPrimitiveCount << L"\n";
     text << L"FPS " << std::setprecision(1) << performance.fps
          << L"  Frame " << performance.averageFrameMs << L"ms"
          << L"  Core " << performance.averageCoreMs << L"ms"

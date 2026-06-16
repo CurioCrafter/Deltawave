@@ -15,6 +15,12 @@ struct AnalysisTimelineEntry {
     AudioMetrics metrics{};
     VisualSettings settings{};
     int primitiveCount = 0;
+    std::string_view scene3DName = "Flat Geometry";
+    std::string_view sceneIntentName = "Calm";
+    int authored2DPrimitiveCount = 0;
+    int retained2DPrimitiveCount = 0;
+    int projected3DPrimitiveCount = 0;
+    float threeDDominance = 0.0f;
 };
 
 class AnalysisTimelineWriter {

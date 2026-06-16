@@ -114,7 +114,10 @@ private:
     void useLoopback();
     void toggleRecording();
     void beginCapturePackage(int width, int height);
-    void updateCapturePackage(const AudioMetrics& metrics, const VisualSettings& renderSettings, int primitiveCount);
+    void updateCapturePackage(const AudioMetrics& metrics,
+                              const VisualSettings& renderSettings,
+                              const GeometryFrame& geometry,
+                              int primitiveCount);
     void updateCapturePerformance(const PerformanceStats& performance);
     void encodeCaptureVideo();
     bool finishCapturePackage(std::string& error);

@@ -52,7 +52,9 @@ bool AnalysisTimelineWriter::open(const std::filesystem::path& path, std::string
             << "phraseBoundary,phrasePhase,phraseConfidence,buildTension,"
             << "section,sectionConfidence,sectionProgress,style,styleConfidence,"
             << "styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity,"
-            << "key,keyConfidence,harmonicEnergy,primitiveCount\n";
+            << "key,keyConfidence,harmonicEnergy,scene3DName,sceneIntent,"
+            << "authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance,"
+            << "primitiveCount\n";
     if (!output_) {
         error = "Failed while writing timeline header.";
         close();
@@ -125,6 +127,12 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << '"' << keyLabel(metrics) << '"' << ","
             << std::setprecision(5) << metrics.keyConfidence << ","
             << std::setprecision(5) << metrics.harmonicEnergy << ","
+            << '"' << entry.scene3DName << '"' << ","
+            << '"' << entry.sceneIntentName << '"' << ","
+            << entry.authored2DPrimitiveCount << ","
+            << entry.retained2DPrimitiveCount << ","
+            << entry.projected3DPrimitiveCount << ","
+            << std::setprecision(3) << entry.threeDDominance << ","
             << entry.primitiveCount << "\n";
 
     if (!output_) {

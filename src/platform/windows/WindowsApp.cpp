@@ -319,7 +319,7 @@ void WindowsApp::updateAndRender()
         if (!recorder_.writeFrame(frame, renderOptions, error)) {
             setStatus(L"Recording stopped: " + widen(error));
         } else {
-            updateCapturePackage(metrics, renderSettings, primitiveCount);
+            updateCapturePackage(metrics, renderSettings, frame, primitiveCount);
             captureUpdated = true;
         }
     }
@@ -797,7 +797,10 @@ void WindowsApp::beginCapturePackage(int width, int height)
     capturePackageActive_ = true;
 }
 
-void WindowsApp::updateCapturePackage(const AudioMetrics& metrics, const VisualSettings& renderSettings, int primitiveCount)
+void WindowsApp::updateCapturePackage(const AudioMetrics& metrics,
+                                      const VisualSettings& renderSettings,
+                                      const GeometryFrame& geometry,
+                                      int primitiveCount)
 {
     if (!capturePackageActive_) {
         return;
@@ -816,7 +819,13 @@ void WindowsApp::updateCapturePackage(const AudioMetrics& metrics, const VisualS
                 capturePackage_.durationSeconds,
                 metrics,
                 renderSettings,
-                primitiveCount
+                primitiveCount,
+                geometry.scene3DName,
+                geometry.sceneIntentName,
+                geometry.authored2DPrimitiveCount,
+                geometry.retained2DPrimitiveCount,
+                geometry.projected3DPrimitiveCount,
+                geometry.threeDDominance
             },
             error)) {
             captureTimelineActive_ = false;

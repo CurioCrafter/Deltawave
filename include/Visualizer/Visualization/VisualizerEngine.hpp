@@ -71,6 +71,22 @@ enum class Object3DKind {
     Anchor
 };
 
+enum class SceneIntent {
+    Calm,
+    Groove,
+    Tension,
+    Drop,
+    Release,
+    Melodic,
+    Industrial,
+    Dark,
+    Bright,
+    Chaotic,
+    Spacious,
+    Heavy,
+    Minimal
+};
+
 struct Object3D {
     Object3DKind kind = Object3DKind::Polyhedron;
     Vec3 position{};
@@ -91,6 +107,15 @@ struct GeometryFrame {
     std::vector<Polyline> polylines;
     std::vector<Object3D> objects3D;
     std::string_view scene3DName = "Flat Geometry";
+    SceneIntent sceneIntent = SceneIntent::Calm;
+    std::string_view sceneIntentName = "Calm";
+    int authored2DPrimitiveCount = 0;
+    int retained2DPrimitiveCount = 0;
+    int projected3DPrimitiveCount = 0;
+    float authored2DVisualWeight = 0.0f;
+    float retained2DVisualWeight = 0.0f;
+    float projected3DVisualWeight = 0.0f;
+    float threeDDominance = 0.0f;
     float cameraDepth = 0.0f;
     float objectDepthRange = 0.0f;
     float flash = 0.0f;
@@ -178,6 +203,7 @@ struct VisualSettings {
 std::string_view toString(VisualMode mode);
 std::string_view toString(Palette palette);
 std::string_view toString(MotionStyle style);
+std::string_view toString(SceneIntent intent);
 ColorRGBA hsv(float hue, float saturation, float value, float alpha = 1.0f);
 
 class VisualizerEngine {

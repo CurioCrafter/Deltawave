@@ -303,7 +303,13 @@ bool exportAudioToFrames(const OfflineExportOptions& options,
                 timeSeconds,
                 metrics,
                 renderSettings,
-                primitiveCount
+                primitiveCount,
+                geometry.scene3DName,
+                geometry.sceneIntentName,
+                geometry.authored2DPrimitiveCount,
+                geometry.retained2DPrimitiveCount,
+                geometry.projected3DPrimitiveCount,
+                geometry.threeDDominance
             },
             error)) {
             return false;

@@ -228,6 +228,31 @@ struct MusicChoreography {
     MotionStyle style = MotionStyle::Liquid;
 };
 
+struct SceneInterpretation {
+    SceneIntent primary = SceneIntent::Calm;
+    float calm = 0.0f;
+    float groove = 0.0f;
+    float tension = 0.0f;
+    float drop = 0.0f;
+    float release = 0.0f;
+    float melodic = 0.0f;
+    float industrial = 0.0f;
+    float dark = 0.0f;
+    float bright = 0.0f;
+    float chaotic = 0.0f;
+    float spacious = 0.0f;
+    float heavy = 0.0f;
+    float minimal = 0.0f;
+    float mass = 0.0f;
+    float architecture = 0.0f;
+    float crystal = 0.0f;
+    float fracture = 0.0f;
+    float orbital = 0.0f;
+    float shadow = 0.0f;
+    float depthReveal = 0.0f;
+    float cameraDrama = 0.0f;
+};
+
 float wrapUnit(float value);
 
 MusicMotionEnvelope musicEnvelope(const AudioMetrics& metrics, const VisualSettings& settings)
@@ -554,6 +579,148 @@ float musicResponse3D(const AudioMetrics& metrics, const VisualSettings& setting
     return std::clamp(0.08f + musicalDrive * userGain * readabilityDamp, 0.08f, cap);
 }
 
+float averageOnsetEnergy(const AudioMetrics& metrics)
+{
+    float total = 0.0f;
+    for (float onset : metrics.bandOnsets) {
+        total += onset;
+    }
+    return total / static_cast<float>(metrics.bandOnsets.size());
+}
+
+float averageChromaEnergy(const AudioMetrics& metrics)
+{
+    float total = 0.0f;
+    for (float chroma : metrics.chroma) {
+        total += chroma;
+    }
+    return total / static_cast<float>(metrics.chroma.size());
+}
+
+SceneIntent strongestIntent(const SceneInterpretation& intent)
+{
+    SceneIntent best = SceneIntent::Calm;
+    float value = intent.calm;
+    const auto choose = [&](SceneIntent candidate, float score) {
+        if (score > value) {
+            best = candidate;
+            value = score;
+        }
+    };
+    choose(SceneIntent::Groove, intent.groove);
+    choose(SceneIntent::Tension, intent.tension);
+    choose(SceneIntent::Drop, intent.drop);
+    choose(SceneIntent::Release, intent.release);
+    choose(SceneIntent::Melodic, intent.melodic);
+    choose(SceneIntent::Industrial, intent.industrial);
+    choose(SceneIntent::Dark, intent.dark);
+    choose(SceneIntent::Bright, intent.bright);
+    choose(SceneIntent::Chaotic, intent.chaotic);
+    choose(SceneIntent::Spacious, intent.spacious);
+    choose(SceneIntent::Heavy, intent.heavy);
+    choose(SceneIntent::Minimal, intent.minimal);
+    return best;
+}
+
+SceneInterpretation interpretSceneIntent(const AudioMetrics& metrics, const VisualSettings& settings)
+{
+    const MusicMotionEnvelope envelope = musicEnvelope(metrics, settings);
+    const float styleConfidence = std::clamp(metrics.styleConfidence, 0.0f, 1.0f);
+    const float styleWeight = 0.45f + styleConfidence * 0.55f;
+    const float energy = clamp01(metrics.rms * 1.35f +
+                                 metrics.peak * 0.10f +
+                                 metrics.bass * 0.22f +
+                                 metrics.lowMid * 0.10f +
+                                 metrics.spectralFlux * 0.16f);
+    const float beatRegularity = clamp01(metrics.beatConfidence * 0.68f +
+                                         metrics.barConfidence * 0.20f +
+                                         metrics.downbeatConfidence * 0.12f);
+    const float density = clamp01(energy * 0.48f +
+                                  metrics.spectralFlux * 0.34f +
+                                  averageOnsetEnergy(metrics) * 0.26f +
+                                  metrics.beatConfidence * 0.18f);
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.66f +
+                                   metrics.keyConfidence * 0.24f +
+                                   averageChromaEnergy(metrics) * 0.18f);
+    const float lowColor = clamp01(metrics.bass * 0.54f + metrics.lowMid * 0.24f + (1.0f - metrics.treble) * 0.12f);
+    const float highColor = clamp01(metrics.treble * 0.50f + metrics.highMid * 0.25f + metrics.spectralCentroid * 0.20f);
+    const float transient = clamp01(metrics.onset * 0.42f +
+                                    metrics.spectralFlux * 0.34f +
+                                    averageOnsetEnergy(metrics) * 0.30f);
+
+    SceneInterpretation intent;
+    intent.calm = clamp01((1.0f - energy) * 0.78f +
+                          (metrics.style == AudioStyle::Silence ? 0.45f : 0.0f) +
+                          (metrics.style == AudioStyle::Ambient ? 0.18f * styleWeight : 0.0f));
+    intent.groove = clamp01(beatRegularity * 0.66f +
+                            metrics.bass * 0.22f +
+                            (metrics.section == ArrangementSection::Groove ? 0.28f * metrics.sectionConfidence : 0.0f) +
+                            (metrics.style == AudioStyle::Techno ? 0.18f * styleWeight : 0.0f));
+    intent.tension = clamp01(metrics.buildTension * 0.70f +
+                             metrics.phraseIntensity * 0.18f +
+                             metrics.sectionProgress * (metrics.section == ArrangementSection::Build ? 0.24f : 0.0f) +
+                             metrics.spectralFlux * 0.14f);
+    intent.drop = clamp01(metrics.dropIntensity * 0.78f +
+                          (metrics.section == ArrangementSection::Drop ? 0.28f * metrics.sectionConfidence : 0.0f) +
+                          metrics.bass * 0.18f +
+                          metrics.onset * 0.12f);
+    intent.release = clamp01((metrics.section == ArrangementSection::Drop ? metrics.sectionProgress * 0.22f : 0.0f) +
+                             (metrics.phraseBoundary ? metrics.phraseConfidence * 0.28f : 0.0f) +
+                             metrics.phraseIntensity * 0.26f +
+                             (1.0f - metrics.buildTension) * energy * 0.18f);
+    intent.melodic = clamp01(harmonic * 0.72f +
+                             metrics.phraseConfidence * 0.18f +
+                             (metrics.keyIndex >= 0 ? metrics.keyConfidence * 0.24f : 0.0f));
+    intent.industrial = clamp01((metrics.style == AudioStyle::Techno ? 0.34f * styleWeight : 0.0f) +
+                                beatRegularity * 0.36f +
+                                lowColor * 0.20f +
+                                (1.0f - harmonic) * 0.16f);
+    intent.dark = clamp01(lowColor * 0.38f +
+                          (metrics.keyMode == MusicalMode::Minor ? metrics.keyConfidence * 0.22f : 0.0f) +
+                          (1.0f - highColor) * 0.18f +
+                          (settings.palette == Palette::InfraredChrome || settings.palette == Palette::MonochromeLaser ? 0.12f : 0.0f));
+    intent.bright = clamp01(highColor * 0.64f +
+                            harmonic * 0.18f +
+                            (metrics.keyMode == MusicalMode::Major ? metrics.keyConfidence * 0.14f : 0.0f) +
+                            (settings.palette == Palette::AcidAurora ? 0.12f : 0.0f));
+    intent.chaotic = clamp01(transient * 0.72f +
+                             metrics.spectralFlux * 0.34f +
+                             (metrics.style == AudioStyle::Bright && metrics.onset > 0.32f ? 0.20f * styleWeight : 0.0f) +
+                             (metrics.beatConfidence < 0.28f && density > 0.42f ? 0.12f : 0.0f));
+    intent.spacious = clamp01((metrics.stereoWidth * 0.62f +
+                               (metrics.style == AudioStyle::Wide ? 0.28f * styleWeight : 0.0f) +
+                               (metrics.style == AudioStyle::Ambient ? 0.22f * styleWeight : 0.0f) +
+                               (1.0f - density) * 0.16f) *
+                              (1.0f - transient * 0.42f));
+    intent.heavy = clamp01(metrics.bass * 0.58f +
+                           metrics.lowMid * 0.22f +
+                           metrics.dropIntensity * 0.24f +
+                           (metrics.style == AudioStyle::BassHeavy ? 0.28f * styleWeight : 0.0f));
+    intent.minimal = clamp01((1.0f - density) * 0.50f +
+                             beatRegularity * 0.18f +
+                             (metrics.style == AudioStyle::Techno ? 0.12f * styleWeight : 0.0f) +
+                             (metrics.section == ArrangementSection::Breakdown ? 0.20f * metrics.sectionConfidence : 0.0f));
+
+    if (envelope.audible <= 0.02f || metrics.style == AudioStyle::Silence) {
+        intent.calm = std::max(intent.calm, 0.88f);
+        intent.minimal = std::max(intent.minimal, 0.62f);
+        intent.drop = 0.0f;
+        intent.chaotic = 0.0f;
+        intent.heavy *= 0.25f;
+    }
+
+    intent.primary = strongestIntent(intent);
+    intent.mass = clamp01(intent.heavy * 0.68f + intent.drop * 0.42f + metrics.bass * 0.28f);
+    intent.architecture = clamp01(intent.industrial * 0.58f + intent.groove * 0.36f + intent.tension * 0.22f);
+    intent.crystal = clamp01(intent.melodic * 0.46f + intent.bright * 0.42f + harmonic * 0.24f);
+    intent.fracture = clamp01(intent.chaotic * 0.58f + transient * 0.30f + intent.drop * 0.16f);
+    intent.orbital = clamp01(intent.spacious * 0.48f + intent.melodic * 0.28f + intent.calm * 0.16f);
+    intent.shadow = clamp01(intent.dark * 0.52f + intent.minimal * 0.26f + (1.0f - highColor) * 0.18f);
+    intent.depthReveal = clamp01(intent.spacious * 0.34f + intent.drop * 0.28f + intent.tension * 0.22f + metrics.stereoWidth * 0.20f);
+    intent.cameraDrama = clamp01(intent.drop * 0.40f + intent.tension * 0.24f + intent.spacious * 0.18f + intent.chaotic * 0.12f);
+    return intent;
+}
+
 float environmentDrive(const VisualSettings& settings, const EnvironmentState& environment)
 {
     if (!settings.environmentReactive || !environment.enabled) {
@@ -576,6 +743,69 @@ int scaledStep(float quality)
         return 2;
     }
     return 1;
+}
+
+int primitiveFootprint(const GeometryFrame& frame)
+{
+    int count = static_cast<int>(frame.rings.size() + frame.beams.size() + frame.particles.size());
+    for (const Polyline& line : frame.polylines) {
+        count += static_cast<int>(line.points.size());
+    }
+    return count;
+}
+
+float primitiveVisualWeight(const GeometryFrame& frame)
+{
+    float weight = 0.0f;
+    for (const Ring& ring : frame.rings) {
+        weight += ring.color.a * std::max(0.2f, ring.strokeWidth) * 6.0f;
+    }
+    for (const Beam& beam : frame.beams) {
+        weight += beam.color.a * std::max(0.2f, beam.width) * 4.0f;
+    }
+    for (const Particle& particle : frame.particles) {
+        weight += particle.color.a * std::max(0.6f, particle.radius) * 1.6f;
+    }
+    for (const Polyline& line : frame.polylines) {
+        weight += line.color.a * std::max(0.2f, line.strokeWidth) *
+                  static_cast<float>(std::max<std::size_t>(1U, line.points.size()));
+    }
+    return weight;
+}
+
+template <typename T>
+void retainEvenlySpaced(std::vector<T>& items, std::size_t maximum)
+{
+    if (items.size() <= maximum || maximum == 0U) {
+        return;
+    }
+
+    std::vector<T> retained;
+    retained.reserve(maximum);
+    const float last = static_cast<float>(items.size() - 1U);
+    for (std::size_t i = 0; i < maximum; ++i) {
+        const float unit = maximum > 1U ? static_cast<float>(i) / static_cast<float>(maximum - 1U) : 0.0f;
+        const auto index = static_cast<std::size_t>(std::round(unit * last));
+        retained.push_back(items[std::min(index, items.size() - 1U)]);
+    }
+    items = std::move(retained);
+}
+
+void decimatePolyline(Polyline& line, std::size_t maximumPoints)
+{
+    if (line.points.size() <= maximumPoints || maximumPoints < 3U) {
+        return;
+    }
+
+    std::vector<Vec2> retained;
+    retained.reserve(maximumPoints);
+    const float last = static_cast<float>(line.points.size() - 1U);
+    for (std::size_t i = 0; i < maximumPoints; ++i) {
+        const float unit = maximumPoints > 1U ? static_cast<float>(i) / static_cast<float>(maximumPoints - 1U) : 0.0f;
+        const auto index = static_cast<std::size_t>(std::round(unit * last));
+        retained.push_back(line.points[std::min(index, line.points.size() - 1U)]);
+    }
+    line.points = std::move(retained);
 }
 
 float wrapUnit(float value)
@@ -880,6 +1110,75 @@ void applyDepthCues(GeometryFrame& frame,
     });
 }
 
+void suppressScreenSpaceLayerFor3D(GeometryFrame& frame,
+                                   const AudioMetrics& metrics,
+                                   const VisualSettings& settings)
+{
+    const float depth = depth3DOf(settings);
+    if (depth <= 0.01f) {
+        return;
+    }
+
+    const float clarity = patternClarityOf(settings);
+    const float stability = motionStabilityOf(settings);
+    const float transitionKeep = clamp01(settings.sceneTransition) * 0.08f;
+    const float musicKeep = clamp01(metrics.dropIntensity * 0.06f +
+                                    metrics.phraseIntensity * 0.04f +
+                                    metrics.buildTension * 0.035f);
+    const float alphaScale = std::clamp(0.31f - depth * 0.18f +
+                                            (1.0f - clarity) * 0.045f +
+                                            (1.0f - stability) * 0.035f +
+                                            transitionKeep + musicKeep,
+                                        0.075f,
+                                        0.34f);
+    const float strokeScale = std::clamp(0.54f + (1.0f - clarity) * 0.12f + (1.0f - stability) * 0.08f,
+                                         0.48f,
+                                         0.78f);
+
+    for (Ring& ring : frame.rings) {
+        ring.color.a *= alphaScale;
+        ring.strokeWidth = std::max(0.28f, ring.strokeWidth * strokeScale);
+    }
+    for (Beam& beam : frame.beams) {
+        beam.color.a *= alphaScale * 0.85f;
+        beam.width = std::max(0.24f, beam.width * strokeScale);
+    }
+    for (Particle& particle : frame.particles) {
+        particle.color.a *= alphaScale * 0.92f;
+        particle.radius = std::max(0.75f, particle.radius * (0.72f + (1.0f - depth) * 0.12f));
+    }
+    for (Polyline& line : frame.polylines) {
+        line.color.a *= alphaScale;
+        line.strokeWidth = std::max(0.28f, line.strokeWidth * strokeScale);
+        const auto maximumPoints = static_cast<std::size_t>(std::clamp(
+            static_cast<int>(std::round(18.0f + (1.0f - depth) * 42.0f + (1.0f - clarity) * 18.0f)),
+            10,
+            72));
+        decimatePolyline(line, maximumPoints);
+    }
+
+    const std::size_t maxRings = static_cast<std::size_t>(std::clamp(
+        static_cast<int>(std::round(7.0f + (1.0f - depth) * 12.0f + settings.sceneTransition * 5.0f)),
+        5,
+        22));
+    const std::size_t maxBeams = static_cast<std::size_t>(std::clamp(
+        static_cast<int>(std::round(6.0f + (1.0f - depth) * 10.0f + metrics.dropIntensity * 4.0f)),
+        4,
+        20));
+    const std::size_t maxParticles = static_cast<std::size_t>(std::clamp(
+        static_cast<int>(std::round(24.0f + (1.0f - depth) * 34.0f + metrics.spectralFlux * 12.0f)),
+        16,
+        78));
+    const std::size_t maxPolylines = static_cast<std::size_t>(std::clamp(
+        static_cast<int>(std::round(6.0f + (1.0f - depth) * 12.0f + metrics.phraseIntensity * 5.0f)),
+        5,
+        24));
+    retainEvenlySpaced(frame.rings, maxRings);
+    retainEvenlySpaced(frame.beams, maxBeams);
+    retainEvenlySpaced(frame.particles, maxParticles);
+    retainEvenlySpaced(frame.polylines, maxPolylines);
+}
+
 enum class Scene3DProfile {
     TechnoMachine,
     CrystalStorm,
@@ -981,6 +1280,7 @@ std::string_view mode3DName(VisualMode mode)
 
 Camera3D makeCamera3D(const VisualSettings& settings,
                       const AudioMetrics& metrics,
+                      const SceneInterpretation& intent,
                       float width,
                       float height,
                       float speed,
@@ -996,22 +1296,31 @@ Camera3D makeCamera3D(const VisualSettings& settings,
     const float rush = (choreography.dropImpact * 0.74f + choreography.bassPressure * 0.40f) * response *
                        (0.62f + (1.0f - envelope.stability) * 0.38f);
     const float cinematic = 0.52f + (1.0f - choreography.stability) * 0.24f + choreography.parallax * 0.24f;
+    const float reveal = intent.depthReveal * 0.10f + intent.spacious * 0.06f - intent.heavy * 0.035f;
+    const float massDolly = intent.mass * 0.12f + intent.drop * 0.09f;
+    const float orbitBias = intent.orbital * 0.10f + intent.architecture * 0.035f - intent.minimal * 0.035f;
+    const float pitchBias = intent.tension * 0.045f - intent.calm * 0.022f + intent.spacious * 0.035f;
     return Camera3D{
         Vec2{width * 0.5f, height * 0.5f},
-        minimumDimension * (0.78f + depth * 0.94f + envelope.stereo * 0.12f + choreography.phraseLift * 0.035f),
+        minimumDimension * (0.78f + depth * 0.94f + envelope.stereo * 0.12f +
+                            choreography.phraseLift * 0.035f + reveal),
         std::max(minimumDimension * 0.72f,
                  minimumDimension * (1.18f + depth * 1.72f - rush * 0.13f +
-                                     choreography.phraseLift * 0.10f + choreography.fold * 0.04f)),
+                                     choreography.phraseLift * 0.10f + choreography.fold * 0.04f +
+                                     intent.spacious * 0.14f - massDolly)),
         (std::sin(phase * 0.17f + choreography.orbit * 2.0f * kPi) * 0.65f +
          choreography.stereoDrift * 0.35f) *
-            (0.06f + envelope.stereo * 0.12f + depth * 0.07f + response * 0.010f + cameraMotion * 0.035f) *
+            (0.06f + envelope.stereo * 0.12f + depth * 0.07f + response * 0.010f +
+             cameraMotion * 0.035f + orbitBias) *
             cinematic,
         (std::cos(phase * 0.13f + metrics.buildTension * kPi + choreography.melodicOrbit * kPi) * 0.72f +
          choreography.breath * 0.28f) *
-            (0.035f + choreography.phraseLift * 0.065f + choreography.buildTension * 0.052f + cameraMotion * 0.026f) *
+            (0.035f + choreography.phraseLift * 0.065f + choreography.buildTension * 0.052f +
+             cameraMotion * 0.026f + pitchBias) *
             cinematic,
         std::sin(phase * 0.10f + metrics.beatPhase * kPi * 2.0f + choreography.grooveSwing) *
-            (envelope.stereo * 0.034f + choreography.dropImpact * 0.020f + choreography.snap * 0.010f + response * 0.004f)
+            (envelope.stereo * 0.034f + choreography.dropImpact * 0.020f + choreography.snap * 0.010f +
+             response * 0.004f + intent.chaotic * 0.006f - intent.minimal * 0.004f)
     };
 }
 
@@ -2310,6 +2619,242 @@ void addChoreographyDepthObjects3D(std::vector<Object3D>& objects,
     }
 }
 
+void addIntentDrivenSceneObjects3D(std::vector<Object3D>& objects,
+                                   const SceneInterpretation& intent,
+                                   const AudioMetrics& metrics,
+                                   const std::array<ColorRGBA, 5>& colors,
+                                   float minimumDimension,
+                                   float density,
+                                   float personality,
+                                   float response,
+                                   double time)
+{
+    const float phase = static_cast<float>(time);
+    const float beatPhase = metrics.beatPhase * 2.0f * kPi;
+    const float stereoSpread = 0.72f + metrics.stereoWidth * 0.55f;
+    const float expressiveScale = 0.92f + personality * 0.10f + std::min(response, 1.6f) * 0.035f;
+    const float silenceScale = (intent.primary == SceneIntent::Calm ? 0.74f : 1.0f) * expressiveScale;
+
+    if (intent.mass > 0.16f) {
+        const int ribs = scaledCount(5 + static_cast<int>(std::round(intent.mass * 5.0f)),
+                                     density * (0.72f + intent.mass * 0.34f));
+        for (int i = 0; i < ribs; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, ribs - 1));
+            const float z = minimumDimension * (-0.48f + unit * (1.28f + intent.drop * 0.42f) -
+                                                intent.drop * 0.20f * std::pow(1.0f - unit, 2.0f));
+            const float radius = minimumDimension * (0.18f + unit * 0.18f + intent.mass * 0.10f);
+            objects.push_back(makeObject3D(Object3DKind::TunnelRib,
+                                           Vec3{0.0f,
+                                                std::sin(phase * 0.18f + unit * kPi) * minimumDimension * 0.035f,
+                                                z},
+                                           Vec3{radius,
+                                                radius * (0.56f + metrics.lowMid * 0.20f),
+                                                0.48f + intent.mass * 0.65f},
+                                           Vec3{intent.mass * 0.18f,
+                                                phase * 0.04f,
+                                                beatPhase * 0.08f + unit * kPi * 0.25f},
+                                           withAlpha(colors[(i + 1) % 4], 0.26f + intent.mass * 0.24f),
+                                           0.32f + intent.mass * 0.88f + intent.drop * 0.44f));
+        }
+
+        const int masses = scaledCount(4, density * (0.62f + intent.mass * 0.34f));
+        for (int i = 0; i < masses; ++i) {
+            const float lane = static_cast<float>(i) - static_cast<float>(masses - 1) * 0.5f;
+            const float side = lane >= 0.0f ? 1.0f : -1.0f;
+            objects.push_back(makeObject3D(Object3DKind::Column,
+                                           Vec3{lane * minimumDimension * 0.10f * stereoSpread,
+                                                minimumDimension * (0.16f + std::fabs(lane) * 0.018f),
+                                                minimumDimension * (-0.18f + std::fabs(lane) * 0.10f -
+                                                                    intent.drop * 0.10f)},
+                                           Vec3{minimumDimension * (0.020f + intent.mass * 0.018f),
+                                                minimumDimension * (0.24f + intent.mass * 0.16f),
+                                                minimumDimension * (0.028f + intent.mass * 0.020f)},
+                                           Vec3{0.0f,
+                                                side * (0.10f + intent.mass * 0.08f),
+                                                phase * 0.035f + side * intent.drop * 0.18f},
+                                           withAlpha(colors[1], 0.24f + intent.mass * 0.24f),
+                                           0.30f + intent.mass * 0.72f));
+        }
+    }
+
+    if (intent.architecture > 0.16f) {
+        const int lanes = scaledCount(5, density * (0.64f + intent.architecture * 0.28f));
+        const float spacing = minimumDimension * (0.070f + metrics.stereoWidth * 0.020f);
+        for (int x = -lanes; x <= lanes; x += 2) {
+            for (int z = 0; z < lanes; ++z) {
+                const float lane = static_cast<float>(x);
+                const float depth = static_cast<float>(z) / static_cast<float>(std::max(1, lanes - 1));
+                const float stepPulse = std::sin(metrics.barPhase * 2.0f * kPi + lane * 0.32f + depth * kPi);
+                objects.push_back(makeObject3D(Object3DKind::Column,
+                                               Vec3{lane * spacing,
+                                                    minimumDimension * (0.10f + stepPulse * metrics.beatConfidence * 0.018f),
+                                                    minimumDimension * (-0.18f + depth * 0.68f)},
+                                               Vec3{minimumDimension * 0.010f,
+                                                    minimumDimension * (0.055f + intent.architecture * 0.07f +
+                                                                        metrics.bass * 0.035f),
+                                                    minimumDimension * 0.010f},
+                                               Vec3{0.0f, lane * 0.08f, phase * 0.035f},
+                                               withAlpha(colors[(x + z + 64) % 4], 0.18f + intent.architecture * 0.22f),
+                                               0.18f + intent.architecture * 0.58f + metrics.beatConfidence * 0.20f));
+            }
+        }
+        objects.push_back(makeObject3D(Object3DKind::Cage,
+                                       Vec3{0.0f, 0.0f, minimumDimension * (0.16f + intent.tension * 0.16f)},
+                                       Vec3{minimumDimension * (0.18f + intent.architecture * 0.08f),
+                                            minimumDimension * (0.12f + intent.architecture * 0.06f),
+                                            minimumDimension * (0.16f + intent.depthReveal * 0.12f)},
+                                       Vec3{phase * 0.06f,
+                                            intent.architecture * 0.32f,
+                                            beatPhase * 0.10f},
+                                       withAlpha(colors[0], 0.24f + intent.architecture * 0.24f),
+                                       0.28f + intent.architecture * 0.66f));
+    }
+
+    if (intent.orbital > 0.14f || intent.spacious > 0.20f || intent.calm > 0.62f) {
+        const int orbiters = scaledCount(7 + static_cast<int>(std::round(intent.spacious * 5.0f)),
+                                         density * (0.54f + intent.orbital * 0.30f) * silenceScale);
+        for (int i = 0; i < orbiters; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, orbiters));
+            const float layer = static_cast<float>(i % 4) / 3.0f;
+            const float angle = unit * 2.0f * kPi + phase * (0.035f + intent.calm * 0.015f) +
+                                metrics.phrasePhase * kPi * 0.35f;
+            const float radius = minimumDimension * (0.12f + layer * 0.12f + metrics.stereoWidth * 0.13f);
+            objects.push_back(makeObject3D(Object3DKind::Orbiter,
+                                           Vec3{std::cos(angle) * radius * stereoSpread,
+                                                std::sin(angle * 0.82f) * radius * 0.56f,
+                                                minimumDimension * (-0.16f + layer * 0.34f + intent.spacious * 0.20f)},
+                                           Vec3{minimumDimension * (0.010f + intent.orbital * 0.010f),
+                                                minimumDimension * (0.010f + intent.orbital * 0.010f),
+                                                minimumDimension * 0.010f},
+                                           Vec3{0.0f, angle, phase * 0.06f},
+                                           withAlpha(colors[(i + 3) % 4], 0.22f + intent.spacious * 0.22f),
+                                           0.20f + intent.orbital * 0.42f + intent.spacious * 0.24f));
+        }
+        const int planes = scaledCount(3, density * (0.52f + intent.spacious * 0.30f) * silenceScale);
+        for (int i = 0; i < planes; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, planes - 1));
+            objects.push_back(makeObject3D(Object3DKind::DepthPlane,
+                                           Vec3{0.0f,
+                                                (unit - 0.5f) * minimumDimension * 0.12f,
+                                                minimumDimension * (-0.28f + unit * 0.72f)},
+                                           Vec3{minimumDimension * (0.18f + intent.spacious * 0.10f),
+                                                minimumDimension * (0.10f + intent.spacious * 0.08f),
+                                                minimumDimension * 0.016f},
+                                           Vec3{0.42f + unit * 0.18f,
+                                                phase * 0.018f,
+                                                phase * 0.022f + unit},
+                                           withAlpha(colors[(i + 2) % 4], 0.12f + intent.spacious * 0.18f),
+                                           0.14f + intent.spacious * 0.32f));
+        }
+    }
+
+    if (intent.crystal > 0.18f) {
+        const int nodes = scaledCount(10 + static_cast<int>(std::round(intent.crystal * 8.0f)),
+                                      density * (0.58f + intent.crystal * 0.32f));
+        const std::size_t firstNode = objects.size();
+        for (int i = 0; i < nodes; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(nodes);
+            const float chroma = chromaAt(metrics, i);
+            const float angle = unit * 2.0f * kPi + metrics.phrasePhase * kPi * 0.5f;
+            const float radius = minimumDimension * (0.12f + chroma * 0.22f + intent.bright * 0.08f);
+            const Object3DKind kind = (i % 3 == 0 || intent.bright > 0.52f) ? Object3DKind::Shard : Object3DKind::Node;
+            objects.push_back(makeObject3D(kind,
+                                           Vec3{std::cos(angle) * radius * stereoSpread,
+                                                std::sin(angle * 1.32f) * radius * 0.64f,
+                                                minimumDimension * (-0.12f + chroma * 0.56f + intent.melodic * 0.10f)},
+                                           Vec3{minimumDimension * (0.012f + chroma * 0.030f + intent.crystal * 0.010f),
+                                                minimumDimension * (0.018f + intent.bright * 0.034f),
+                                                minimumDimension * (0.010f + chroma * 0.016f)},
+                                           Vec3{angle,
+                                                phase * 0.10f + chroma * kPi,
+                                                metrics.harmonicEnergy * kPi},
+                                           withAlpha(colors[(i + 2) % 4], 0.24f + intent.crystal * 0.30f),
+                                           0.24f + intent.crystal * 0.66f + chroma * 0.22f));
+        }
+        const int links = std::min(nodes, scaledCount(8, density * (0.55f + intent.melodic * 0.30f)));
+        for (int i = 0; i < links; ++i) {
+            const Object3D& a = objects[firstNode + static_cast<std::size_t>(i)];
+            const Object3D& b = objects[firstNode + static_cast<std::size_t>((i * 5 + 3) % nodes)];
+            Object3D link = makeObject3D(Object3DKind::Link,
+                                         a.position,
+                                         Vec3{1.0f, 1.0f, 1.0f},
+                                         Vec3{},
+                                         withAlpha(colors[(i + 1) % 4], 0.14f + intent.melodic * 0.18f),
+                                         0.14f + intent.crystal * 0.34f);
+            link.target = b.position;
+            objects.push_back(link);
+        }
+    }
+
+    if (intent.fracture > 0.18f) {
+        const int shards = scaledCount(8 + static_cast<int>(std::round(intent.fracture * 9.0f)),
+                                       density * (0.58f + intent.fracture * 0.30f));
+        for (int i = 0; i < shards; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(shards);
+            const float angle = unit * 2.0f * kPi + std::floor(metrics.beatPhase * 8.0f) * (kPi / 4.0f);
+            const float stagger = static_cast<float>((i * 7) % 11) / 10.0f;
+            const Object3DKind kind = i % 4 == 0 ? Object3DKind::Plate : Object3DKind::Shard;
+            objects.push_back(makeObject3D(kind,
+                                           Vec3{std::cos(angle) * minimumDimension * (0.10f + stagger * 0.30f),
+                                                std::sin(angle * 0.77f) * minimumDimension * (0.08f + stagger * 0.18f),
+                                                minimumDimension * (-0.24f + stagger * 0.70f + intent.drop * 0.10f)},
+                                           Vec3{minimumDimension * (0.016f + intent.fracture * 0.030f),
+                                                minimumDimension * (0.034f + metrics.onset * 0.060f),
+                                                minimumDimension * (0.010f + intent.fracture * 0.020f)},
+                                           Vec3{angle * 0.25f,
+                                                phase * 0.20f + stagger,
+                                                beatPhase * 0.18f + stagger * kPi},
+                                           withAlpha(colors[(i + 3) % 4], 0.22f + intent.fracture * 0.30f),
+                                           0.24f + intent.fracture * 0.70f + metrics.onset * 0.22f));
+        }
+    }
+
+    if (intent.shadow > 0.16f) {
+        const int monoliths = scaledCount(3 + static_cast<int>(std::round(intent.shadow * 5.0f)),
+                                          density * (0.48f + intent.shadow * 0.28f));
+        for (int i = 0; i < monoliths; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, monoliths - 1));
+            const float x = (unit - 0.5f) * minimumDimension * (0.46f + metrics.stereoWidth * 0.20f);
+            objects.push_back(makeObject3D(Object3DKind::Column,
+                                           Vec3{x,
+                                                minimumDimension * (0.12f + intent.dark * 0.04f),
+                                                minimumDimension * (-0.10f + unit * 0.34f)},
+                                           Vec3{minimumDimension * (0.018f + intent.shadow * 0.018f),
+                                                minimumDimension * (0.24f + intent.shadow * 0.20f),
+                                                minimumDimension * (0.026f + intent.minimal * 0.025f)},
+                                           Vec3{0.04f + intent.tension * 0.10f,
+                                                (unit - 0.5f) * 0.16f,
+                                                phase * 0.015f},
+                                           withAlpha(mix(colors[3], colors[4], 0.55f), 0.20f + intent.shadow * 0.22f),
+                                           0.18f + intent.shadow * 0.42f));
+        }
+        if (intent.minimal > 0.36f || intent.dark > 0.32f) {
+            objects.push_back(makeObject3D(Object3DKind::Anchor,
+                                           Vec3{0.0f, 0.0f, minimumDimension * (0.16f + intent.dark * 0.16f)},
+                                           Vec3{minimumDimension * (0.018f + intent.minimal * 0.014f),
+                                                minimumDimension * (0.018f + intent.minimal * 0.014f),
+                                                minimumDimension * 0.018f},
+                                           Vec3{0.0f, phase * 0.02f, phase * 0.035f},
+                                           withAlpha(colors[4], 0.24f + intent.shadow * 0.24f),
+                                           0.18f + intent.shadow * 0.44f));
+        }
+    }
+
+    if (intent.drop > 0.42f || intent.tension > 0.64f) {
+        const float transform = std::max(intent.drop, intent.tension * 0.72f);
+        objects.push_back(makeObject3D(Object3DKind::Cage,
+                                       Vec3{0.0f, 0.0f, minimumDimension * (0.12f - intent.drop * 0.16f)},
+                                       Vec3{minimumDimension * (0.20f + transform * 0.14f),
+                                            minimumDimension * (0.16f + transform * 0.10f),
+                                            minimumDimension * (0.20f + transform * 0.22f)},
+                                       Vec3{phase * 0.08f + intent.tension * 0.24f,
+                                            beatPhase * 0.14f,
+                                            phase * 0.12f},
+                                       withAlpha(colors[0], 0.30f + transform * 0.28f),
+                                       0.36f + transform * 0.88f));
+    }
+}
+
 void addObject3DScene(GeometryFrame& frame,
                       const AudioMetrics& metrics,
                       const VisualSettings& settings,
@@ -2329,10 +2874,19 @@ void addObject3DScene(GeometryFrame& frame,
 
     const Scene3DProfile profile = profileForMode(settings.mode);
     const float minimumDimension = std::min(width, height);
-    const float objectDensity = std::clamp(quality * (0.42f + objectDensity3DOf(settings) * 1.08f), 0.18f, 1.8f);
+    const SceneInterpretation intent = interpretSceneIntent(metrics, settings);
+    const bool trueSilence = metrics.style == AudioStyle::Silence &&
+                             metrics.rms < 0.025f &&
+                             metrics.peak < 0.055f &&
+                             metrics.beatConfidence < 0.08f;
+    const float silenceDensityScale = trueSilence ? 0.58f : 1.0f;
+    const float objectDensity = std::clamp(quality * (0.42f + objectDensity3DOf(settings) * 1.08f) *
+                                               silenceDensityScale,
+                                           0.18f,
+                                           1.8f);
     const float personality = scenePersonalityOf(settings);
     const float response = musicResponse3D(metrics, settings);
-    const Camera3D camera = makeCamera3D(settings, metrics, width, height, speed, time);
+    const Camera3D camera = makeCamera3D(settings, metrics, intent, width, height, speed, time);
     const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
     std::vector<Object3D> objects;
     objects.reserve(360);
@@ -2355,6 +2909,7 @@ void addObject3DScene(GeometryFrame& frame,
         break;
     }
     addModeSpecific3DObjects(objects, settings.mode, metrics, colors, minimumDimension, objectDensity, personality, response, time);
+    addIntentDrivenSceneObjects3D(objects, intent, metrics, colors, minimumDimension, objectDensity, personality, response, time);
     addChoreographyDepthObjects3D(objects, settings.mode, choreography, colors, minimumDimension, objectDensity, response, time);
     applyMusicChoreography3D(objects, settings.mode, choreography, minimumDimension);
 
@@ -2377,13 +2932,20 @@ void addObject3DScene(GeometryFrame& frame,
     }
     const float range = std::max(1.0f, maximumDepth - minimumDepth);
     const float lightingGlow = lightingGlowOf(settings);
+    const int primitiveFootprintBefore3D = primitiveFootprint(frame);
+    const float visualWeightBefore3D = primitiveVisualWeight(frame);
     for (const Object3D& object : objects) {
         const float depthUnit = std::clamp((object.depth - minimumDepth) / range, 0.0f, 1.0f);
         renderWireObject3D(frame, camera, object, depthUnit, lightingGlow);
     }
 
+    frame.projected3DPrimitiveCount = std::max(0, primitiveFootprint(frame) - primitiveFootprintBefore3D);
+    frame.projected3DVisualWeight = std::max(0.0f, primitiveVisualWeight(frame) - visualWeightBefore3D);
+    frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
     frame.objects3D = std::move(objects);
     frame.scene3DName = mode3DName(settings.mode);
+    frame.sceneIntent = intent.primary;
+    frame.sceneIntentName = toString(intent.primary);
     frame.cameraDepth = camera.cameraDistance;
     frame.objectDepthRange = range;
 }
@@ -4370,6 +4932,39 @@ std::string_view toString(MotionStyle style)
     return "Unknown";
 }
 
+std::string_view toString(SceneIntent intent)
+{
+    switch (intent) {
+    case SceneIntent::Calm:
+        return "Calm";
+    case SceneIntent::Groove:
+        return "Groove";
+    case SceneIntent::Tension:
+        return "Tension";
+    case SceneIntent::Drop:
+        return "Drop";
+    case SceneIntent::Release:
+        return "Release";
+    case SceneIntent::Melodic:
+        return "Melodic";
+    case SceneIntent::Industrial:
+        return "Industrial";
+    case SceneIntent::Dark:
+        return "Dark";
+    case SceneIntent::Bright:
+        return "Bright";
+    case SceneIntent::Chaotic:
+        return "Chaotic";
+    case SceneIntent::Spacious:
+        return "Spacious";
+    case SceneIntent::Heavy:
+        return "Heavy";
+    case SceneIntent::Minimal:
+        return "Minimal";
+    }
+    return "Unknown";
+}
+
 ColorRGBA hsv(float hue, float saturation, float value, float alpha)
 {
     hue = hue - std::floor(hue);
@@ -4453,6 +5048,9 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
                                tonalLift * 0.035f + environmentStrength * 0.045f);
     frame.flash = std::max(visualMetrics.beat ? clamp01(0.16f + visualMetrics.beatConfidence * 0.46f) : 0.0f,
                            clamp01(visualMetrics.dropIntensity * 0.26f));
+    const SceneInterpretation frameIntent = interpretSceneIntent(visualMetrics, settings);
+    frame.sceneIntent = frameIntent.primary;
+    frame.sceneIntentName = toString(frameIntent.primary);
 
     const float gridRadius = std::hypot(width, height) * 0.42f;
     const int gridCount = scaledCount(12, density);
@@ -4532,7 +5130,13 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
     }
 
     applyDepthCues(frame, visualMetrics, settings, colors, width, height, speed, timeSeconds);
+    frame.authored2DPrimitiveCount = primitiveFootprint(frame);
+    frame.authored2DVisualWeight = primitiveVisualWeight(frame);
+    suppressScreenSpaceLayerFor3D(frame, visualMetrics, settings);
+    frame.retained2DPrimitiveCount = primitiveFootprint(frame);
+    frame.retained2DVisualWeight = primitiveVisualWeight(frame);
     addObject3DScene(frame, visualMetrics, settings, interaction, colors, width, height, speed, intensity, density, timeSeconds);
+    frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
 
     return frame;
 }
