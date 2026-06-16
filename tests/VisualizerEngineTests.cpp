@@ -3472,6 +3472,181 @@ void musicalPartsAuthorSeparateMotifFamilies()
             "earned convergence should pull role motifs together without collapsing into one unreadable blob");
 }
 
+void songSectionsMoveRolesWithDistinctEmotionalDirection()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.94f;
+    settings.lightingGlow = 0.92f;
+    settings.colorImpact = 0.95f;
+    settings.scenePersonality = 0.94f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.90f;
+    settings.patternClarity = 0.94f;
+    settings.complexity = 1.26f;
+    settings.intensity = 1.14f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.94f;
+
+    AudioMetrics groove = syntheticMetrics();
+    groove.rms = 0.48f;
+    groove.peak = 0.72f;
+    groove.bass = 0.54f;
+    groove.lowMid = 0.42f;
+    groove.mid = 0.50f;
+    groove.highMid = 0.38f;
+    groove.treble = 0.30f;
+    groove.stereoWidth = 0.62f;
+    groove.spectralFlux = 0.22f;
+    groove.onset = 0.18f;
+    groove.beat = true;
+    groove.beatConfidence = 0.76f;
+    groove.beatPhase = 0.32f;
+    groove.barConfidence = 0.70f;
+    groove.barPhase = 0.36f;
+    groove.downbeatConfidence = 0.44f;
+    groove.phraseIntensity = 0.28f;
+    groove.phraseConfidence = 0.58f;
+    groove.harmonicEnergy = 0.68f;
+    groove.keyIndex = 4;
+    groove.keyMode = MusicalMode::Minor;
+    groove.keyConfidence = 0.72f;
+    groove.style = AudioStyle::Techno;
+    groove.styleConfidence = 0.78f;
+    groove.section = ArrangementSection::Groove;
+    groove.sectionConfidence = 0.82f;
+    groove.sectionProgress = 0.38f;
+    groove.bassRole = 0.74f;
+    groove.drumRole = 0.72f;
+    groove.melodyRole = 0.64f;
+    groove.harmonyRole = 0.58f;
+    groove.spaceRole = 0.50f;
+    groove.fractureRole = 0.34f;
+    groove.shadowRole = 0.38f;
+    groove.convergenceRole = 0.05f;
+    groove.roleSeparation = 0.92f;
+
+    AudioMetrics build = groove;
+    build.section = ArrangementSection::Build;
+    build.sectionConfidence = 0.88f;
+    build.sectionProgress = 0.74f;
+    build.buildTension = 0.84f;
+    build.phraseIntensity = 0.66f;
+    build.phraseConfidence = 0.78f;
+    build.dropIntensity = 0.06f;
+    build.convergenceRole = 0.12f;
+
+    AudioMetrics drop = groove;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.94f;
+    drop.sectionProgress = 0.12f;
+    drop.rms = 0.84f;
+    drop.peak = 1.0f;
+    drop.bass = 0.96f;
+    drop.lowMid = 0.76f;
+    drop.dropIntensity = 0.92f;
+    drop.downbeat = true;
+    drop.downbeatConfidence = 0.90f;
+    drop.bassRole = 0.90f;
+    drop.convergenceRole = 0.78f;
+    drop.bandOnsets = {0.90f, 0.74f, 0.42f, 0.28f, 0.18f};
+
+    AudioMetrics breakdown = groove;
+    breakdown.section = ArrangementSection::Breakdown;
+    breakdown.sectionConfidence = 0.88f;
+    breakdown.sectionProgress = 0.42f;
+    breakdown.rms = 0.26f;
+    breakdown.peak = 0.42f;
+    breakdown.bass = 0.16f;
+    breakdown.lowMid = 0.24f;
+    breakdown.stereoWidth = 0.92f;
+    breakdown.beat = false;
+    breakdown.beatConfidence = 0.08f;
+    breakdown.dropIntensity = 0.02f;
+    breakdown.phraseIntensity = 0.70f;
+    breakdown.phraseConfidence = 0.86f;
+    breakdown.harmonicEnergy = 0.78f;
+    breakdown.style = AudioStyle::Ambient;
+    breakdown.styleConfidence = 0.88f;
+    breakdown.spaceRole = 0.90f;
+    breakdown.harmonyRole = 0.66f;
+    breakdown.melodyRole = 0.50f;
+    breakdown.fractureRole = 0.10f;
+    breakdown.convergenceRole = 0.04f;
+
+    AudioMetrics release = drop;
+    release.sectionProgress = 0.92f;
+    release.dropIntensity = 0.38f;
+    release.phraseBoundary = true;
+    release.phraseConfidence = 0.88f;
+    release.phraseIntensity = 0.76f;
+    release.harmonicEnergy = 0.76f;
+    release.melodyRole = 0.72f;
+    release.harmonyRole = 0.66f;
+    release.spaceRole = 0.62f;
+    release.convergenceRole = 0.26f;
+
+    const GeometryFrame grooveFrame = engine.buildFrame(groove, settings, 1280.0f, 720.0f, 1.0);
+    const GeometryFrame buildFrame = engine.buildFrame(build, settings, 1280.0f, 720.0f, 1.8);
+    const GeometryFrame dropFrame = engine.buildFrame(drop, settings, 1280.0f, 720.0f, 2.4);
+    const GeometryFrame breakdownFrame = engine.buildFrame(breakdown, settings, 1280.0f, 720.0f, 3.2);
+    const GeometryFrame releaseFrame = engine.buildFrame(release, settings, 1280.0f, 720.0f, 4.0);
+
+    require(buildFrame.sectionTransform3D > grooveFrame.sectionTransform3D + 0.10f,
+            "build should transform the role scene beyond steady groove");
+    require(dropFrame.sectionDepthMotion3D > grooveFrame.sectionDepthMotion3D + 0.12f,
+            "drop should create stronger depth motion than groove");
+    require(breakdownFrame.sectionTransform3D > grooveFrame.sectionTransform3D + 0.08f,
+            "breakdown should reshape the scene into a spacious state, not freeze");
+    require(releaseFrame.sectionRelease3D > 0.42f &&
+                releaseFrame.sectionMaterialShift3D > grooveFrame.sectionMaterialShift3D + 0.04f,
+            "release should carry a visible material/shape recovery after impact");
+
+    const Vec3 grooveBass = objectRoleCentroid(grooveFrame, Object3DRole::Bass);
+    const Vec3 dropBass = objectRoleCentroid(dropFrame, Object3DRole::Bass);
+    const Vec3 grooveMelody = objectRoleCentroid(grooveFrame, Object3DRole::Melody);
+    const Vec3 buildMelody = objectRoleCentroid(buildFrame, Object3DRole::Melody);
+    const Vec3 breakdownSpace = objectRoleCentroid(breakdownFrame, Object3DRole::Space);
+    const Vec3 grooveSpace = objectRoleCentroid(grooveFrame, Object3DRole::Space);
+    const Vec3 releaseHarmony = objectRoleCentroid(releaseFrame, Object3DRole::Harmony);
+    const Vec3 dropHarmony = objectRoleCentroid(dropFrame, Object3DRole::Harmony);
+
+    require(std::fabs(dropBass.z - grooveBass.z) > 70.0f &&
+                dropFrame.sectionDepthMotion3D > grooveFrame.sectionDepthMotion3D + 0.12f &&
+                dropFrame.sceneBassRole3D > grooveFrame.sceneBassRole3D + 0.10f &&
+                dropFrame.sceneConvergence3D > grooveFrame.sceneConvergence3D + 0.18f,
+            "drop should materially move bass pressure through depth and mass, even after final cinematic recentering; grooveBassZ=" +
+                std::to_string(grooveBass.z) +
+                " dropBassZ=" + std::to_string(dropBass.z) +
+                " grooveDepthMotion=" + std::to_string(grooveFrame.sectionDepthMotion3D) +
+                " dropDepthMotion=" + std::to_string(dropFrame.sectionDepthMotion3D));
+    require(buildMelody.y < grooveMelody.y - 35.0f &&
+                buildMelody.z > grooveMelody.z + 30.0f,
+            "build should lift the melodic braid upward and deeper before the drop");
+    require(breakdownSpace.z > grooveSpace.z + 150.0f,
+            "breakdown should open the spatial layer backward in depth; grooveSpaceZ=" +
+                std::to_string(grooveSpace.z) +
+                " breakdownSpaceZ=" + std::to_string(breakdownSpace.z));
+    require(releaseHarmony.z > dropHarmony.z + 80.0f,
+            "release should let harmonic chambers recover outward after the drop");
+
+    require(std::fabs(objectMotionSignature(dropFrame) - objectMotionSignature(breakdownFrame)) > 8.0f &&
+                std::fabs(objectMotionSignature(buildFrame) - objectMotionSignature(releaseFrame)) > 5.0f,
+            "different song sections should produce distinct 3D motion signatures");
+    require(dropFrame.objectDepthRange < 2600.0f &&
+                breakdownFrame.objectDepthRange < 2600.0f &&
+                releaseFrame.objectDepthRange < 2600.0f,
+            "section motion should remain cinematic and bounded, not chaotic overmotion; dropRange=" +
+                std::to_string(dropFrame.objectDepthRange) +
+                " breakdownRange=" + std::to_string(breakdownFrame.objectDepthRange) +
+                " releaseRange=" + std::to_string(releaseFrame.objectDepthRange));
+}
+
 void songIdentitiesDriveDistinctCameraLanguage()
 {
     struct Profile {
@@ -6914,6 +7089,7 @@ int main()
         {"musicalRoleDistrictsConvergeOnlyWhenEarned", viz::tests::musicalRoleDistrictsConvergeOnlyWhenEarned},
         {"layeredMusicalPartsStayReadableBeforeConvergence", viz::tests::layeredMusicalPartsStayReadableBeforeConvergence},
         {"musicalPartsAuthorSeparateMotifFamilies", viz::tests::musicalPartsAuthorSeparateMotifFamilies},
+        {"songSectionsMoveRolesWithDistinctEmotionalDirection", viz::tests::songSectionsMoveRolesWithDistinctEmotionalDirection},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
         {"cinematicFramingKeeps3DScenesReadable", viz::tests::cinematicFramingKeeps3DScenesReadable},

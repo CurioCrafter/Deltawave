@@ -8142,6 +8142,16 @@ SectionTransformStats3D applySectionNarrativeComposition3D(std::vector<Object3D>
     const float sectionProgress = clamp01(metrics.sectionProgress);
     const float beatStep = std::round(clamp01(metrics.beatPhase) * 8.0f);
     const float cell = std::max(1.0f, minimumDimension * (0.030f + groove * 0.014f));
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.62f +
+                                   metrics.keyConfidence * 0.28f +
+                                   averageChromaEnergy(metrics) * 0.18f);
+    const float transient = transientEnergy3D(metrics);
+    const float harmonicPhase = (metrics.keyIndex >= 0
+                                     ? static_cast<float>((metrics.keyIndex % 12 + 12) % 12) / 12.0f
+                                     : metrics.spectralCentroid) *
+                                    2.0f * kPi +
+                                metrics.phrasePhase * kPi +
+                                phase * 0.025f;
 
     float depthMotion = 0.0f;
     float materialShift = 0.0f;
@@ -8185,6 +8195,87 @@ SectionTransformStats3D applySectionNarrativeComposition3D(std::vector<Object3D>
         point.x += lane * minimumDimension * release * (0.010f + metrics.harmonicEnergy * 0.018f);
         return point;
     };
+    const auto transformRolePoint = [&](Vec3 point, Object3DRole role, float seed, float depthUnit) {
+        MusicalRoleDistrict3D district = MusicalRoleDistrict3D::Bass;
+        if (!districtForObjectRole(role, district)) {
+            return point;
+        }
+
+        const float lane = std::sin(seed * 2.41f + beatStep) >= 0.0f ? 1.0f : -1.0f;
+        const float phraseCurve = smootherStep(0.08f, 0.92f, sectionProgress);
+        switch (district) {
+        case MusicalRoleDistrict3D::Bass:
+            point.y += minimumDimension * (build * 0.020f + drop * (0.050f + metrics.bass * 0.042f));
+            point.z -= minimumDimension * (build * 0.035f +
+                                           drop * (0.245f + metrics.bass * 0.220f) -
+                                           release * 0.050f);
+            point.x *= 1.0f - drop * (0.035f + metrics.bass * 0.045f);
+            break;
+        case MusicalRoleDistrict3D::Drums: {
+            const float drumCell = std::max(1.0f, minimumDimension * (0.026f + groove * 0.016f));
+            if (groove > 0.025f || drop > 0.035f) {
+                point.x = std::round(point.x / drumCell) * drumCell;
+                point.z = std::round(point.z / (drumCell * 1.28f)) * (drumCell * 1.28f);
+            }
+            point.z += minimumDimension * (groove * 0.055f + drop * 0.085f) *
+                       (std::fmod(std::fabs(seed) + beatStep, 2.0f) < 1.0f ? 1.0f : -0.35f);
+            point.y += minimumDimension * metrics.beatConfidence * (groove * 0.018f + drop * 0.022f);
+            break;
+        }
+        case MusicalRoleDistrict3D::Melody:
+            point.y -= minimumDimension * (build * (0.060f + harmonic * 0.030f) +
+                                           release * (0.070f + phraseCurve * 0.035f));
+            point.x += std::cos(harmonicPhase + seed) * minimumDimension *
+                       (build * 0.030f + release * 0.055f + harmonic * release * 0.024f);
+            point.z += std::sin(harmonicPhase * 0.72f + seed) * minimumDimension *
+                       (build * 0.040f + release * 0.070f) +
+                       minimumDimension * harmonic * (0.035f + release * 0.060f);
+            point.z += minimumDimension * drop * 0.020f;
+            break;
+        case MusicalRoleDistrict3D::Harmony:
+            point.x *= 1.0f + (build * 0.040f + breakdown * 0.115f + release * 0.075f) *
+                                      (0.72f + harmonic * 0.38f);
+            point.y -= minimumDimension * (build * 0.020f + release * 0.030f);
+            point.z += minimumDimension * (build * 0.035f + breakdown * 0.105f + release * 0.110f) *
+                       (0.74f + metrics.phraseConfidence * 0.30f);
+            break;
+        case MusicalRoleDistrict3D::Space:
+            point.x *= 1.0f + breakdown * (0.180f + metrics.stereoWidth * 0.180f) +
+                              release * (0.080f + metrics.stereoWidth * 0.050f) -
+                              drop * 0.035f;
+            point.y += std::sin(phase * 0.017f + seed) * minimumDimension *
+                       (breakdown * 0.040f + release * 0.024f);
+            point.z += minimumDimension * (build * 0.045f +
+                                           breakdown * (0.680f + metrics.stereoWidth * 0.360f) +
+                                           release * 0.145f -
+                                           drop * 0.035f);
+            break;
+        case MusicalRoleDistrict3D::Fracture:
+            point.x += lane * minimumDimension *
+                       (drop * (0.060f + transient * 0.075f) +
+                        groove * 0.026f +
+                        breakdown * 0.040f);
+            point.y += std::sin(seed * 3.0f + beatStep) * minimumDimension *
+                       (drop * 0.030f + transient * 0.030f);
+            point.z += lane * minimumDimension *
+                       (drop * (0.052f + transient * 0.084f) +
+                        build * 0.020f);
+            break;
+        case MusicalRoleDistrict3D::Shadow:
+            point.x *= 1.0f - drop * 0.025f - breakdown * 0.030f;
+            point.y += minimumDimension * (build * 0.018f +
+                                           drop * 0.050f +
+                                           breakdown * 0.060f +
+                                           release * 0.026f);
+            point.z += minimumDimension * (breakdown * 0.135f +
+                                           release * 0.070f +
+                                           drop * 0.055f);
+            break;
+        }
+
+        point.z += minimumDimension * depthUnit * (build * 0.035f + release * 0.045f);
+        return point;
+    };
 
     for (std::size_t i = 0; i < objects.size(); ++i) {
         Object3D& object = objects[i];
@@ -8203,8 +8294,10 @@ SectionTransformStats3D applySectionNarrativeComposition3D(std::vector<Object3D>
         const float rolePresence = explicitRole ? 1.10f : (connector ? 0.66f : 0.86f);
 
         object.position = transformPoint(object.position, seed, depthUnit);
+        object.position = transformRolePoint(object.position, object.musicRole, seed, depthUnit);
         if (object.kind == Object3DKind::Link) {
             object.target = transformPoint(object.target, seed + 0.31f, wrapUnit(depthUnit + 0.17f));
+            object.target = transformRolePoint(object.target, object.musicRole, seed + 0.31f, wrapUnit(depthUnit + 0.17f));
         }
 
         object.rotation.x += build * (0.035f + depthUnit * 0.030f) -
@@ -8231,6 +8324,41 @@ SectionTransformStats3D applySectionNarrativeComposition3D(std::vector<Object3D>
             object.scale.y *= 1.0f + drop * 0.12f + groove * 0.090f;
             object.scale.z *= 1.0f + groove * 0.050f;
         }
+        MusicalRoleDistrict3D explicitDistrict = MusicalRoleDistrict3D::Bass;
+        if (districtForObjectRole(object.musicRole, explicitDistrict)) {
+            switch (explicitDistrict) {
+            case MusicalRoleDistrict3D::Bass:
+                object.scale.y *= 1.0f + drop * (0.10f + metrics.bass * 0.08f);
+                object.scale.z *= 1.0f + drop * 0.12f;
+                object.rotation.z *= 1.0f - drop * 0.22f;
+                break;
+            case MusicalRoleDistrict3D::Drums:
+                object.scale.y *= 1.0f + groove * 0.10f + drop * 0.05f;
+                object.rotation.z = std::round(object.rotation.z * 12.0f) / 12.0f;
+                break;
+            case MusicalRoleDistrict3D::Melody:
+                object.scale.z *= 1.0f + harmonic * (build * 0.08f + release * 0.10f);
+                object.rotation.y += std::sin(harmonicPhase + seed) * (build * 0.08f + release * 0.11f);
+                break;
+            case MusicalRoleDistrict3D::Harmony:
+                object.scale.x *= 1.0f + harmonic * (breakdown * 0.10f + release * 0.08f);
+                object.scale.z *= 1.0f + harmonic * (build * 0.06f + release * 0.10f);
+                break;
+            case MusicalRoleDistrict3D::Space:
+                object.scale.x *= 1.0f + breakdown * (0.12f + metrics.stereoWidth * 0.08f);
+                object.scale.z *= 1.0f + release * 0.08f;
+                object.color.a *= std::clamp(1.0f - drop * 0.045f + breakdown * 0.035f, 0.88f, 1.08f);
+                break;
+            case MusicalRoleDistrict3D::Fracture:
+                object.scale.y *= 1.0f + drop * 0.06f + transient * 0.07f;
+                object.rotation.y += (std::sin(seed) >= 0.0f ? 1.0f : -1.0f) * (drop * 0.12f + transient * 0.08f);
+                break;
+            case MusicalRoleDistrict3D::Shadow:
+                object.scale.y *= 1.0f + breakdown * 0.12f + drop * 0.08f;
+                object.rotation.x *= 1.0f - breakdown * 0.12f;
+                break;
+            }
+        }
 
         const float glowLift = (build * 0.082f +
                                 drop * 0.205f +
@@ -8252,10 +8380,82 @@ SectionTransformStats3D applySectionNarrativeComposition3D(std::vector<Object3D>
                          std::fabs(object.color.a - originalAlpha) +
                          std::fabs(averageScale(object.scale) - averageScale(originalScale)) *
                              invDimension * 2.5f;
-        transformMass += length(subtract(object.position, originalPosition)) * invDimension;
+        const Vec3 delta = subtract(object.position, originalPosition);
+        object.velocity = add(object.velocity, delta);
+        transformMass += length(delta) * invDimension;
         if (object.kind == Object3DKind::Link) {
             depthMotion += std::fabs(object.target.z - originalTarget.z) * invDimension * 0.42f;
-            transformMass += length(subtract(object.target, originalTarget)) * invDimension * 0.32f;
+            const Vec3 targetDelta = subtract(object.target, originalTarget);
+            object.velocity = add(object.velocity, scale(targetDelta, 0.42f));
+            transformMass += length(targetDelta) * invDimension * 0.32f;
+        }
+    }
+
+    const ObjectBounds3D finalBounds = objectBounds3D(objects);
+    const bool hasConfidentSection = metrics.section != ArrangementSection::Silence &&
+                                     metrics.sectionConfidence > 0.45f;
+    if (hasConfidentSection && finalBounds.valid && finalBounds.span.z > 1.0f) {
+        float motionStyleSpanBias = 0.0f;
+        switch (settings.motionStyle) {
+        case MotionStyle::Smooth:
+            motionStyleSpanBias = -0.04f;
+            break;
+        case MotionStyle::Mechanical:
+            motionStyleSpanBias = -0.16f;
+            break;
+        case MotionStyle::Liquid:
+            motionStyleSpanBias = 0.04f;
+            break;
+        case MotionStyle::Hyperspace:
+            motionStyleSpanBias = 0.30f;
+            break;
+        case MotionStyle::HeavyBass:
+            motionStyleSpanBias = 0.14f;
+            break;
+        case MotionStyle::AmbientDrift:
+            motionStyleSpanBias = 0.38f;
+            break;
+        case MotionStyle::Breakbeat:
+            motionStyleSpanBias = -0.24f;
+            break;
+        }
+        const float composedControl = (stability + clarity) * 0.5f;
+        const float narrativeDepthSpan = minimumDimension *
+                                         std::clamp(2.74f +
+                                                        active * 0.34f +
+                                                        depth3DOf(settings) * 0.20f +
+                                                        breakdown * 0.18f +
+                                                        drop * 0.16f +
+                                                        release * 0.12f +
+                                                        metrics.stereoWidth * 0.08f +
+                                                        motionStyleSpanBias +
+                                                        (1.0f - composedControl) * 0.34f -
+                                                        composedControl * 0.12f,
+                                                    2.90f,
+                                                    3.54f);
+        if (finalBounds.span.z > narrativeDepthSpan) {
+            const float zScale = narrativeDepthSpan / finalBounds.span.z;
+            const float narrativeCenterZ = finalBounds.center.z +
+                                           minimumDimension * (breakdown * 0.10f +
+                                                               release * 0.040f -
+                                                               drop * 0.050f);
+            float compressionMotion = 0.0f;
+            for (Object3D& object : objects) {
+                const float previousZ = object.position.z;
+                object.position.z = narrativeCenterZ + (object.position.z - narrativeCenterZ) * zScale;
+                const float positionDeltaZ = object.position.z - previousZ;
+                object.velocity.z += positionDeltaZ;
+                compressionMotion += std::fabs(positionDeltaZ) * invDimension;
+
+                if (object.kind == Object3DKind::Link) {
+                    const float previousTargetZ = object.target.z;
+                    object.target.z = narrativeCenterZ + (object.target.z - narrativeCenterZ) * zScale;
+                    const float targetDeltaZ = object.target.z - previousTargetZ;
+                    object.velocity.z += targetDeltaZ * 0.42f;
+                    compressionMotion += std::fabs(targetDeltaZ) * invDimension * 0.42f;
+                }
+            }
+            transformMass += compressionMotion * 0.24f;
         }
     }
 
@@ -10492,14 +10692,14 @@ void addObject3DScene(GeometryFrame& frame,
                                       settings,
                                       minimumDimension,
                                       time);
-    const SectionTransformStats3D sectionTransform =
-        applySectionNarrativeComposition3D(objects, sectionNarrative, metrics, settings, minimumDimension, time);
     applyMusicalPartKinetics3D(objects, roleScene, metrics, settings, minimumDimension, time);
     applyMusicalPartComposer3D(objects, roleScene, intent, metrics, settings, minimumDimension, time);
 
     applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
     applyPatternReadability3D(objects, settings, metrics, roleScene, minimumDimension);
     applyCinematicFrameStaging3D(objects, settings, metrics, intent, roleScene, songIdentity, minimumDimension);
+    const SectionTransformStats3D sectionTransform =
+        applySectionNarrativeComposition3D(objects, sectionNarrative, metrics, settings, minimumDimension, time);
     applySongIdentityMaterialDirection3D(objects, songIdentity, metrics, settings, minimumDimension, time);
 
     for (Object3D& object : objects) {
