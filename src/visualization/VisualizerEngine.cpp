@@ -2063,7 +2063,7 @@ bool addProjectedFace(GeometryFrame& frame,
     }
 
     const float area = polygonArea(projected);
-    if (area < 8.0f) {
+    if (area < 0.05f) {
         return false;
     }
 
@@ -2123,6 +2123,17 @@ void renderWireObject3D(GeometryFrame& frame,
 
     if (object.kind == Object3DKind::TunnelRib) {
         const int sides = std::max(4, static_cast<int>(std::round(5.0f + object.scale.z * 8.0f)));
+        const float innerRadius = 0.62f;
+        for (int i = 0; i < sides; i += 2) {
+            const float a0 = (static_cast<float>(i) / static_cast<float>(sides)) * 2.0f * kPi;
+            const float a1 = (static_cast<float>((i + 1) % sides) / static_cast<float>(sides)) * 2.0f * kPi;
+            addMaterialFace({Vec3{std::cos(a0) * innerRadius, std::sin(a0) * innerRadius, 0.0f},
+                             Vec3{std::cos(a0), std::sin(a0), 0.0f},
+                             Vec3{std::cos(a1), std::sin(a1), 0.0f},
+                             Vec3{std::cos(a1) * innerRadius, std::sin(a1) * innerRadius, 0.0f}},
+                            0.34f,
+                            0.02f);
+        }
         std::vector<Vec3> points;
         points.reserve(static_cast<std::size_t>(sides));
         for (int i = 0; i < sides; ++i) {
@@ -2318,6 +2329,29 @@ void renderWireObject3D(GeometryFrame& frame,
         object.kind == Object3DKind::Particle ||
         object.kind == Object3DKind::Orbiter ||
         object.kind == Object3DKind::Anchor) {
+        const float bodyAlpha = object.kind == Object3DKind::Anchor ? 0.56f :
+                                (object.kind == Object3DKind::Orbiter ? 0.48f :
+                                 object.kind == Object3DKind::Node ? 0.52f : 0.34f);
+        addMaterialFace({Vec3{0.0f, -1.0f, 0.0f},
+                         Vec3{1.0f, 0.0f, 0.0f},
+                         Vec3{0.0f, 1.0f, 0.0f},
+                         Vec3{-1.0f, 0.0f, 0.0f}},
+                        bodyAlpha,
+                        0.06f);
+        addMaterialFace({Vec3{0.0f, -1.0f, 0.0f},
+                         Vec3{0.0f, 0.0f, 1.0f},
+                         Vec3{0.0f, 1.0f, 0.0f},
+                         Vec3{0.0f, 0.0f, -1.0f}},
+                        bodyAlpha * 0.82f,
+                        -0.01f);
+        if (object.kind == Object3DKind::Anchor) {
+            addMaterialFace({Vec3{-0.45f, -1.0f, -0.45f},
+                             Vec3{0.45f, -1.0f, -0.45f},
+                             Vec3{0.45f, 1.0f, -0.45f},
+                             Vec3{-0.45f, 1.0f, -0.45f}},
+                            0.34f,
+                            -0.03f);
+        }
         const Projected3D projected = projectPoint3D(object.position, camera);
         if (!projected.visible) {
             return;
@@ -2391,6 +2425,36 @@ void renderWireObject3D(GeometryFrame& frame,
                 (unit - 0.5f) * 2.0f,
                 std::sin(unit * kPi * 4.0f + object.rotation.y) * 0.55f
             }));
+        }
+        for (int i = 0; i < 13; i += 2) {
+            const float u0 = static_cast<float>(i) / 13.0f;
+            const float u1 = static_cast<float>(i + 1) / 13.0f;
+            const auto localRibbonPoint = [&](float unit, float side) {
+                const float angle = unit * kPi * 4.0f + object.rotation.z;
+                const float radius = 0.35f + unit * 0.35f;
+                const Vec3 center{
+                    std::cos(angle) * radius,
+                    (unit - 0.5f) * 2.0f,
+                    std::sin(unit * kPi * 4.0f + object.rotation.y) * 0.55f
+                };
+                const Vec3 sideVector{
+                    std::cos(angle + kPi * 0.5f) * 0.16f,
+                    0.0f,
+                    std::sin(angle + kPi * 0.5f) * 0.16f
+                };
+                return add(center, scale(sideVector, side));
+            };
+            const std::vector<Vec3> ribbonFace = {
+                world(localRibbonPoint(u0, -1.0f)),
+                world(localRibbonPoint(u1, -1.0f)),
+                world(localRibbonPoint(u1, 1.0f)),
+                world(localRibbonPoint(u0, 1.0f))
+            };
+            addProjectedFace(frame,
+                             camera,
+                             ribbonFace,
+                             withAlpha(color, color.a * (0.38f + depthUnit * 0.16f)),
+                             stroke * 0.22f);
         }
         addProjectedPolyline(frame, camera, points, color, stroke, false);
         return;
@@ -5037,8 +5101,14 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                                             phrasePull * 0.34f +
                                             metrics.dropIntensity * 0.18f +
                                             metrics.buildTension * metrics.phraseConfidence * 0.12f);
-    const float convergence = clamp01(role.convergence * (0.20f + earnedConvergence * 0.68f) +
-                                      phrasePull * role.convergence * 0.18f);
+    const float authoredConvergence = clamp01(role.convergence * (0.20f + earnedConvergence * 0.68f) +
+                                              phrasePull * role.convergence * 0.18f);
+    const float convergence = clamp01(authoredConvergence *
+                                      (0.48f +
+                                       earnedConvergence * 0.34f +
+                                       metrics.convergenceRole * 0.20f +
+                                       metrics.dropIntensity * 0.10f -
+                                       roleFocus * 0.10f));
     const float districtHold = clamp01(roleFocus * (1.0f - convergence * 0.42f));
     const float roleMotionGain = std::clamp(0.54f + (1.0f - stability) * 0.28f + (1.0f - clarity) * 0.18f,
                                             0.50f,
@@ -5073,8 +5143,8 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     };
 
     const float districtScale = minimumDimension *
-                                (0.26f + role.separation * 0.34f + personality * 0.08f) *
-                                (1.0f - convergence * 0.10f);
+                                (0.34f + role.separation * 0.42f + personality * 0.10f) *
+                                (1.0f - convergence * 0.07f);
     const auto districtOffset = [&](RoleDistrict district) {
         switch (district) {
         case RoleDistrict::Bass:
@@ -5096,8 +5166,8 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     };
     const auto rolePosition = [&](Vec3 position, RoleDistrict district, float merge) {
         const float readableMerge = clamp01(merge *
-                                            (0.26f + convergence * 0.46f) *
-                                            (1.0f - districtHold * 0.44f));
+                                            (0.18f + convergence * 0.36f + earnedConvergence * 0.08f) *
+                                            (1.0f - districtHold * 0.56f));
         const Vec3 offset = scale(districtOffset(district), districtScale * (1.0f - readableMerge * 0.28f));
         return mix(add(position, offset), convergencePoint, readableMerge);
     };
@@ -5538,6 +5608,32 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                            role.bass,
                            bassAnchors);
         }
+        const int pressureShells = scaledCount(2 + static_cast<int>(std::round(role.bass * 3.0f)),
+                                               density * (0.34f + role.bass * 0.24f));
+        for (int i = 0; i < pressureShells; ++i) {
+            const float unit = pressureShells > 1 ? static_cast<float>(i) / static_cast<float>(pressureShells - 1) : 0.0f;
+            const float side = i % 2 == 0 ? -1.0f : 1.0f;
+            Vec3 position{
+                side * minimumDimension * (0.08f + unit * 0.20f + metrics.stereoWidth * 0.04f),
+                minimumDimension * (0.16f + role.bass * 0.06f),
+                minimumDimension * (-0.54f + unit * 0.72f - metrics.dropIntensity * 0.10f)
+            };
+            position = rolePosition(position, RoleDistrict::Bass, convergence * 0.08f);
+            pushRoleObject(makeObject3D(Object3DKind::WaveSurface,
+                                        position,
+                                        Vec3{minimumDimension * (0.24f + role.bass * 0.13f + unit * 0.05f),
+                                             minimumDimension * (0.060f + metrics.lowMid * 0.050f),
+                                             minimumDimension * (0.018f + metrics.dropIntensity * 0.018f)},
+                                        Vec3{0.62f + unit * 0.18f,
+                                             side * (0.18f + role.bass * 0.12f),
+                                             beatPhase * kPi + unit * 0.42f},
+                                        withAlpha(mix(colors[1], colors[4], 0.18f), 0.14f + role.bass * 0.20f),
+                                        0.18f + role.bass * 0.46f + metrics.dropIntensity * 0.18f),
+                           RoleDistrict::Bass,
+                           role.bass,
+                           bassAnchors,
+                           i == 0 || i + 1 == pressureShells);
+        }
         const int weights = scaledCount(3 + static_cast<int>(std::round(role.bass * 3.0f)),
                                         density * (0.42f + role.bass * 0.30f));
         for (int i = 0; i < weights; ++i) {
@@ -5608,6 +5704,33 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 haveLast = true;
             }
         }
+        const int meters = scaledCount(3 + static_cast<int>(std::round(role.drums * 3.0f)),
+                                       density * (0.36f + role.drums * 0.22f));
+        for (int i = 0; i < meters; ++i) {
+            const float unit = meters > 1 ? static_cast<float>(i) / static_cast<float>(meters - 1) : 0.0f;
+            const float lane = unit - 0.5f;
+            const float downbeatScale = metrics.downbeat ? std::max(0.35f, metrics.downbeatConfidence) : beat * 0.32f;
+            Vec3 position{
+                lane * minimumDimension * 0.62f * stereoSpread,
+                minimumDimension * (-0.030f + lane * 0.055f),
+                minimumDimension * (-0.18f + unit * 0.62f + downbeatScale * 0.04f)
+            };
+            position = rolePosition(position, RoleDistrict::Drums, convergence * 0.08f);
+            pushRoleObject(makeObject3D(i % 2 == 0 ? Object3DKind::Plate : Object3DKind::Cage,
+                                        position,
+                                        Vec3{minimumDimension * (0.035f + role.drums * 0.018f),
+                                             minimumDimension * (0.090f + downbeatScale * 0.090f),
+                                             minimumDimension * (0.014f + role.drums * 0.012f)},
+                                        Vec3{0.10f,
+                                             lane * 0.16f,
+                                             std::round((barPhase + unit) * 8.0f) * (kPi / 8.0f)},
+                                        withAlpha(colors[i % 5], 0.15f + role.drums * 0.21f + downbeatScale * 0.12f),
+                                        0.16f + role.drums * 0.40f + downbeatScale * 0.22f),
+                           RoleDistrict::Drums,
+                           role.drums,
+                           drumAnchors,
+                           i == 0 || i + 1 == meters);
+        }
     }
 
     if (role.melody > 0.08f) {
@@ -5670,6 +5793,33 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                      withAlpha(colors[(i + 2U) % 5U], 0.10f + role.melody * 0.12f),
                      0.10f + role.melody * 0.24f);
         }
+        const int ribbons = scaledCount(2 + static_cast<int>(std::round(role.melody * 3.0f)),
+                                        density * (0.30f + role.melody * 0.24f));
+        for (int i = 0; i < ribbons; ++i) {
+            const float unit = ribbons > 1 ? static_cast<float>(i) / static_cast<float>(ribbons - 1) : 0.0f;
+            const float chroma = chromaAt(metrics, static_cast<std::size_t>(i * 3 + std::max(0, metrics.keyIndex)));
+            const float angle = unit * 2.0f * kPi + harmonic * kPi * 0.42f + metrics.phrasePhase * kPi;
+            Vec3 position{
+                std::cos(angle) * minimumDimension * (0.10f + role.melody * 0.13f + chroma * 0.08f),
+                -minimumDimension * (0.20f + role.melody * 0.15f + unit * 0.035f),
+                minimumDimension * (0.18f + unit * 0.44f + chroma * 0.18f)
+            };
+            position = rolePosition(position, RoleDistrict::Melody, convergence * 0.07f);
+            pushRoleObject(makeObject3D(Object3DKind::Ribbon,
+                                        position,
+                                        Vec3{minimumDimension * (0.040f + chroma * 0.030f),
+                                             minimumDimension * (0.070f + role.melody * 0.050f),
+                                             minimumDimension * (0.040f + harmonic * 0.020f)},
+                                        Vec3{angle * 0.22f,
+                                             harmonic * kPi * 0.36f + chroma,
+                                             phase * 0.016f + metrics.phrasePhase * kPi},
+                                        withAlpha(mix(colors[2], colors[3], chroma), 0.19f + role.melody * 0.24f + chroma * 0.08f),
+                                        0.18f + role.melody * 0.44f + chroma * 0.16f),
+                           RoleDistrict::Melody,
+                           role.melody,
+                           melodyAnchors,
+                           i == 0 || i + 1 == ribbons);
+        }
     }
 
     if (role.harmony > 0.08f) {
@@ -5703,6 +5853,32 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                      melodyAnchors[(i * 3U + 1U) % melodyAnchors.size()],
                      withAlpha(colors[(i + 1U) % 5U], 0.09f + role.harmony * 0.14f),
                      0.08f + role.harmony * 0.22f);
+        }
+        const int chordSheets = scaledCount(2 + static_cast<int>(std::round(role.harmony * 3.0f)),
+                                            density * (0.34f + role.harmony * 0.22f));
+        for (int i = 0; i < chordSheets; ++i) {
+            const float unit = chordSheets > 1 ? static_cast<float>(i) / static_cast<float>(chordSheets - 1) : 0.0f;
+            const float mirror = i % 2 == 0 ? -1.0f : 1.0f;
+            Vec3 position{
+                mirror * minimumDimension * (0.10f + role.harmony * 0.14f + unit * 0.10f) * stereoSpread,
+                -minimumDimension * (0.08f + role.harmony * 0.08f),
+                minimumDimension * (0.20f + unit * 0.40f + harmonic * 0.14f)
+            };
+            position = rolePosition(position, RoleDistrict::Harmony, convergence * 0.10f);
+            pushRoleObject(makeObject3D(Object3DKind::WaveSurface,
+                                        position,
+                                        Vec3{minimumDimension * (0.18f + role.harmony * 0.13f),
+                                             minimumDimension * (0.075f + harmonic * 0.040f),
+                                             minimumDimension * (0.020f + role.harmony * 0.018f)},
+                                        Vec3{0.38f + unit * 0.20f,
+                                             mirror * (0.20f + harmonic * 0.10f),
+                                             metrics.phrasePhase * kPi + unit * 0.50f},
+                                        withAlpha(colors[(i + 3) % 5], 0.13f + role.harmony * 0.20f),
+                                        0.14f + role.harmony * 0.34f + harmonic * 0.14f),
+                           RoleDistrict::Harmony,
+                           role.harmony,
+                           harmonyAnchors,
+                           i == 0 || i + 1 == chordSheets);
         }
     }
 
@@ -5786,34 +5962,34 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                                     ColorRGBA color,
                                     float relationship,
                                     int offset) {
-        const float bridgeThreshold = std::clamp(0.18f - convergence * 0.06f + districtHold * 0.04f, 0.11f, 0.24f);
+        const float bridgeThreshold = std::clamp(0.22f - convergence * 0.045f + districtHold * 0.085f, 0.16f, 0.31f);
         if (relationship <= bridgeThreshold || fromAnchors.empty() || toAnchors.empty()) {
             return;
         }
 
         const std::size_t fromIndex = static_cast<std::size_t>(std::abs(offset)) % fromAnchors.size();
         const std::size_t toIndex = static_cast<std::size_t>(std::abs(offset * 3 + 1)) % toAnchors.size();
-        const float bridgePull = clamp01(convergence * 0.52f + earnedConvergence * 0.24f);
-        const Vec3 from = mix(fromAnchors[fromIndex], convergencePoint, bridgePull * 0.24f);
-        const Vec3 to = mix(toAnchors[toIndex], convergencePoint, bridgePull * 0.24f);
+        const float bridgePull = clamp01(convergence * 0.40f + earnedConvergence * 0.18f);
+        const Vec3 from = mix(fromAnchors[fromIndex], convergencePoint, bridgePull * 0.18f);
+        const Vec3 to = mix(toAnchors[toIndex], convergencePoint, bridgePull * 0.18f);
         pushLink(from,
                  to,
-                 withAlpha(color, 0.034f + relationship * 0.070f + convergence * 0.050f),
-                 0.050f + relationship * 0.16f + convergence * 0.12f);
+                 withAlpha(color, 0.028f + relationship * 0.056f + convergence * 0.038f),
+                 0.044f + relationship * 0.13f + convergence * 0.10f);
 
-        if (convergence > 0.14f && relationship > bridgeThreshold + 0.04f) {
+        if (convergence > 0.18f && relationship > bridgeThreshold + 0.05f) {
             const Vec3 span = subtract(to, from);
             const float spanLength = std::max(1.0f, length(span));
             Object3D surface = makeObject3D((offset % 2 == 0) ? Object3DKind::WaveSurface : Object3DKind::Plate,
-                                            mix(mix(from, to, 0.5f), convergencePoint, convergence * 0.22f),
-                                            Vec3{spanLength * (0.26f + convergence * 0.16f),
-                                                 minimumDimension * (0.020f + relationship * 0.035f),
-                                                 minimumDimension * (0.012f + convergence * 0.026f)},
+                                            mix(mix(from, to, 0.5f), convergencePoint, convergence * 0.16f),
+                                            Vec3{spanLength * (0.20f + convergence * 0.13f),
+                                                 minimumDimension * (0.018f + relationship * 0.030f),
+                                                 minimumDimension * (0.012f + convergence * 0.020f)},
                                             Vec3{std::atan2(span.y, std::max(1.0f, std::fabs(span.x))),
                                                  std::atan2(span.z, std::max(1.0f, std::fabs(span.x))),
                                                  std::atan2(span.y, span.x)},
-                                            withAlpha(color, 0.070f + relationship * 0.080f + convergence * 0.11f),
-                                            0.12f + relationship * 0.26f + convergence * 0.34f);
+                                            withAlpha(color, 0.058f + relationship * 0.070f + convergence * 0.090f),
+                                            0.10f + relationship * 0.22f + convergence * 0.30f);
             surface.scale = scale(surface.scale, personalityScale);
             applyMotionDialect(surface);
             objects.push_back(surface);
@@ -5846,7 +6022,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                    std::min(role.melody, role.space) * (0.52f + metrics.stereoWidth * 0.28f),
                    5);
 
-    if (convergence > 0.16f) {
+    if (convergence > 0.20f) {
         objects.push_back(makeObject3D(Object3DKind::Cage,
                                        convergencePoint,
                                        Vec3{minimumDimension * (0.12f + convergence * 0.12f),
@@ -5861,9 +6037,9 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
         const auto connectRole = [&](const std::vector<Vec3>& anchors, ColorRGBA color, int stride) {
             for (std::size_t i = 0; i < anchors.size(); i += static_cast<std::size_t>(std::max(1, stride))) {
                 pushLink(anchors[i],
-                         mix(anchors[i], convergencePoint, 0.58f + convergence * 0.24f),
+                         mix(anchors[i], convergencePoint, 0.46f + convergence * 0.22f),
                          color,
-                         0.08f + convergence * 0.28f);
+                         0.065f + convergence * 0.24f);
             }
         };
         connectRole(bassAnchors, withAlpha(colors[1], 0.060f + convergence * 0.100f), 3);

@@ -297,6 +297,14 @@ Vec3 objectFamilyCentroid(const GeometryFrame& frame, std::initializer_list<Obje
     return Vec3{total.x * invCount, total.y * invCount, total.z * invCount};
 }
 
+float centroidDistance(Vec3 left, Vec3 right)
+{
+    const float dx = left.x - right.x;
+    const float dy = left.y - right.y;
+    const float dz = left.z - right.z;
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 float averageObjectScale(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -2872,6 +2880,99 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
             "shadow role should read as monumental depth separate from melody and bass");
 }
 
+void musicalRoleDistrictsConvergeOnlyWhenEarned()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.92f;
+    settings.lightingGlow = 0.92f;
+    settings.scenePersonality = 0.92f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.90f;
+    settings.patternClarity = 0.94f;
+    settings.complexity = 1.28f;
+    settings.intensity = 1.18f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics separated = syntheticMetrics();
+    separated.rms = 0.48f;
+    separated.peak = 0.72f;
+    separated.bass = 0.58f;
+    separated.lowMid = 0.44f;
+    separated.mid = 0.46f;
+    separated.highMid = 0.36f;
+    separated.treble = 0.32f;
+    separated.stereoWidth = 0.66f;
+    separated.spectralFlux = 0.24f;
+    separated.onset = 0.20f;
+    separated.beat = true;
+    separated.beatConfidence = 0.72f;
+    separated.barConfidence = 0.70f;
+    separated.downbeatConfidence = 0.48f;
+    separated.harmonicEnergy = 0.66f;
+    separated.keyConfidence = 0.64f;
+    separated.phraseConfidence = 0.34f;
+    separated.phraseIntensity = 0.18f;
+    separated.section = ArrangementSection::Groove;
+    separated.sectionConfidence = 0.74f;
+    separated.roleSeparation = 0.90f;
+    separated.bassRole = 0.72f;
+    separated.drumRole = 0.68f;
+    separated.melodyRole = 0.62f;
+    separated.harmonyRole = 0.58f;
+    separated.spaceRole = 0.52f;
+    separated.fractureRole = 0.46f;
+    separated.shadowRole = 0.44f;
+    separated.convergenceRole = 0.05f;
+
+    AudioMetrics converged = separated;
+    converged.dropIntensity = 0.84f;
+    converged.phraseBoundary = true;
+    converged.phraseConfidence = 0.88f;
+    converged.phraseIntensity = 0.74f;
+    converged.buildTension = 0.58f;
+    converged.downbeat = true;
+    converged.downbeatConfidence = 0.86f;
+    converged.convergenceRole = 0.90f;
+    converged.section = ArrangementSection::Drop;
+    converged.sectionConfidence = 0.92f;
+
+    const GeometryFrame separatedFrame = engine.buildFrame(separated, settings, 1280.0f, 720.0f, 5.25);
+    const GeometryFrame convergedFrame = engine.buildFrame(converged, settings, 1280.0f, 720.0f, 5.25);
+
+    require(separatedFrame.sceneRoleSeparation3D >= 0.82f,
+            "multi-role music without a phrase/drop cue should keep readable separate districts");
+    require(convergedFrame.sceneConvergence3D > separatedFrame.sceneConvergence3D + 0.45f,
+            "drop/phrase/convergence cues should explicitly raise the convergence metric");
+    require(objectKindCount(separatedFrame, Object3DKind::Link) <
+                static_cast<int>(separatedFrame.objects3D.size()) * 28 / 100,
+            "separated musical roles should not become mostly connector noise");
+    require(objectKindCount(convergedFrame, Object3DKind::Link) >=
+                objectKindCount(separatedFrame, Object3DKind::Link),
+            "earned convergence should add relationship lines instead of leaving roles isolated");
+
+    const Vec3 bassCenter = objectFamilyCentroid(separatedFrame, {Object3DKind::TunnelRib});
+    const Vec3 melodyCenter = objectFamilyCentroid(separatedFrame,
+                                                   {Object3DKind::Ribbon,
+                                                    Object3DKind::Node,
+                                                    Object3DKind::Shard});
+    const Vec3 spaceCenter = objectFamilyCentroid(separatedFrame,
+                                                  {Object3DKind::DepthPlane,
+                                                   Object3DKind::Orbiter});
+
+    require(centroidDistance(bassCenter, melodyCenter) > 250.0f,
+            "bass pressure and melody braids should occupy visibly different 3D districts");
+    require(spaceCenter.z > bassCenter.z + 220.0f,
+            "spatial depth fields should sit behind bass pressure instead of collapsing into the same mesh");
+    require(separatedFrame.projected3DFillVisualWeight > 180.0f &&
+                convergedFrame.projected3DFillVisualWeight > 180.0f,
+            "both separated and converged role scenes should be solid volumetric geometry");
+}
+
 void songIdentitiesDriveDistinctCameraLanguage()
 {
     struct Profile {
@@ -3541,8 +3642,13 @@ void silenceKeepsStableReadableScaffold()
     const GeometryFrame first = engine.buildFrame(silence, settings, 1280.0f, 720.0f, 1.0);
     const GeometryFrame second = engine.buildFrame(silence, settings, 1280.0f, 720.0f, 1.5);
 
+    const int firstPrimitiveCount = countPrimitives(first);
+    const int secondPrimitiveCount = countPrimitives(second);
     require(first.flash == 0.0f && second.flash == 0.0f, "silence should never create flash");
-    require(countPrimitives(first) == countPrimitives(second), "silence should keep a stable geometry count");
+    require(firstPrimitiveCount == secondPrimitiveCount,
+            "silence should keep a stable geometry count; first=" +
+                std::to_string(firstPrimitiveCount) +
+                " second=" + std::to_string(secondPrimitiveCount));
     require(std::fabs(first.cameraDepth - second.cameraDepth) < 1.0f,
             "silence should keep camera depth stable");
     require(std::fabs(first.objectDepthRange - second.objectDepthRange) < 90.0f,
@@ -3625,6 +3731,98 @@ void threeDScenesRenderMaterialFacesAndDepthHaze()
             "deep 3D scenes should report depth haze/fog strength");
     require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.8f,
             "filled material pass should keep the frame strongly 3D dominant");
+}
+
+void wireHeavy3DFamiliesRenderSolidMaterialFaces()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.92f;
+    settings.lightingGlow = 0.92f;
+    settings.colorImpact = 0.98f;
+    settings.scenePersonality = 0.90f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.88f;
+    settings.patternClarity = 0.92f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics base = syntheticMetrics();
+    base.rms = 0.50f;
+    base.peak = 0.76f;
+    base.bass = 0.48f;
+    base.lowMid = 0.38f;
+    base.mid = 0.42f;
+    base.highMid = 0.38f;
+    base.treble = 0.34f;
+    base.stereoWidth = 0.62f;
+    base.spectralFlux = 0.34f;
+    base.onset = 0.28f;
+    base.beat = true;
+    base.beatConfidence = 0.78f;
+    base.barConfidence = 0.72f;
+    base.downbeatConfidence = 0.58f;
+    base.harmonicEnergy = 0.72f;
+    base.keyConfidence = 0.70f;
+    base.roleSeparation = 0.84f;
+    base.section = ArrangementSection::Groove;
+    base.sectionConfidence = 0.82f;
+
+    struct Case {
+        VisualMode mode;
+        Object3DKind requiredKind;
+        AudioMetrics metrics;
+    };
+
+    AudioMetrics ribbon = base;
+    ribbon.style = AudioStyle::Wide;
+    ribbon.melodyRole = 0.88f;
+    ribbon.harmonyRole = 0.66f;
+    ribbon.spaceRole = 0.34f;
+    ribbon.convergenceRole = 0.14f;
+
+    AudioMetrics neural = base;
+    neural.style = AudioStyle::Bright;
+    neural.melodyRole = 0.70f;
+    neural.harmonyRole = 0.62f;
+    neural.spaceRole = 0.48f;
+    neural.fractureRole = 0.24f;
+    neural.convergenceRole = 0.18f;
+
+    AudioMetrics tunnel = base;
+    tunnel.style = AudioStyle::BassHeavy;
+    tunnel.bass = 0.86f;
+    tunnel.lowMid = 0.62f;
+    tunnel.dropIntensity = 0.54f;
+    tunnel.bassRole = 0.90f;
+    tunnel.drumRole = 0.42f;
+    tunnel.shadowRole = 0.36f;
+    tunnel.convergenceRole = 0.38f;
+
+    const Case cases[] = {
+        {VisualMode::PhaseWeave, Object3DKind::Ribbon, ribbon},
+        {VisualMode::NeuralConstellation, Object3DKind::Node, neural},
+        {VisualMode::QuantumTunnel, Object3DKind::TunnelRib, tunnel}
+    };
+
+    for (const Case& item : cases) {
+        settings.mode = item.mode;
+        const GeometryFrame frame = engine.buildFrame(item.metrics, settings, 1280.0f, 720.0f, 3.25);
+        require(frame.retained2DPrimitiveCount == 0,
+                "3D-first material frame should not keep legacy 2D primitives");
+        require(containsObjectKind(frame, item.requiredKind),
+                "wire-heavy mode should still author its signature 3D object kind");
+        require(frame.projected3DFaceCount >= 36,
+                "wire-heavy 3D families should project filled facets instead of only outlines");
+        require(filledPolylineCount(frame) >= frame.projected3DFaceCount,
+                "wire-heavy facets should render as filled projected polygons");
+        require(frame.projected3DFillVisualWeight > 90.0f,
+                "wire-heavy families should carry visible solid material weight");
+        require(frame.projected3DMaterialContrast > 0.045f,
+                "solid 3D facets should preserve material contrast");
+    }
 }
 
 void sectionNarrativeAuthorsDistinct3DStructures()
@@ -5531,6 +5729,7 @@ int main()
         {"autoSceneProfilesProduceDistinct3DSignatures", viz::tests::autoSceneProfilesProduceDistinct3DSignatures},
         {"sameModeSongIdentitiesAuthorDistinct3DSetPieces", viz::tests::sameModeSongIdentitiesAuthorDistinct3DSetPieces},
         {"analyzerRolesDriveSeparate3DObjectFamilies", viz::tests::analyzerRolesDriveSeparate3DObjectFamilies},
+        {"musicalRoleDistrictsConvergeOnlyWhenEarned", viz::tests::musicalRoleDistrictsConvergeOnlyWhenEarned},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
         {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
@@ -5540,6 +5739,7 @@ int main()
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
         {"threeDScenesRenderMaterialFacesAndDepthHaze", viz::tests::threeDScenesRenderMaterialFacesAndDepthHaze},
+        {"wireHeavy3DFamiliesRenderSolidMaterialFaces", viz::tests::wireHeavy3DFamiliesRenderSolidMaterialFaces},
         {"sectionNarrativeAuthorsDistinct3DStructures", viz::tests::sectionNarrativeAuthorsDistinct3DStructures},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
