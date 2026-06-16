@@ -12806,14 +12806,14 @@ void addQuietSceneScaffold3D(std::vector<Object3D>& objects,
 
     const float phase = static_cast<float>(time);
     const float calm = clamp01(std::max(intent.calm, quietness));
-    const float width = 0.72f + metrics.stereoWidth * 0.34f + quietness * 0.16f;
-    const float roomGain = 0.84f + personality * 0.12f + quietness * 0.10f + depthPresence * 0.04f;
+    const float width = 0.86f + metrics.stereoWidth * 0.38f + quietness * 0.22f;
+    const float roomGain = 0.98f + personality * 0.14f + quietness * 0.16f + depthPresence * 0.06f;
     const float audibleTrace = trueSilence ? 0.0f : clamp01(metrics.rms * 4.0f + metrics.peak * 0.55f);
     const float motionTrace = trueSilence ? 0.0f : clamp01(metrics.beatConfidence * 0.16f +
                                                            metrics.phraseConfidence * 0.12f +
                                                            metrics.stereoWidth * 0.08f);
-    const float alphaBase = 0.105f + quietness * 0.070f + audibleTrace * 0.035f;
-    const float glowBase = 0.070f + quietness * 0.070f + audibleTrace * 0.060f;
+    const float alphaBase = 0.130f + quietness * 0.095f + audibleTrace * 0.045f;
+    const float glowBase = 0.074f + quietness * 0.078f + audibleTrace * 0.060f;
     const float slowPhase = phase * (trueSilence ? 0.0025f : 0.0075f);
 
     const auto pushQuietObject = [&](Object3DKind kind,
@@ -12836,8 +12836,8 @@ void addQuietSceneScaffold3D(std::vector<Object3D>& objects,
         return object.position;
     };
 
-    const int rooms = scaledCount(5 + static_cast<int>(std::round(quietness * 3.0f)),
-                                  density * (0.82f + quietness * 0.24f));
+    const int rooms = scaledCount(7 + static_cast<int>(std::round(quietness * 4.0f)),
+                                  density * (0.90f + quietness * 0.30f));
     std::vector<Vec3> chamberAnchors;
     chamberAnchors.reserve(static_cast<std::size_t>(rooms));
     for (int i = 0; i < rooms; ++i) {
@@ -12845,16 +12845,16 @@ void addQuietSceneScaffold3D(std::vector<Object3D>& objects,
         const float lane = unit * 2.0f - 1.0f;
         const float breath = std::sin(slowPhase + unit * kPi) * (trueSilence ? 0.006f : 0.018f);
         const Vec3 center{
-            lane * minimumDimension * (0.045f + metrics.stereoWidth * 0.030f),
+            lane * minimumDimension * (0.070f + metrics.stereoWidth * 0.042f),
             std::sin(unit * kPi + slowPhase * 0.7f) * minimumDimension * (0.020f + motionTrace * 0.016f),
-            minimumDimension * (-0.46f + unit * (1.18f + quietness * 0.16f))
+            minimumDimension * (-0.58f + unit * (1.42f + quietness * 0.24f))
         };
         chamberAnchors.push_back(pushQuietObject(Object3DKind::DepthPlane,
                                                  Object3DRole::Space,
                                                  center,
-                                                 Vec3{minimumDimension * (0.34f + unit * 0.12f + quietness * 0.08f),
-                                                      minimumDimension * (0.16f + calm * 0.08f),
-                                                      minimumDimension * (0.018f + audibleTrace * 0.010f)},
+                                                 Vec3{minimumDimension * (0.42f + unit * 0.15f + quietness * 0.12f),
+                                                      minimumDimension * (0.20f + calm * 0.10f),
+                                                      minimumDimension * (0.022f + audibleTrace * 0.012f)},
                                                  Vec3{0.45f + unit * 0.10f + breath,
                                                       slowPhase * 0.18f,
                                                       lane * 0.10f + slowPhase * 0.22f},
@@ -12878,21 +12878,21 @@ void addQuietSceneScaffold3D(std::vector<Object3D>& objects,
         objects.push_back(link);
     }
 
-    const int arcs = scaledCount(6 + static_cast<int>(std::round(quietness * 4.0f)),
-                                 density * (0.70f + quietness * 0.22f));
+    const int arcs = scaledCount(9 + static_cast<int>(std::round(quietness * 5.0f)),
+                                 density * (0.76f + quietness * 0.26f));
     for (int i = 0; i < arcs; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, arcs));
         const float layer = static_cast<float>(i % 4) / 3.0f;
         const float angle = unit * 2.0f * kPi + slowPhase * (0.8f + layer * 0.4f);
-        const float radius = minimumDimension * (0.16f + layer * 0.16f + quietness * 0.05f) * width;
+        const float radius = minimumDimension * (0.19f + layer * 0.20f + quietness * 0.07f) * width;
         pushQuietObject(i % 3 == 0 ? Object3DKind::WaveSurface : Object3DKind::Orbiter,
                         i % 3 == 0 ? Object3DRole::Harmony : Object3DRole::Space,
                         Vec3{std::cos(angle) * radius,
                              std::sin(angle * 0.74f) * radius * (0.42f + calm * 0.10f),
                              minimumDimension * (-0.20f + layer * 0.50f + quietness * 0.20f)},
-                        Vec3{minimumDimension * (i % 3 == 0 ? 0.085f + quietness * 0.045f : 0.014f + audibleTrace * 0.006f),
-                             minimumDimension * (i % 3 == 0 ? 0.040f + quietness * 0.030f : 0.014f + audibleTrace * 0.006f),
-                             minimumDimension * (i % 3 == 0 ? 0.014f : 0.012f)},
+                        Vec3{minimumDimension * (i % 3 == 0 ? 0.105f + quietness * 0.060f : 0.018f + audibleTrace * 0.007f),
+                             minimumDimension * (i % 3 == 0 ? 0.050f + quietness * 0.038f : 0.018f + audibleTrace * 0.007f),
+                             minimumDimension * (i % 3 == 0 ? 0.017f : 0.014f)},
                         Vec3{0.30f + layer * 0.12f,
                              angle * 0.08f,
                              slowPhase * 0.40f + unit},
@@ -12904,7 +12904,7 @@ void addQuietSceneScaffold3D(std::vector<Object3D>& objects,
                              std::cos(angle) * minimumDimension * motionTrace * 0.006f});
     }
 
-    const int markers = scaledCount(4, density * (0.58f + quietness * 0.18f));
+    const int markers = scaledCount(5, density * (0.62f + quietness * 0.22f));
     for (int i = 0; i < markers; ++i) {
         const float unit = markers > 1 ? static_cast<float>(i) / static_cast<float>(markers - 1) : 0.0f;
         const float side = unit * 2.0f - 1.0f;
@@ -12921,6 +12921,28 @@ void addQuietSceneScaffold3D(std::vector<Object3D>& objects,
                              slowPhase * 0.20f},
                         withAlpha(mix(colors[4], colors[3], 0.30f), 0.085f + quietness * 0.060f),
                         0.055f + quietness * 0.080f);
+    }
+
+    const int rails = scaledCount(4, density * (0.56f + quietness * 0.18f));
+    for (int i = 0; i < rails; ++i) {
+        const float unit = rails > 1 ? static_cast<float>(i) / static_cast<float>(rails - 1) : 0.0f;
+        const float lane = unit * 2.0f - 1.0f;
+        const float ceiling = (i % 2 == 0) ? -1.0f : 1.0f;
+        pushQuietObject(Object3DKind::WaveSurface,
+                        Object3DRole::Space,
+                        Vec3{lane * minimumDimension * (0.30f + metrics.stereoWidth * 0.10f),
+                             ceiling * minimumDimension * (0.16f + quietness * 0.035f),
+                             minimumDimension * (-0.42f + unit * 1.06f + quietness * 0.08f)},
+                        Vec3{minimumDimension * (0.20f + quietness * 0.070f),
+                             minimumDimension * (0.018f + quietness * 0.014f),
+                             minimumDimension * (0.11f + quietness * 0.050f)},
+                        Vec3{0.52f + ceiling * 0.12f,
+                             lane * 0.10f,
+                             slowPhase * 0.28f + lane * 0.16f},
+                        withAlpha(mix(colors[4], colors[1], 0.24f + unit * 0.16f),
+                                  0.070f + quietness * 0.055f + audibleTrace * 0.030f),
+                        0.045f + quietness * 0.060f + audibleTrace * 0.040f,
+                        Vec3{0.0f, 0.0f, minimumDimension * motionTrace * 0.004f});
     }
 }
 
@@ -12953,7 +12975,7 @@ void addObject3DScene(GeometryFrame& frame,
                              metrics.rms < 0.025f &&
                              metrics.peak < 0.055f &&
                              metrics.beatConfidence < 0.08f;
-    const float silenceDensityScale = trueSilence ? 0.58f : 1.0f;
+    const float silenceDensityScale = trueSilence ? 0.74f : 1.0f;
     const float objectDensity = std::clamp(quality * (0.42f + objectDensity3DOf(settings) * 1.08f) *
                                                silenceDensityScale,
                                            0.18f,

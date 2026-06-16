@@ -5530,13 +5530,22 @@ void silenceKeepsStableReadableScaffold()
             "silence should avoid random depth-range jumps");
     require(averageObjectGlow(first) < 0.75f && averageObjectGlow(second) < 0.75f,
             "silence should keep glow restrained");
-    require(first.projected3DFaceCount >= 26 &&
-                first.projected3DMaterialShare > 0.24f &&
-                first.projected3DScreenCoverage > 0.24f,
+    require(first.retained2DPrimitiveCount == 0 &&
+                first.retained2DVisualWeight <= 0.001f,
+            "silence should keep the calm room 3D-first with no retained flat overlay");
+    require(first.projected3DFaceCount >= 40 &&
+                first.projected3DMaterialShare > 0.30f &&
+                first.projected3DScreenCoverage > 0.30f &&
+                first.objectDepthRange > 420.0f,
             "silence should render a visible calm 3D room with material surfaces, not a dead or tiny scaffold; faces=" +
                 std::to_string(first.projected3DFaceCount) +
                 " material=" + std::to_string(first.projected3DMaterialShare) +
-                " coverage=" + std::to_string(first.projected3DScreenCoverage));
+                " coverage=" + std::to_string(first.projected3DScreenCoverage) +
+                " depthRange=" + std::to_string(first.objectDepthRange));
+    require(first.foreground3DShare > 0.07f &&
+                first.midground3DShare > 0.18f &&
+                first.background3DShare > 0.18f,
+            "silence should have foreground/midground/background depth layers instead of one flat calm patch");
     require(objectRoleFamilyCount(first,
                                   Object3DRole::Space,
                                   {Object3DKind::DepthPlane, Object3DKind::WaveSurface, Object3DKind::Orbiter}) >= 16,
