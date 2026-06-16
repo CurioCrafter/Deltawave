@@ -2923,6 +2923,59 @@ SongSceneIdentity songSceneIdentityFor(const SceneInterpretation& intent,
         (intent.calm > 0.82f && metrics.rms < 0.08f)) {
         return SongSceneIdentity::CalmSpace;
     }
+
+    const float melodyRole = std::max(metrics.melodyRole, metrics.harmonyRole);
+    const float strongestRole = std::max({metrics.bassRole,
+                                          metrics.drumRole,
+                                          melodyRole,
+                                          metrics.spaceRole,
+                                          metrics.fractureRole,
+                                          metrics.shadowRole});
+    const bool explicitRoleCue = metrics.roleSeparation > 0.46f &&
+                                 strongestRole > 0.58f &&
+                                 metrics.rms > 0.035f;
+    const auto isStrongestRole = [strongestRole](float value) {
+        return value >= strongestRole - 0.0001f;
+    };
+    if (metrics.style == AudioStyle::BassHeavy &&
+        metrics.bass > 0.62f &&
+        metrics.bassRole > 0.44f &&
+        metrics.bassRole > metrics.shadowRole - 0.12f) {
+        return SongSceneIdentity::BassPressure;
+    }
+    if (explicitRoleCue) {
+        if (isStrongestRole(metrics.bassRole) &&
+            metrics.bassRole > melodyRole + 0.12f &&
+            metrics.bassRole > metrics.spaceRole + 0.12f) {
+            return SongSceneIdentity::BassPressure;
+        }
+        if (isStrongestRole(metrics.drumRole) &&
+            metrics.drumRole > metrics.spaceRole + 0.12f &&
+            metrics.drumRole > metrics.fractureRole + 0.08f) {
+            return SongSceneIdentity::TechnoArchitecture;
+        }
+        if (isStrongestRole(melodyRole) &&
+            melodyRole > metrics.bassRole + 0.10f &&
+            melodyRole > metrics.fractureRole + 0.08f) {
+            return SongSceneIdentity::MelodicCrystal;
+        }
+        if (isStrongestRole(metrics.spaceRole) &&
+            metrics.spaceRole > metrics.drumRole + 0.10f &&
+            metrics.spaceRole > metrics.fractureRole + 0.10f) {
+            return SongSceneIdentity::AmbientOrbit;
+        }
+        if (isStrongestRole(metrics.fractureRole) &&
+            metrics.fractureRole > metrics.spaceRole + 0.10f &&
+            metrics.fractureRole > melodyRole + 0.08f) {
+            return SongSceneIdentity::BreakbeatFracture;
+        }
+        if (isStrongestRole(metrics.shadowRole) &&
+            metrics.shadowRole > melodyRole + 0.10f &&
+            metrics.shadowRole > metrics.spaceRole + 0.08f) {
+            return SongSceneIdentity::DarkMonolith;
+        }
+    }
+
     if (mode == VisualMode::ResonanceTessellation &&
         metrics.style == AudioStyle::BassHeavy &&
         metrics.styleConfidence < 0.82f &&
@@ -3192,6 +3245,11 @@ SongIdentitySelection3D updateSongIdentityMemory3D(SongIdentityMemory& memory,
                            (transientEnergy3D(metrics) > 0.30f || metrics.fractureRole > 0.46f);
     const bool strongBass = candidate == SongSceneIdentity::BassPressure &&
                             (metrics.bassRole > 0.56f || metrics.bass > 0.72f || strongDrop);
+    const bool strongDark = candidate == SongSceneIdentity::DarkMonolith &&
+                            metrics.shadowRole > 0.44f &&
+                            metrics.shadowRole > metrics.bassRole + 0.08f &&
+                            metrics.dropIntensity < 0.22f &&
+                            metrics.rms > 0.08f;
     const bool explicitRoleScene = candidate == SongSceneIdentity::BassPressure ||
                                    candidate == SongSceneIdentity::TechnoArchitecture ||
                                    candidate == SongSceneIdentity::MelodicCrystal ||
@@ -3201,26 +3259,78 @@ SongIdentitySelection3D updateSongIdentityMemory3D(SongIdentityMemory& memory,
                                     metrics.roleSeparation > 0.34f &&
                                     candidateCue > 0.34f &&
                                     candidateCue > currentCue - 0.12f;
-    const bool strongSectionTurn = phraseEvent || strongDrop || strongCut || strongBass || strongRoleIdentity;
-    const bool quietAmbientSteal = candidate == SongSceneIdentity::AmbientOrbit &&
-                                   current != SongSceneIdentity::AmbientOrbit &&
-                                   metrics.rms < 0.22f &&
-                                   metrics.dropIntensity < 0.22f &&
-                                   metrics.beatConfidence < 0.42f &&
-                                   !phraseEvent;
+    const bool ambientStyleCue = (metrics.style == AudioStyle::Ambient || metrics.style == AudioStyle::Wide) &&
+                                 metrics.styleConfidence > 0.38f;
+    const bool ambientIntentSpaceEvidence = intent.spacious > 0.44f &&
+                                            (metrics.stereoWidth > 0.60f ||
+                                             metrics.spaceRole > 0.34f ||
+                                             metrics.roleSeparation > 0.50f);
+    const bool ambientSpaceEvidence = metrics.stereoWidth > 0.72f ||
+                                      metrics.spaceRole > 0.46f ||
+                                      ambientIntentSpaceEvidence ||
+                                      (ambientStyleCue &&
+                                       (metrics.stereoWidth > 0.68f ||
+                                        metrics.spaceRole > 0.40f ||
+                                        metrics.roleSeparation > 0.56f));
+    const bool credibleAmbientOrbit = candidate == SongSceneIdentity::AmbientOrbit &&
+                                      metrics.rms > 0.050f &&
+                                      metrics.dropIntensity < 0.30f &&
+                                      transientEnergy3D(metrics) < 0.28f &&
+                                      ambientSpaceEvidence;
+    const bool strongAmbientIdentity = credibleAmbientOrbit &&
+                                       candidateCue > 0.38f &&
+                                       candidateCue > currentCue - 0.08f;
+    const bool strongSectionTurn = phraseEvent || strongDrop || strongCut || strongBass || strongDark || strongRoleIdentity ||
+                                   strongAmbientIdentity;
+    const bool bassPressureTail = current == SongSceneIdentity::BassPressure &&
+                                  candidate == SongSceneIdentity::DarkMonolith &&
+                                  metrics.style == AudioStyle::BassHeavy &&
+                                  metrics.rms > 0.16f &&
+                                  metrics.bass > 0.62f &&
+                                  (metrics.bassRole > 0.44f || metrics.dropIntensity > 0.12f) &&
+                                  metrics.bassRole > metrics.shadowRole - 0.18f;
+    const bool breakbeatTail = current == SongSceneIdentity::BreakbeatFracture &&
+                               candidate == SongSceneIdentity::AmbientOrbit &&
+                               metrics.rms > 0.035f &&
+                               metrics.dropIntensity < 0.18f &&
+                               metrics.spaceRole < 0.42f &&
+                               (metrics.fractureRole > 0.18f ||
+                                metrics.fractureRole > metrics.spaceRole + 0.04f);
+    const bool ambientStyleOnlySteal = candidate == SongSceneIdentity::AmbientOrbit &&
+                                       current != SongSceneIdentity::AmbientOrbit &&
+                                       metrics.dropIntensity < 0.36f &&
+                                       metrics.beatConfidence < 0.50f &&
+                                       metrics.spaceRole < 0.50f &&
+                                       metrics.roleSeparation < 0.58f &&
+                                       metrics.convergenceRole < 0.24f &&
+                                       !(metrics.stereoWidth > 0.78f &&
+                                         (metrics.spaceRole > 0.40f || intent.spacious > 0.50f));
+    const bool unearnedAmbientSteal = candidate == SongSceneIdentity::AmbientOrbit &&
+                                      current != SongSceneIdentity::AmbientOrbit &&
+                                      !credibleAmbientOrbit &&
+                                      metrics.dropIntensity < 0.32f &&
+                                      metrics.beatConfidence < 0.46f &&
+                                      metrics.roleSeparation < 0.44f &&
+                                      metrics.spaceRole < 0.42f &&
+                                      !phraseEvent;
     const bool ambiguousLowEvidence = ((metrics.rms < 0.18f &&
                                         metrics.roleSeparation < 0.40f &&
-                                        metrics.sectionConfidence < 0.48f) ||
-                                       quietAmbientSteal) &&
-                                      !strongSectionTurn;
+                                        metrics.sectionConfidence < 0.48f) &&
+                                       !strongSectionTurn) ||
+                                      unearnedAmbientSteal;
     const float switchMargin = strongSectionTurn ? 0.035f : 0.16f;
     const bool shouldSwitch = !sameIdentity &&
                               candidateCue > 0.34f &&
                               !ambiguousLowEvidence &&
-                              (candidateCue > currentCue + switchMargin ||
-                               candidateCue > memory.confidence + switchMargin ||
-                               (candidateCue > 0.68f && strongSectionTurn) ||
-                               strongRoleIdentity);
+                              !ambientStyleOnlySteal &&
+                              !bassPressureTail &&
+                              !breakbeatTail &&
+                               (candidateCue > currentCue + switchMargin ||
+                                candidateCue > memory.confidence + switchMargin ||
+                                (candidateCue > 0.68f && strongSectionTurn) ||
+                                strongAmbientIdentity ||
+                                strongDark ||
+                                strongRoleIdentity);
 
     if (shouldSwitch) {
         memory.identity = static_cast<int>(candidate);
@@ -3249,6 +3359,116 @@ SongIdentitySelection3D updateSongIdentityMemory3D(SongIdentityMemory& memory,
         clamp01(memory.confidence),
         clamp01(memory.continuity)
     };
+}
+
+MusicRoleScene3D applySongIdentityRoleBias3D(MusicRoleScene3D role,
+                                             SongSceneIdentity identity,
+                                             const SceneInterpretation& intent,
+                                             const AudioMetrics& metrics,
+                                             const VisualSettings& settings)
+{
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.60f +
+                                   metrics.keyConfidence * 0.28f +
+                                   averageChromaEnergy(metrics) * 0.18f);
+    const float transient = transientEnergy3D(metrics);
+    const float beat = metrics.beat ? std::max(metrics.beatConfidence, 0.18f) : metrics.beatConfidence * 0.44f;
+    const float analyzerRoleSum = metrics.bassRole +
+                                  metrics.drumRole +
+                                  metrics.melodyRole +
+                                  metrics.harmonyRole +
+                                  metrics.spaceRole +
+                                  metrics.fractureRole +
+                                  metrics.shadowRole;
+    const bool layeredRoleScene = metrics.roleSeparation > 0.72f &&
+                                  analyzerRoleSum > 3.20f &&
+                                  metrics.convergenceRole < 0.22f &&
+                                  metrics.dropIntensity < 0.36f;
+    if (layeredRoleScene) {
+        return role;
+    }
+
+    switch (identity) {
+    case SongSceneIdentity::CalmSpace:
+        role.space = std::max(role.space, clamp01(0.26f + intent.calm * 0.24f + depth3DOf(settings) * 0.10f));
+        role.harmony = std::max(role.harmony, clamp01(harmonic * 0.36f + intent.calm * 0.10f));
+        role.bass *= 0.62f;
+        role.drums *= 0.50f;
+        role.fracture *= 0.50f;
+        role.shadow *= 0.70f;
+        break;
+    case SongSceneIdentity::BassPressure:
+        role.bass = std::max(role.bass,
+                             clamp01(0.48f + metrics.bass * 0.34f + metrics.dropIntensity * 0.22f));
+        role.convergence = std::max(role.convergence, clamp01(metrics.dropIntensity * 0.34f + role.bass * 0.12f));
+        role.melody *= 0.58f;
+        role.space *= 0.66f;
+        role.fracture = std::max(role.fracture, clamp01(transient * 0.32f + metrics.onset * 0.18f));
+        break;
+    case SongSceneIdentity::TechnoArchitecture:
+        role.drums = std::max(role.drums,
+                              clamp01(0.46f + beat * 0.34f + metrics.barConfidence * 0.18f));
+        role.bass = std::max(role.bass, clamp01(metrics.bass * 0.38f + metrics.lowMid * 0.18f));
+        role.melody *= 0.54f;
+        role.space *= 0.64f;
+        role.fracture *= 0.72f;
+        break;
+    case SongSceneIdentity::AmbientOrbit:
+        role.space = std::max(role.space,
+                              clamp01(0.50f + metrics.stereoWidth * 0.34f + intent.spacious * 0.18f));
+        role.harmony = std::max(role.harmony, clamp01(harmonic * 0.44f + metrics.phraseConfidence * 0.10f));
+        role.bass *= 0.48f;
+        role.drums *= 0.42f;
+        role.fracture *= 0.48f;
+        role.shadow *= 0.64f;
+        break;
+    case SongSceneIdentity::MelodicCrystal:
+        role.melody = std::max(role.melody,
+                               clamp01(0.46f + harmonic * 0.36f + metrics.keyConfidence * 0.12f));
+        role.harmony = std::max(role.harmony,
+                                clamp01(0.38f + harmonic * 0.34f + metrics.phraseConfidence * 0.12f));
+        role.space *= 0.56f;
+        role.fracture *= 0.58f;
+        role.shadow *= 0.56f;
+        role.drums *= 0.66f;
+        role.bass *= 0.54f;
+        break;
+    case SongSceneIdentity::BreakbeatFracture:
+        role.fracture = std::max(role.fracture,
+                                 clamp01(0.46f + transient * 0.34f + staggeredCutEnergy3D(metrics) * 0.26f +
+                                         metrics.spectralFlux * 0.12f));
+        role.drums = std::max(role.drums, clamp01(0.30f + beat * 0.30f + metrics.onset * 0.18f));
+        role.space *= 0.58f;
+        role.melody *= 0.48f;
+        role.harmony *= 0.62f;
+        role.shadow *= 0.66f;
+        role.bass *= 0.78f;
+        break;
+    case SongSceneIdentity::DarkMonolith:
+        role.shadow = std::max(role.shadow,
+                               clamp01(0.48f + intent.dark * 0.20f + intent.shadow * 0.28f +
+                                       (metrics.keyMode == MusicalMode::Minor ? metrics.keyConfidence * 0.10f : 0.0f)));
+        role.bass = std::max(role.bass, clamp01(metrics.bass * 0.45f + metrics.lowMid * 0.20f));
+        role.space *= 0.48f;
+        role.melody *= 0.44f;
+        role.harmony *= 0.62f;
+        role.fracture *= 0.58f;
+        role.drums *= 0.62f;
+        break;
+    }
+
+    const float activeRoles = (role.bass > 0.16f ? 1.0f : 0.0f) +
+                              (role.drums > 0.16f ? 1.0f : 0.0f) +
+                              (role.melody > 0.16f ? 1.0f : 0.0f) +
+                              (role.harmony > 0.16f ? 1.0f : 0.0f) +
+                              (role.space > 0.16f ? 1.0f : 0.0f) +
+                              (role.fracture > 0.16f ? 1.0f : 0.0f) +
+                              (role.shadow > 0.16f ? 1.0f : 0.0f);
+    role.separation = clamp01(std::max(role.separation,
+                                       0.46f +
+                                           activeRoles * 0.055f +
+                                           patternClarityOf(settings) * 0.16f -
+                                           role.convergence * 0.06f));
+    return role;
 }
 
 Camera3D makeCamera3D(const VisualSettings& settings,
@@ -6117,7 +6337,18 @@ void addNeuralSpaceObjects(std::vector<Object3D>& objects,
                            double time)
 {
     const float phase = static_cast<float>(time);
-    const int nodes = scaledCount(18, density * (0.82f + metrics.barConfidence * response * 0.42f + metrics.onset * 0.16f));
+    const float harmonicCharge = clamp01(metrics.harmonicEnergy * metrics.keyConfidence);
+    const float neuralCharge = clamp01(metrics.barConfidence * 0.30f +
+                                       metrics.downbeatConfidence * 0.24f +
+                                       harmonicCharge * 0.26f +
+                                       metrics.spectralFlux * 0.20f +
+                                       metrics.dropIntensity * 0.24f +
+                                       metrics.onset * 0.12f);
+    const int nodes = scaledCount(18 + static_cast<int>(std::round(neuralCharge * 10.0f)),
+                                  density * (0.82f +
+                                             metrics.barConfidence * response * 0.48f +
+                                             metrics.onset * 0.18f +
+                                             neuralCharge * 0.38f));
     const std::size_t firstNode = objects.size();
     for (int i = 0; i < nodes; ++i) {
         const float unit = static_cast<float>(i) / static_cast<float>(nodes);
@@ -6129,13 +6360,17 @@ void addNeuralSpaceObjects(std::vector<Object3D>& objects,
                                        Vec3{std::cos(angle + phase * 0.12f) * radius,
                                             std::sin(angle * 1.41f + phase * 0.1f) * radius * 0.72f,
                                             minimumDimension * (-0.25f + layer * 0.32f + chroma * 0.32f +
-                                                                metrics.downbeatConfidence * response * 0.1f)},
-                                       Vec3{minimumDimension * (0.012f + chroma * 0.018f + metrics.beatConfidence * response * 0.009f),
-                                            minimumDimension * (0.012f + chroma * 0.018f),
-                                            minimumDimension * 0.012f},
+                                                                metrics.downbeatConfidence * response * 0.1f +
+                                                                neuralCharge * 0.08f)},
+                                       Vec3{minimumDimension * (0.012f + chroma * 0.018f + metrics.beatConfidence * response * 0.009f + neuralCharge * 0.006f),
+                                            minimumDimension * (0.012f + chroma * 0.018f + neuralCharge * 0.007f),
+                                            minimumDimension * (0.012f + neuralCharge * 0.006f)},
                                        Vec3{phase * 0.3f, angle, metrics.phrasePhase * kPi},
-                                       withAlpha(colors[i % 4], 0.36f + metrics.barConfidence * 0.28f),
-                                       0.3f + metrics.downbeatConfidence * response * 0.82f + chroma * 0.4f));
+                                       withAlpha(colors[i % 4], 0.36f + metrics.barConfidence * 0.30f + neuralCharge * 0.12f),
+                                       0.30f +
+                                           metrics.downbeatConfidence * response * 0.88f +
+                                           chroma * 0.40f +
+                                           neuralCharge * 0.34f));
     }
     for (int i = 0; i < nodes; ++i) {
         const Object3D& a = objects[firstNode + static_cast<std::size_t>(i)];
@@ -6144,10 +6379,47 @@ void addNeuralSpaceObjects(std::vector<Object3D>& objects,
                                      a.position,
                                      Vec3{1.0f, 1.0f, 1.0f},
                                      Vec3{},
-                                     withAlpha(colors[(i + 1) % 4], 0.18f + metrics.phraseIntensity * 0.2f),
-                                     0.18f + metrics.barConfidence * response * 0.42f + personality * 0.18f);
+                                     withAlpha(colors[(i + 1) % 4],
+                                               0.18f +
+                                                   metrics.phraseIntensity * 0.20f +
+                                                   neuralCharge * 0.10f),
+                                     0.18f +
+                                         metrics.barConfidence * response * 0.44f +
+                                         personality * 0.18f +
+                                         neuralCharge * 0.24f);
         link.target = b.position;
         objects.push_back(link);
+    }
+
+    if (neuralCharge > 0.16f) {
+        const int shells = std::max(8,
+                                    scaledCount(10 + static_cast<int>(std::round(neuralCharge * 16.0f)),
+                                                density * (0.80f + neuralCharge * 0.48f)));
+        for (int i = 0; i < shells; ++i) {
+            const float unit = shells > 1 ? static_cast<float>(i) / static_cast<float>(shells - 1) : 0.0f;
+            const float angle = unit * 2.0f * kPi +
+                                metrics.barPhase * 2.0f * kPi +
+                                phase * (0.016f + neuralCharge * 0.012f);
+            const float radius = minimumDimension * (0.16f + unit * 0.22f + neuralCharge * 0.10f);
+            const Object3DKind kind = i % 3 == 0 ? Object3DKind::Cage :
+                                      (i % 2 == 0 ? Object3DKind::WaveSurface : Object3DKind::DepthPlane);
+            Object3D shell = makeObject3D(kind,
+                                          Vec3{std::cos(angle) * radius * (0.58f + metrics.stereoWidth * 0.28f),
+                                               std::sin(angle * 0.62f) * minimumDimension * (0.035f + neuralCharge * 0.060f),
+                                               minimumDimension * (0.02f + unit * 0.44f + neuralCharge * 0.12f)},
+                                          Vec3{minimumDimension * (0.42f + unit * 0.160f + neuralCharge * 0.28f),
+                                               minimumDimension * (0.18f + harmonicCharge * 0.130f + neuralCharge * 0.130f),
+                                               minimumDimension * (0.050f + neuralCharge * 0.080f)},
+                                          Vec3{0.30f + harmonicCharge * 0.24f + unit * 0.16f,
+                                               angle * 0.12f,
+                                               phase * 0.018f + metrics.beatPhase * kPi},
+                                          withAlpha(mix(colors[i % 5], colors[(i + 2) % 5], harmonicCharge),
+                                                    0.42f + neuralCharge * 0.46f),
+                                          0.78f + neuralCharge * 1.35f + response * 0.22f);
+            shell.musicRole = i % 3 == 0 ? Object3DRole::Drums :
+                              (i % 3 == 1 ? Object3DRole::Harmony : Object3DRole::Melody);
+            objects.push_back(shell);
+        }
     }
 }
 
@@ -7190,13 +7462,30 @@ void applyModeComposition3D(std::vector<Object3D>& objects,
             }
             break;
         case VisualMode::NeuralConstellation:
+        {
+            const float neuralCharge = clamp01(metrics.barConfidence * 0.30f +
+                                               metrics.downbeatConfidence * 0.24f +
+                                               metrics.harmonicEnergy * metrics.keyConfidence * 0.24f +
+                                               metrics.spectralFlux * 0.18f +
+                                               metrics.dropIntensity * 0.24f +
+                                               metrics.onset * 0.10f);
             object.position.x *= 1.78f + metrics.barConfidence * 0.22f;
             object.position.y *= 1.28f + metrics.downbeatConfidence * 0.10f;
             object.position.z *= 1.08f;
             if (object.kind == Object3DKind::Anchor || object.kind == Object3DKind::Node) {
-                object.scale = scale(object.scale, 1.42f + metrics.downbeatConfidence * 0.18f);
+                object.scale = scale(object.scale,
+                                     1.42f +
+                                         metrics.downbeatConfidence * 0.18f +
+                                         neuralCharge * 0.80f);
+            } else if (object.kind == Object3DKind::Cage ||
+                       object.kind == Object3DKind::DepthPlane ||
+                       object.kind == Object3DKind::WaveSurface) {
+                object.scale = scale(object.scale, 1.0f + neuralCharge * 0.70f);
             }
+            object.glow += neuralCharge * (object.kind == Object3DKind::Link ? 0.76f : 1.64f);
+            object.color.a = clamp01(object.color.a * (1.0f + neuralCharge * (object.kind == Object3DKind::Link ? 0.90f : 1.44f)));
             break;
+        }
         case VisualMode::CymaticInterference:
             object.position.x *= 1.88f + harmonic * 0.18f;
             object.position.y *= 0.62f + metrics.buildTension * 0.10f;
@@ -8480,6 +8769,9 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                                        metrics.dropIntensity * 0.08f -
                                        roleFocus * 0.14f));
     const float districtHold = clamp01(roleFocus * (1.0f - convergence * 0.42f));
+    const float partIsolation = clamp01(roleFocus *
+                                        (0.72f + clarity * 0.18f + role.separation * 0.10f) *
+                                        (1.0f - earnedConvergence * 0.32f - convergence * 0.30f));
     const float roleMotionGain = std::clamp(0.54f + (1.0f - stability) * 0.28f + (1.0f - clarity) * 0.18f,
                                             0.50f,
                                             1.0f);
@@ -8538,7 +8830,11 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                                            0.74f,
                                            1.08f);
     const float districtScale = minimumDimension *
-                                (0.66f + role.separation * 0.92f + personality * 0.20f + clarity * 0.10f) *
+                                (0.74f +
+                                 role.separation * 1.08f +
+                                 personality * 0.22f +
+                                 clarity * 0.12f +
+                                 partIsolation * 0.16f) *
                                 (1.0f - earnedConvergence * 0.10f - convergence * 0.045f) *
                                 stabilityTame;
     const auto districtOffset = [&](RoleDistrict district) {
@@ -8563,8 +8859,11 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     const auto rolePosition = [&](Vec3 position, RoleDistrict district, float merge) {
         const float readableMerge = clamp01(merge *
                                             (0.045f + convergence * 0.18f + earnedConvergence * 0.12f) *
-                                            (1.0f - districtHold * 0.78f));
-        const Vec3 offset = scale(districtOffset(district), districtScale * (1.0f - readableMerge * 0.12f));
+                                            (1.0f - districtHold * 0.78f) *
+                                            (1.0f - partIsolation * 0.62f));
+        const Vec3 offset = scale(districtOffset(district),
+                                  districtScale *
+                                      (1.0f + partIsolation * 0.10f - readableMerge * 0.12f));
         return mix(add(position, offset), convergencePoint, readableMerge);
     };
 
@@ -9379,12 +9678,15 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
         const float bridgeReadiness = clamp01(earnedConvergence * 0.68f +
                                               convergence * 0.28f +
                                               metrics.convergenceRole * 0.18f);
-        relationship *= std::clamp(0.34f + bridgeReadiness * 0.66f + convergence * 0.10f,
-                                   0.30f,
+        relationship *= std::clamp(0.22f + bridgeReadiness * 0.74f + convergence * 0.12f,
+                                   0.18f,
                                    1.02f);
-        const float bridgeThreshold = std::clamp(0.56f + districtHold * 0.30f - bridgeReadiness * 0.20f,
-                                                 0.44f,
-                                                 0.82f);
+        const float bridgeThreshold = std::clamp(0.62f +
+                                                     districtHold * 0.34f +
+                                                     partIsolation * 0.16f -
+                                                     bridgeReadiness * 0.24f,
+                                                 0.48f,
+                                                 0.90f);
         if (relationship <= bridgeThreshold || fromAnchors.empty() || toAnchors.empty()) {
             return;
         }
@@ -9651,7 +9953,12 @@ void addObject3DScene(GeometryFrame& frame,
                                            sectionNarrative.groove,
                                            sectionNarrative.breakdown,
                                            sectionNarrative.release});
-    const MusicRoleScene3D roleScene = buildMusicRoleScene3D(intent, metrics, settings);
+    const MusicRoleScene3D roleScene =
+        applySongIdentityRoleBias3D(buildMusicRoleScene3D(intent, metrics, settings),
+                                    songIdentity,
+                                    intent,
+                                    metrics,
+                                    settings);
     if (songIdentity == SongSceneIdentity::DarkMonolith) {
         for (Ring& ring : frame.rings) {
             ring.color.a *= 0.10f;

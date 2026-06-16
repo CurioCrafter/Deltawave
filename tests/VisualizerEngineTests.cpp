@@ -4752,6 +4752,180 @@ void songIdentityMemoryHoldsAmbiguousSceneLanguage()
             "identity switch should lower continuity so exports can identify a real scene turn");
 }
 
+void ambientOrbitTakesOverFromCalmWhenWideAndAudible()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::AmbientDrift;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.90f;
+    settings.lightingGlow = 0.88f;
+    settings.colorImpact = 0.92f;
+    settings.scenePersonality = 0.88f;
+    settings.response3D = 0.92f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.94f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics silence = syntheticMetrics();
+    silence.style = AudioStyle::Silence;
+    silence.styleConfidence = 1.0f;
+    silence.rms = 0.0f;
+    silence.peak = 0.0f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.10f;
+    ambient.peak = 0.18f;
+    ambient.bass = 0.05f;
+    ambient.lowMid = 0.12f;
+    ambient.mid = 0.24f;
+    ambient.highMid = 0.10f;
+    ambient.treble = 0.08f;
+    ambient.stereoWidth = 0.94f;
+    ambient.spectralFlux = 0.05f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.05f;
+    ambient.harmonicEnergy = 0.64f;
+    ambient.phraseConfidence = 0.78f;
+    ambient.phraseIntensity = 0.42f;
+    ambient.style = AudioStyle::Wide;
+    ambient.styleConfidence = 0.86f;
+    ambient.section = ArrangementSection::Breakdown;
+    ambient.sectionConfidence = 0.72f;
+    ambient.spaceRole = 0.72f;
+    ambient.harmonyRole = 0.32f;
+    ambient.roleSeparation = 0.62f;
+
+    const GeometryFrame silentFrame = engine.buildFrame(silence, settings, 1280.0f, 720.0f, 0.0);
+    const GeometryFrame ambientFrame = engine.buildFrame(ambient, settings, 1280.0f, 720.0f, 1.20);
+
+    require(silentFrame.songIdentityName == "Calm Space",
+            "silence should still establish a calm 3D space");
+    require(ambientFrame.songIdentityName == "Ambient Orbit",
+            "wide audible ambient should take over from Calm Space instead of being treated like silence; got " +
+                std::string(ambientFrame.songIdentityName));
+    require(ambientFrame.sceneSpaceRole3D > ambientFrame.sceneBassRole3D + 0.36f &&
+                ambientFrame.sceneSpaceRole3D > ambientFrame.sceneDrumRole3D + 0.30f,
+            "ambient orbit should be led by space/depth roles instead of bass or drums");
+    require(objectFamilyCount(ambientFrame, {Object3DKind::Orbiter, Object3DKind::WaveSurface, Object3DKind::DepthPlane}) >
+                objectFamilyCount(silentFrame, {Object3DKind::Orbiter, Object3DKind::WaveSurface, Object3DKind::DepthPlane}) + 5,
+            "ambient orbit should author visible orbital/depth geometry beyond the calm scaffold");
+}
+
+void melodicCrystalLeadsHarmonicAmbient()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::ChromaKaleidoscope;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.92f;
+    settings.lightingGlow = 0.90f;
+    settings.colorImpact = 0.96f;
+    settings.scenePersonality = 0.92f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.90f;
+    settings.patternClarity = 0.92f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics melodic = syntheticMetrics();
+    melodic.rms = 0.18f;
+    melodic.peak = 0.32f;
+    melodic.bass = 0.10f;
+    melodic.lowMid = 0.16f;
+    melodic.mid = 0.56f;
+    melodic.highMid = 0.54f;
+    melodic.treble = 0.46f;
+    melodic.stereoWidth = 0.62f;
+    melodic.spectralFlux = 0.12f;
+    melodic.beat = false;
+    melodic.beatConfidence = 0.08f;
+    melodic.keyIndex = 7;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.92f;
+    melodic.harmonicEnergy = 0.88f;
+    melodic.phraseConfidence = 0.82f;
+    melodic.phraseIntensity = 0.48f;
+    melodic.style = AudioStyle::Ambient;
+    melodic.styleConfidence = 0.86f;
+
+    const GeometryFrame frame = engine.buildFrame(melodic, settings, 1280.0f, 720.0f, 2.0);
+
+    require(frame.songIdentityName == "Melodic Crystal",
+            "harmonic ambient/melodic material should select Melodic Crystal; got " +
+                std::string(frame.songIdentityName));
+    require(frame.sceneMelodyRole3D + frame.sceneHarmonyRole3D > frame.sceneSpaceRole3D + 0.18f,
+            "melodic crystal should be led by melody/harmony roles instead of being washed out by ambient space; melody=" +
+                std::to_string(frame.sceneMelodyRole3D) +
+                " harmony=" + std::to_string(frame.sceneHarmonyRole3D) +
+                " space=" + std::to_string(frame.sceneSpaceRole3D));
+    require(objectRoleCount(frame, Object3DRole::Melody) >= 10 &&
+                objectFamilyCount(frame, {Object3DKind::Shard, Object3DKind::Node, Object3DKind::Cage}) >= 24,
+            "melodic crystal should foreground visible crystal/note geometry");
+}
+
+void breakbeatFractureStaysCutPlaneLed()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::SpectralOrigami;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::Breakbeat;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.92f;
+    settings.lightingGlow = 0.90f;
+    settings.colorImpact = 0.96f;
+    settings.scenePersonality = 0.92f;
+    settings.response3D = 0.98f;
+    settings.motionStability = 0.88f;
+    settings.patternClarity = 0.92f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics breakbeat = syntheticMetrics();
+    breakbeat.rms = 0.28f;
+    breakbeat.peak = 0.52f;
+    breakbeat.bass = 0.24f;
+    breakbeat.lowMid = 0.18f;
+    breakbeat.mid = 0.36f;
+    breakbeat.highMid = 0.82f;
+    breakbeat.treble = 0.74f;
+    breakbeat.stereoWidth = 0.62f;
+    breakbeat.spectralFlux = 0.78f;
+    breakbeat.onset = 0.82f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.42f;
+    breakbeat.barConfidence = 0.30f;
+    breakbeat.fractureRole = 0.78f;
+    breakbeat.drumRole = 0.42f;
+    breakbeat.spaceRole = 0.18f;
+    breakbeat.roleSeparation = 0.66f;
+    breakbeat.bandOnsets = {0.20f, 0.28f, 0.72f, 0.88f, 0.76f};
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.76f;
+
+    const GeometryFrame frame = engine.buildFrame(breakbeat, settings, 1280.0f, 720.0f, 3.0);
+
+    require(frame.songIdentityName == "Breakbeat Fracture",
+            "breakbeat/high-onset material should select Breakbeat Fracture; got " +
+                std::string(frame.songIdentityName));
+    require(frame.sceneFractureRole3D > frame.sceneSpaceRole3D + 0.14f,
+            "breakbeat fracture should remain led by cut-plane/fracture roles instead of becoming a space wash; fracture=" +
+                std::to_string(frame.sceneFractureRole3D) +
+                " space=" + std::to_string(frame.sceneSpaceRole3D));
+    require(objectFamilyCount(frame, {Object3DKind::Plate, Object3DKind::Shard}) >
+                objectFamilyCount(frame, {Object3DKind::DepthPlane, Object3DKind::WaveSurface}) + 6,
+            "breakbeat fracture should foreground plates/shards over broad ambient surfaces");
+}
+
 void mouseDepthInteractionMoves3DObjects()
 {
     VisualizerEngine engine;
@@ -5178,7 +5352,9 @@ void neuralConstellationRespondsToBarsHarmonyAndOnsets()
     require(lockedFrame.objects3D.size() > calmFrame.objects3D.size(),
             "downbeats and harmony should add 3D neural constellation objects");
     require(lockedFrame.projected3DVisualWeight > calmFrame.projected3DVisualWeight + 20.0f,
-            "drop and spectral energy should add visible 3D neural constellation weight");
+            "drop and spectral energy should add visible 3D neural constellation weight; calm=" +
+                std::to_string(calmFrame.projected3DVisualWeight) +
+                " locked=" + std::to_string(lockedFrame.projected3DVisualWeight));
     require(countPrimitives(lockedFrame) > countPrimitives(calmFrame),
             "bar-locked harmonic input should increase neural constellation density");
     require(lockedFrame.flash > calmFrame.flash,
@@ -6572,6 +6748,9 @@ int main()
         {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
+        {"ambientOrbitTakesOverFromCalmWhenWideAndAudible", viz::tests::ambientOrbitTakesOverFromCalmWhenWideAndAudible},
+        {"melodicCrystalLeadsHarmonicAmbient", viz::tests::melodicCrystalLeadsHarmonicAmbient},
+        {"breakbeatFractureStaysCutPlaneLed", viz::tests::breakbeatFractureStaysCutPlaneLed},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
         {"cameraContinuityEasesAbruptDropsWithoutMutingThem", viz::tests::cameraContinuityEasesAbruptDropsWithoutMutingThem},
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
