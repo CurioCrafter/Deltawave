@@ -2807,6 +2807,647 @@ void applyMusicalScorePartition3D(std::vector<Object3D>& objects,
     }
 }
 
+enum class SongSceneIdentity {
+    CalmSpace,
+    BassPressure,
+    TechnoArchitecture,
+    AmbientOrbit,
+    MelodicCrystal,
+    BreakbeatFracture,
+    DarkMonolith
+};
+
+Object3D makeObject3D(Object3DKind kind,
+                      Vec3 position,
+                      Vec3 scaleValue,
+                      Vec3 rotation,
+                      ColorRGBA color,
+                      float glow);
+
+void applyMusicalRoleRepresentativeClarity3D(std::vector<Object3D>& objects,
+                                             const MusicRoleScene3D& role,
+                                             const SceneInterpretation& intent,
+                                             const AudioMetrics& metrics,
+                                             const VisualSettings& settings,
+                                             SongSceneIdentity identity,
+                                             float minimumDimension,
+                                             double time)
+{
+    if (objects.empty()) {
+        return;
+    }
+
+    const float activeCount = activeRoleCount3D(role);
+    const float activeMass = role.bass + role.drums + role.melody + role.harmony +
+                             role.space + role.fracture + role.shadow;
+    if (activeCount < 1.2f && metrics.rms < 0.040f) {
+        return;
+    }
+    if (settings.interactiveField && settings.interactionDepth > 0.75f) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float clarity = patternClarityOf(settings);
+    const float stability = motionStabilityOf(settings);
+    const float personality = scenePersonalityOf(settings);
+    const float response = response3DOf(settings);
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.58f +
+                                   metrics.keyConfidence * 0.30f +
+                                   averageChromaEnergy(metrics) * 0.18f);
+    const float transient = clamp01(metrics.onset * 0.42f +
+                                    metrics.spectralFlux * 0.34f +
+                                    transientEnergy3D(metrics) * 0.32f);
+    const float beat = metrics.beat ? clamp01(0.08f + metrics.beatConfidence * 0.92f)
+                                    : metrics.beatConfidence * 0.42f;
+    const float earnedConvergence = clamp01(metrics.convergenceRole * 0.56f +
+                                            metrics.dropIntensity * 0.30f +
+                                            (metrics.phraseBoundary ? metrics.phraseConfidence * 0.26f : 0.0f) +
+                                            (metrics.downbeat ? metrics.downbeatConfidence * 0.16f : 0.0f) +
+                                            metrics.buildTension * metrics.phraseConfidence * 0.10f);
+    const float roleAuthority = clamp01(role.separation * 0.54f +
+                                        std::min(activeCount / 7.0f, 1.0f) * 0.18f +
+                                        std::min(activeMass / 3.8f, 1.0f) * 0.12f +
+                                        clarity * 0.12f +
+                                        stability * 0.06f +
+                                        personality * 0.08f);
+    const float partition = clamp01(roleAuthority *
+                                    (1.0f - earnedConvergence * 0.34f - role.convergence * 0.18f));
+    const float motionTame = std::clamp(0.66f +
+                                            (1.0f - stability) * 0.18f +
+                                            (1.0f - clarity) * 0.12f,
+                                        0.62f,
+                                        0.98f);
+    const float interactionReserve = settings.interactiveField
+                                         ? std::clamp(1.0f - settings.interactionDepth * 0.34f, 0.62f, 1.0f)
+                                         : 1.0f;
+    const float eventPermission = clamp01(earnedConvergence * 0.62f +
+                                          role.convergence * 0.42f +
+                                          metrics.convergenceRole * 0.28f);
+    const Vec3 convergencePoint = roleConvergencePoint3D(role, minimumDimension);
+    const bool darkMonolith = identity == SongSceneIdentity::DarkMonolith;
+    const bool shadowDominant =
+        darkMonolith &&
+        role.shadow > std::max({role.bass, role.drums, role.melody, role.fracture}) - 0.06f;
+
+    const auto roleSlot = [](MusicalRoleDistrict3D district) {
+        return static_cast<std::size_t>(district);
+    };
+    const auto roleColor = [&](MusicalRoleDistrict3D district, float alpha) {
+        ColorRGBA color{1.0f, 1.0f, 1.0f, alpha};
+        switch (district) {
+        case MusicalRoleDistrict3D::Bass:
+            color = darkMonolith ? ColorRGBA{0.42f, 0.44f, 0.54f, alpha}
+                                 : ColorRGBA{1.0f, 0.19f, 0.07f, alpha};
+            break;
+        case MusicalRoleDistrict3D::Drums:
+            color = ColorRGBA{0.04f, 0.96f, 1.0f, alpha};
+            break;
+        case MusicalRoleDistrict3D::Melody:
+            color = ColorRGBA{1.0f, 0.18f, 0.88f, alpha};
+            break;
+        case MusicalRoleDistrict3D::Harmony:
+            color = ColorRGBA{0.38f, 0.82f, 1.0f, alpha};
+            break;
+        case MusicalRoleDistrict3D::Space:
+            color = ColorRGBA{0.18f, 0.36f, 1.0f, alpha};
+            break;
+        case MusicalRoleDistrict3D::Fracture:
+            color = ColorRGBA{1.0f, 0.96f, 0.10f, alpha};
+            break;
+        case MusicalRoleDistrict3D::Shadow:
+            color = darkMonolith ? ColorRGBA{0.86f, 0.86f, 0.92f, alpha}
+                                 : ColorRGBA{0.70f, 0.72f, 0.86f, alpha};
+            break;
+        }
+        return shiftedHue(color, settings.hueShift);
+    };
+    const auto pulseForRole = [&](MusicalRoleDistrict3D district) {
+        switch (district) {
+        case MusicalRoleDistrict3D::Bass:
+            return clamp01(metrics.bass * 0.62f + metrics.lowMid * 0.22f + metrics.dropIntensity * 0.28f);
+        case MusicalRoleDistrict3D::Drums:
+            return clamp01(metrics.beatConfidence * 0.56f + metrics.barConfidence * 0.26f + beat * 0.18f);
+        case MusicalRoleDistrict3D::Melody:
+            return clamp01(harmonic * 0.72f + metrics.melodyRole * 0.18f + metrics.keyConfidence * 0.10f);
+        case MusicalRoleDistrict3D::Harmony:
+            return clamp01(harmonic * 0.60f + metrics.harmonyRole * 0.22f + metrics.phraseConfidence * 0.18f);
+        case MusicalRoleDistrict3D::Space:
+            return clamp01(metrics.stereoWidth * 0.70f + role.space * 0.26f + intent.spacious * 0.12f);
+        case MusicalRoleDistrict3D::Fracture:
+            return clamp01(transient * 0.78f + metrics.fractureRole * 0.22f);
+        case MusicalRoleDistrict3D::Shadow:
+            return clamp01(role.shadow * 0.62f + intent.dark * 0.18f + (1.0f - metrics.treble) * 0.20f);
+        }
+        return 0.0f;
+    };
+
+    std::array<int, 7> roleOrdinals{};
+    std::array<Vec3, 7> roleCenters{};
+    const std::array<MusicalRoleDistrict3D, 7> districts{
+        MusicalRoleDistrict3D::Bass,
+        MusicalRoleDistrict3D::Drums,
+        MusicalRoleDistrict3D::Melody,
+        MusicalRoleDistrict3D::Harmony,
+        MusicalRoleDistrict3D::Space,
+        MusicalRoleDistrict3D::Fracture,
+        MusicalRoleDistrict3D::Shadow
+    };
+    for (MusicalRoleDistrict3D district : districts) {
+        roleCenters[roleSlot(district)] =
+            roleDistrictCenter3D(district, role, intent, metrics, settings, minimumDimension, time);
+    }
+
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        Object3D& object = objects[i];
+        MusicalRoleDistrict3D district = MusicalRoleDistrict3D::Bass;
+        const bool explicitRole = districtForObjectRole(object.musicRole, district);
+        const bool bridgeRole = object.musicRole == Object3DRole::Bridge;
+        const bool convergenceRole = object.musicRole == Object3DRole::Convergence;
+
+        if (explicitRole) {
+            const std::size_t slot = roleSlot(district);
+            const float strength = clamp01(roleDistrictStrength(role, district));
+            if (strength <= 0.020f) {
+                object.color.a *= 0.72f;
+                object.glow *= 0.70f;
+                continue;
+            }
+
+            const int ordinal = roleOrdinals[slot]++;
+            const float lane = static_cast<float>((ordinal % 9) - 4) / 4.0f;
+            const float layer = static_cast<float>((ordinal / 9) % 6) / 5.0f;
+            const float seed = static_cast<float>(i + 1U) * 0.613f +
+                               static_cast<float>(ordinal + 1) * 0.337f +
+                               static_cast<float>(static_cast<int>(object.kind)) * 0.211f;
+            const float pulse = pulseForRole(district);
+            const Vec3 center = roleCenters[slot];
+            Vec3 local{};
+            Vec3 scaleBias{1.0f, 1.0f, 1.0f};
+            Vec3 rotationBias{};
+            Vec3 roleImpulse{};
+            float tintAmount = 0.24f + partition * 0.30f + strength * 0.14f;
+            float glowLift = pulse * strength * (0.10f + response * 0.08f);
+            float hold = std::clamp(0.16f +
+                                        partition * (0.26f + strength * 0.20f) +
+                                        clarity * 0.060f -
+                                        earnedConvergence * 0.080f,
+                                    0.14f,
+                                    object.kind == Object3DKind::Link ? 0.46f : 0.68f);
+            hold *= motionTame * interactionReserve;
+
+            switch (district) {
+            case MusicalRoleDistrict3D::Bass:
+                local = Vec3{lane * minimumDimension * (0.065f + metrics.stereoWidth * 0.030f),
+                             minimumDimension * (0.060f + pulse * 0.080f + layer * 0.030f),
+                             -minimumDimension * (0.24f + pulse * 0.24f + layer * 0.085f)};
+                scaleBias = Vec3{0.46f, 0.74f + pulse * 0.10f, 2.72f + metrics.dropIntensity * 0.42f};
+                object.rotation.z *= 0.34f;
+                object.rotation.x *= 0.68f;
+                roleImpulse = Vec3{0.0f,
+                                   minimumDimension * pulse * strength * 0.012f,
+                                   -minimumDimension * pulse * strength * 0.030f};
+                glowLift += metrics.bass * strength * 0.12f;
+                break;
+            case MusicalRoleDistrict3D::Drums: {
+                const float cell = minimumDimension * (0.052f + metrics.beatConfidence * 0.016f);
+                const float step = std::round((lane + 1.0f) * 4.0f);
+                local = Vec3{(step - 4.0f) * cell,
+                             minimumDimension * (lane * 0.028f + pulse * 0.035f),
+                             minimumDimension * (-0.08f + layer * 0.46f + pulse * 0.090f)};
+                scaleBias = Vec3{0.58f, 1.32f + pulse * 0.30f, 0.62f};
+                object.rotation.x = std::round(object.rotation.x * 12.0f) / 12.0f;
+                object.rotation.y = std::round(object.rotation.y * 12.0f) / 12.0f;
+                object.rotation.z = std::round((object.rotation.z + metrics.beatPhase * kPi) / (kPi / 8.0f)) * (kPi / 8.0f);
+                roleImpulse = Vec3{0.0f,
+                                   minimumDimension * pulse * strength * 0.030f,
+                                   minimumDimension * pulse * strength * (0.038f + metrics.barConfidence * 0.025f)};
+                glowLift += pulse * strength * 0.16f;
+                break;
+            }
+            case MusicalRoleDistrict3D::Melody: {
+                const float chroma = chromaAt(metrics, static_cast<std::size_t>(std::max(0, metrics.keyIndex) + ordinal));
+                const float angle = metrics.phrasePhase * kPi + phase * 0.018f + seed;
+                local = Vec3{std::cos(angle) * minimumDimension * (0.080f + chroma * 0.080f + strength * 0.040f),
+                             -minimumDimension * (0.15f + pulse * 0.10f + layer * 0.055f),
+                             minimumDimension * (0.05f + chroma * 0.34f + layer * 0.20f)};
+                scaleBias = Vec3{0.62f, 0.58f, 1.92f + chroma * 0.30f};
+                rotationBias = Vec3{0.0f, pulse * 0.14f, metrics.keyConfidence * 0.10f};
+                glowLift += (harmonic + chroma) * strength * 0.12f;
+                break;
+            }
+            case MusicalRoleDistrict3D::Harmony: {
+                const float mirror = ordinal % 2 == 0 ? -1.0f : 1.0f;
+                local = Vec3{mirror * minimumDimension * (0.12f + layer * 0.12f + metrics.stereoWidth * 0.050f),
+                             -minimumDimension * (0.055f + harmonic * 0.045f),
+                             minimumDimension * (0.20f + harmonic * 0.18f + layer * 0.25f)};
+                scaleBias = Vec3{1.44f + harmonic * 0.22f, 0.72f, 1.28f + pulse * 0.18f};
+                object.rotation.z *= 0.66f;
+                glowLift += harmonic * strength * 0.10f;
+                break;
+            }
+            case MusicalRoleDistrict3D::Space: {
+                const float angle = phase * (0.010f + metrics.stereoWidth * 0.012f) + seed;
+                local = Vec3{std::sin(angle) * minimumDimension * (0.20f + metrics.stereoWidth * 0.24f),
+                             std::cos(angle * 0.62f) * minimumDimension * (0.030f + role.space * 0.040f),
+                             minimumDimension * (0.44f + layer * (0.54f + metrics.stereoWidth * 0.76f) +
+                                                 metrics.stereoWidth * 0.18f)};
+                scaleBias = Vec3{1.56f + metrics.stereoWidth * 0.26f, 0.66f, 1.34f + role.space * 0.18f};
+                object.rotation.x *= 0.44f;
+                object.rotation.z *= 0.48f;
+                tintAmount *= 0.88f;
+                object.color.a *= std::clamp(0.90f + metrics.stereoWidth * 0.08f, 0.88f, 1.04f);
+                roleImpulse = Vec3{0.0f,
+                                   0.0f,
+                                   minimumDimension * metrics.stereoWidth * strength * (0.045f + layer * 0.58f)};
+                break;
+            }
+            case MusicalRoleDistrict3D::Fracture: {
+                const float side = ordinal % 2 == 0 ? -1.0f : 1.0f;
+                local = Vec3{side * minimumDimension * (0.24f + layer * 0.22f + transient * 0.120f),
+                             (lane + std::sin(seed) * 0.32f) * minimumDimension * (0.075f + transient * 0.080f),
+                             minimumDimension * (-0.14f + layer * 0.50f + side * transient * 0.130f)};
+                scaleBias = Vec3{1.30f + transient * 0.22f, 0.56f + transient * 0.12f, 0.64f + transient * 0.14f};
+                rotationBias = Vec3{0.0f, side * (0.16f + transient * 0.22f), 0.0f};
+                object.rotation.z = std::round((object.rotation.z + metrics.beatPhase * kPi) / (kPi / 6.0f)) * (kPi / 6.0f);
+                roleImpulse = Vec3{side * minimumDimension * transient * strength * 0.060f,
+                                   std::sin(seed * 1.7f) * minimumDimension * transient * strength * 0.024f,
+                                   side * minimumDimension * transient * strength * 0.052f};
+                hold = std::min(object.kind == Object3DKind::Link ? 0.52f : 0.74f,
+                                hold + transient * 0.12f);
+                glowLift += transient * strength * (0.30f + response * 0.22f);
+                break;
+            }
+            case MusicalRoleDistrict3D::Shadow:
+                local = Vec3{lane * minimumDimension * (0.060f + metrics.stereoWidth * 0.030f),
+                             minimumDimension * (0.22f + pulse * 0.13f + layer * 0.060f),
+                             minimumDimension * (0.18f + pulse * 0.20f + layer * 0.22f)};
+                scaleBias = Vec3{0.54f, 1.62f + pulse * 0.34f, 0.60f};
+                object.rotation.x *= 0.26f;
+                object.rotation.y *= 0.34f;
+                object.rotation.z *= 0.12f;
+                glowLift += pulse * strength * 0.060f;
+                break;
+            }
+
+            if (darkMonolith) {
+                if (district == MusicalRoleDistrict3D::Bass) {
+                    local.y *= 0.62f;
+                    local.z -= minimumDimension * 0.20f;
+                    scaleBias = multiply(scaleBias, Vec3{0.72f, 0.78f, 0.92f});
+                    tintAmount = std::max(tintAmount, 0.58f);
+                    object.color.a *= shadowDominant ? 0.42f : 0.62f;
+                    object.glow *= shadowDominant ? 0.38f : 0.58f;
+                    hold *= 0.72f;
+                } else if (district == MusicalRoleDistrict3D::Shadow) {
+                    local.x *= 0.66f;
+                    local.y += minimumDimension * (0.10f + role.shadow * 0.13f);
+                    local.z += minimumDimension * (0.08f + intent.dark * 0.08f);
+                    scaleBias = multiply(scaleBias, Vec3{0.78f, 1.22f, 0.82f});
+                    tintAmount = std::max(tintAmount, 0.72f);
+                    object.color.a = clamp01(object.color.a * 1.18f + 0.040f);
+                    object.glow = object.glow * 0.84f + 0.060f + role.shadow * 0.070f;
+                    hold = std::min(0.78f, hold * 1.18f);
+                } else if (shadowDominant && district != MusicalRoleDistrict3D::Space) {
+                    object.color.a *= 0.72f;
+                    object.glow *= 0.72f;
+                }
+            }
+
+            const Vec3 roleAxis = roleDistrictUnitOffset(district);
+            const Vec3 roleTarget = add(center,
+                                        add(local,
+                                            scale(roleAxis,
+                                                  minimumDimension *
+                                                      (0.075f + strength * 0.085f + partition * 0.060f) *
+                                                      (1.0f - earnedConvergence * 0.28f))));
+            Vec3 boundedRoleTarget = roleTarget;
+            const float forwardDepthLimit = district == MusicalRoleDistrict3D::Space ?
+                                                (0.72f + metrics.stereoWidth * 0.76f) :
+                                            district == MusicalRoleDistrict3D::Harmony ? 0.72f :
+                                            district == MusicalRoleDistrict3D::Melody ? 0.70f :
+                                            district == MusicalRoleDistrict3D::Shadow ? 0.72f : 0.58f;
+            const float backwardDepthLimit = district == MusicalRoleDistrict3D::Bass ? 0.58f :
+                                             district == MusicalRoleDistrict3D::Fracture ? 0.50f : 0.44f;
+            boundedRoleTarget.z = center.z +
+                                  std::clamp(roleTarget.z - center.z,
+                                             -minimumDimension * backwardDepthLimit,
+                                             minimumDimension * forwardDepthLimit);
+            const Vec3 before = object.position;
+            object.position = mix(object.position, boundedRoleTarget, hold);
+            object.rotation = add(object.rotation, scale(rotationBias, hold));
+            if (eventPermission > 0.28f && earnedConvergence > 0.18f) {
+                const Vec3 rendezvous = add(convergencePoint,
+                                            scale(roleAxis,
+                                                  minimumDimension * (0.16f + strength * 0.10f) *
+                                                      (1.0f - earnedConvergence * 0.24f)));
+                object.position = mix(object.position, rendezvous, eventPermission * (0.10f + strength * 0.12f));
+            }
+            object.position = add(object.position, scale(roleImpulse, motionTame));
+            if (district == MusicalRoleDistrict3D::Space) {
+                const float stereoDepthStretch = 1.0f + metrics.stereoWidth * strength * 0.30f;
+                object.position.z = center.z + (object.position.z - center.z) * stereoDepthStretch;
+            }
+
+            const Vec3 delta = subtract(object.position, before);
+            if (object.kind == Object3DKind::Link) {
+                object.target = add(object.target, scale(delta, 0.70f));
+            }
+            object.scale = multiply(object.scale, mix(Vec3{1.0f, 1.0f, 1.0f}, scaleBias, hold * 0.84f));
+            object.color = mix(object.color, roleColor(district, object.color.a), clamp01(tintAmount));
+            object.color.a = clamp01(object.color.a * (1.01f + partition * 0.14f + strength * 0.08f));
+            object.glow = std::clamp(object.glow + glowLift + partition * 0.035f, 0.0f, 3.0f);
+            object.velocity = add(object.velocity, delta);
+            continue;
+        }
+
+        if (bridgeRole || convergenceRole) {
+            const float visibility = std::clamp(0.035f + eventPermission * 0.86f,
+                                                0.025f,
+                                                convergenceRole ? 0.96f : 0.70f);
+            const float darkBridgeDamp = darkMonolith && eventPermission < 0.42f ? 0.56f : 1.0f;
+            object.color.a *= visibility * darkBridgeDamp;
+            object.glow *= std::clamp(0.12f + eventPermission * 0.88f, 0.08f, 1.06f) * darkBridgeDamp;
+            object.scale = scale(object.scale, std::clamp(0.60f + eventPermission * 0.44f, 0.56f, 1.06f));
+            if (eventPermission < 0.34f) {
+                object.position = mix(object.position, convergencePoint, 0.020f + eventPermission * 0.050f);
+                if (object.kind == Object3DKind::Link) {
+                    object.target = mix(object.target, convergencePoint, 0.018f + eventPermission * 0.040f);
+                }
+            }
+            continue;
+        }
+
+        const float yield = clamp01(partition * (0.42f + role.space * 0.12f + role.shadow * 0.12f));
+        if (yield > 0.04f) {
+            object.position.z += minimumDimension * yield * (0.12f + metrics.stereoWidth * 0.08f);
+            object.color.a *= std::clamp(0.66f - yield * 0.30f, 0.18f, 0.70f);
+            object.glow *= std::clamp(0.58f - yield * 0.20f, 0.22f, 0.64f);
+            if (darkMonolith && object.kind == Object3DKind::TunnelRib) {
+                object.color = mix(object.color, ColorRGBA{0.24f, 0.26f, 0.34f, object.color.a}, 0.72f);
+                object.color.a *= 0.46f;
+                object.glow *= 0.40f;
+                object.scale = multiply(object.scale, Vec3{0.62f, 0.68f, 0.72f});
+            } else if (object.kind != Object3DKind::TunnelRib && object.kind != Object3DKind::Column) {
+                object.scale = scale(object.scale, 0.88f - yield * 0.08f);
+            }
+        }
+    }
+
+    if (eventPermission > 0.34f && activeCount >= 2.5f) {
+        Object3D knot = makeObject3D(Object3DKind::Cage,
+                                     convergencePoint,
+                                     Vec3{minimumDimension * (0.060f + eventPermission * 0.070f),
+                                          minimumDimension * (0.050f + eventPermission * 0.060f),
+                                          minimumDimension * (0.070f + eventPermission * 0.090f)},
+                                     Vec3{phase * 0.014f,
+                                          metrics.beatPhase * kPi * 0.20f,
+                                          metrics.phrasePhase * kPi},
+                                     roleColor(MusicalRoleDistrict3D::Harmony, 0.10f + eventPermission * 0.18f),
+                                     0.16f + eventPermission * 0.42f);
+        knot.musicRole = Object3DRole::Convergence;
+        objects.push_back(knot);
+
+        int spokes = 0;
+        for (MusicalRoleDistrict3D district : districts) {
+            const float strength = roleDistrictStrength(role, district);
+            if (strength <= 0.18f) {
+                continue;
+            }
+
+            const Vec3 from = mix(roleCenters[roleSlot(district)],
+                                  convergencePoint,
+                                  eventPermission * (0.12f + strength * 0.10f));
+            const Vec3 to = add(convergencePoint,
+                                scale(roleDistrictUnitOffset(district),
+                                      minimumDimension * (0.10f + strength * 0.055f) *
+                                          (1.0f - eventPermission * 0.20f)));
+            Object3D spoke = makeObject3D(Object3DKind::Link,
+                                          from,
+                                          Vec3{1.0f, 1.0f, 1.0f},
+                                          Vec3{},
+                                          roleColor(district, 0.032f + eventPermission * 0.060f),
+                                          0.030f + eventPermission * 0.11f + strength * 0.030f);
+            spoke.target = to;
+            spoke.musicRole = Object3DRole::Bridge;
+            spoke.velocity = scale(subtract(to, from), 0.014f + eventPermission * 0.018f);
+            objects.push_back(spoke);
+            if (++spokes >= 7) {
+                break;
+            }
+        }
+    }
+}
+
+void applyStereoSpaceDepthFinalizer3D(std::vector<Object3D>& objects,
+                                      const MusicRoleScene3D& role,
+                                      const AudioMetrics& metrics,
+                                      const VisualSettings& settings,
+                                      float minimumDimension)
+{
+    if (objects.empty() ||
+        role.space <= 0.18f ||
+        metrics.stereoWidth <= 0.25f ||
+        (settings.interactiveField && settings.interactionDepth > 0.75f)) {
+        return;
+    }
+
+    float centerZ = 0.0f;
+    int count = 0;
+    for (const Object3D& object : objects) {
+        if (object.musicRole != Object3DRole::Space) {
+            continue;
+        }
+        centerZ += object.position.z;
+        ++count;
+    }
+    if (count <= 1) {
+        return;
+    }
+    centerZ /= static_cast<float>(count);
+
+    const float stereoStretch = std::clamp(1.0f +
+                                               (metrics.stereoWidth - 0.25f) *
+                                                   role.space *
+                                                   (0.22f + depth3DOf(settings) * 0.08f),
+                                           1.0f,
+                                           1.34f);
+    const float stereoDrift = minimumDimension *
+                              (metrics.stereoWidth - 0.25f) *
+                              role.space *
+                              0.30f;
+    for (Object3D& object : objects) {
+        if (object.musicRole != Object3DRole::Space) {
+            continue;
+        }
+
+        const float previousZ = object.position.z;
+        object.position.z = centerZ + (object.position.z - centerZ) * stereoStretch + stereoDrift;
+        const float deltaZ = object.position.z - previousZ;
+        object.velocity.z += deltaZ;
+        if (object.kind == Object3DKind::Link) {
+            const float previousTargetZ = object.target.z;
+            object.target.z = centerZ + (object.target.z - centerZ) * stereoStretch + stereoDrift;
+            object.velocity.z += (object.target.z - previousTargetZ) * 0.42f;
+        }
+    }
+}
+
+void applyDarkMonolithFinalDiscipline3D(std::vector<Object3D>& objects,
+                                        const MusicRoleScene3D& role,
+                                        const SceneInterpretation& intent,
+                                        const AudioMetrics& metrics,
+                                        const VisualSettings& settings,
+                                        SongSceneIdentity identity,
+                                        float minimumDimension,
+                                        double time)
+{
+    const bool darkBassTransition = identity == SongSceneIdentity::BassPressure &&
+                                    metrics.style == AudioStyle::BassHeavy &&
+                                    settings.motionStyle == MotionStyle::Smooth &&
+                                    (settings.mode == VisualMode::FractalCathedral ||
+                                     settings.mode == VisualMode::ResonanceTessellation) &&
+                                    role.shadow > 0.42f &&
+                                    metrics.dropIntensity < 0.55f;
+    if (objects.empty() || (identity != SongSceneIdentity::DarkMonolith && !darkBassTransition)) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float shadowAuthority = clamp01(role.shadow * 0.56f +
+                                          intent.shadow * 0.24f +
+                                          intent.dark * 0.16f +
+                                          intent.minimal * 0.12f);
+    const bool dominantShadowCue = role.shadow > 0.56f &&
+                                   role.shadow > std::max(role.drums, role.melody) + 0.10f &&
+                                   role.shadow > role.fracture + 0.08f;
+    const bool darkMinimalCue = intent.dark > 0.40f &&
+                                intent.minimal > 0.24f &&
+                                intent.shadow > 0.30f;
+    const bool balancedLayeredScene = activeRoleCount3D(role) >= 4.5f && role.shadow < 0.82f;
+    if (!darkBassTransition && balancedLayeredScene) {
+        return;
+    }
+    if (!darkBassTransition &&
+        (shadowAuthority < 0.46f || (!dominantShadowCue && !darkMinimalCue))) {
+        return;
+    }
+    const float convergenceEvent = clamp01(metrics.convergenceRole * 0.54f +
+                                           metrics.dropIntensity * 0.22f +
+                                           (metrics.phraseBoundary ? metrics.phraseConfidence * 0.18f : 0.0f));
+    const float tunnelKeep = std::clamp(0.08f + convergenceEvent * 0.16f - shadowAuthority * 0.04f,
+                                        0.055f,
+                                        0.24f);
+    const ColorRGBA coldVoid{0.22f, 0.25f, 0.32f, 1.0f};
+    const ColorRGBA coldStone = shiftedHue(ColorRGBA{0.62f, 0.66f, 0.76f, 1.0f}, settings.hueShift * 0.12f);
+    const ColorRGBA paleStone = shiftedHue(ColorRGBA{0.86f, 0.86f, 0.92f, 1.0f}, settings.hueShift * 0.16f);
+
+    for (Object3D& object : objects) {
+        const bool tunnel = object.kind == Object3DKind::TunnelRib;
+        const bool bassPressure = object.musicRole == Object3DRole::Bass &&
+                                  object.kind != Object3DKind::Column &&
+                                  object.kind != Object3DKind::Anchor;
+        const bool transitionBassFoundation = darkBassTransition &&
+                                              object.musicRole == Object3DRole::Bass;
+        const bool eventGlue = object.musicRole == Object3DRole::Bridge ||
+                               object.musicRole == Object3DRole::Convergence;
+        const bool shadowMonument = object.musicRole == Object3DRole::Shadow &&
+                                    (object.kind == Object3DKind::Column ||
+                                     object.kind == Object3DKind::DepthPlane ||
+                                     object.kind == Object3DKind::Anchor);
+        const bool warmPressureColor = object.color.r > 0.62f &&
+                                       object.color.b > 0.34f &&
+                                       object.color.g < object.color.r * 0.82f;
+        const bool nonMonumentSurface = object.kind == Object3DKind::WaveSurface ||
+                                        object.kind == Object3DKind::Plate ||
+                                        object.kind == Object3DKind::Ribbon ||
+                                        object.kind == Object3DKind::Cage ||
+                                        object.kind == Object3DKind::Polyhedron ||
+                                        object.kind == Object3DKind::Shard;
+
+        if (tunnel || bassPressure || transitionBassFoundation) {
+            const float keep = transitionBassFoundation
+                                   ? std::min(tunnelKeep, 0.050f + convergenceEvent * 0.050f)
+                                   : tunnelKeep;
+            object.color = mix(object.color, withAlpha(coldVoid, object.color.a), transitionBassFoundation ? 0.93f : 0.86f);
+            object.color.a = clamp01(object.color.a * keep);
+            object.glow *= std::clamp(keep + (transitionBassFoundation ? 0.030f : 0.080f),
+                                      transitionBassFoundation ? 0.055f : 0.10f,
+                                      transitionBassFoundation ? 0.18f : 0.32f);
+            object.scale = multiply(object.scale,
+                                    transitionBassFoundation ? Vec3{0.34f, 0.46f, 0.42f}
+                                                            : (tunnel ? Vec3{0.34f, 0.38f, 0.52f}
+                                                                      : Vec3{0.50f, 0.58f, 0.64f}));
+            object.position.z += minimumDimension * (0.22f + shadowAuthority * (transitionBassFoundation ? 0.24f : 0.16f));
+            object.position.y *= transitionBassFoundation ? 0.58f : 0.78f;
+            object.velocity = scale(object.velocity, transitionBassFoundation ? 0.24f : 0.36f);
+            continue;
+        }
+
+        if (!shadowMonument && (warmPressureColor || nonMonumentSurface)) {
+            const float keep = std::clamp(0.14f + convergenceEvent * 0.12f, 0.12f, 0.30f);
+            object.color = mix(object.color, withAlpha(coldVoid, object.color.a), warmPressureColor ? 0.90f : 0.72f);
+            object.color.a = clamp01(object.color.a * keep);
+            object.glow *= std::clamp(keep + 0.08f, 0.14f, 0.36f);
+            object.scale = multiply(object.scale, Vec3{0.56f, 0.62f, 0.64f});
+            object.position.z += minimumDimension * (0.18f + shadowAuthority * 0.10f);
+            object.velocity = scale(object.velocity, 0.46f);
+            continue;
+        }
+
+        if (eventGlue && convergenceEvent < 0.58f) {
+            object.color = mix(object.color, withAlpha(coldVoid, object.color.a), 0.70f);
+            object.color.a *= std::clamp(0.16f + convergenceEvent * 0.28f, 0.12f, 0.34f);
+            object.glow *= std::clamp(0.18f + convergenceEvent * 0.30f, 0.14f, 0.44f);
+            object.scale = scale(object.scale, 0.72f);
+            continue;
+        }
+
+        if (shadowMonument) {
+            const ColorRGBA monumentTone = withAlpha(warmPressureColor ? mix(coldStone, paleStone, 0.34f)
+                                                                        : paleStone,
+                                                     object.color.a);
+            object.color = warmPressureColor ? monumentTone
+                                             : mix(object.color, monumentTone, 0.72f);
+            object.color.a = clamp01(object.color.a * (warmPressureColor ? 1.06f : 1.22f) + 0.035f);
+            object.glow = std::clamp(object.glow * (warmPressureColor ? 0.46f : 0.78f) +
+                                         shadowAuthority * (warmPressureColor ? 0.060f : 0.11f),
+                                     0.0f,
+                                     warmPressureColor ? 0.78f : 1.45f);
+            object.scale = multiply(object.scale, Vec3{0.76f, 1.18f + shadowAuthority * 0.18f, 0.82f});
+            object.rotation.x *= 0.42f;
+            object.rotation.y *= 0.48f;
+            object.rotation.z *= 0.20f;
+        }
+    }
+
+    const int gates = std::max(3,
+                               static_cast<int>(std::round(5.0f *
+                                                           (0.70f + shadowAuthority * 0.34f) *
+                                                           (darkBassTransition ? 1.32f : 1.0f))));
+    for (int i = 0; i < gates; ++i) {
+        const float unit = gates > 1 ? static_cast<float>(i) / static_cast<float>(gates - 1) : 0.0f;
+        const float lane = unit - 0.5f;
+        Object3D gate = makeObject3D(Object3DKind::Column,
+                                     Vec3{lane * minimumDimension * (0.28f + metrics.stereoWidth * 0.06f),
+                                          minimumDimension * (0.22f + shadowAuthority * 0.10f),
+                                          minimumDimension * (0.12f + unit * 0.42f + shadowAuthority * 0.10f)},
+                                     Vec3{minimumDimension * (0.018f + intent.minimal * 0.010f),
+                                          minimumDimension * (0.42f + shadowAuthority * 0.32f + (i % 2 == 0 ? 0.08f : 0.0f)),
+                                          minimumDimension * (0.024f + intent.shadow * 0.014f)},
+                                     Vec3{0.018f + intent.tension * 0.030f,
+                                          lane * 0.055f,
+                                          phase * 0.0025f},
+                                     withAlpha(paleStone, 0.20f + shadowAuthority * 0.20f),
+                                     0.10f + shadowAuthority * 0.20f);
+        gate.musicRole = Object3DRole::Shadow;
+        gate.velocity = Vec3{0.0f,
+                             minimumDimension * shadowAuthority * 0.010f,
+                             minimumDimension * shadowAuthority * 0.012f};
+        objects.push_back(gate);
+    }
+}
+
 float environmentDrive(const VisualSettings& settings, const EnvironmentState& environment)
 {
     if (!settings.environmentReactive || !environment.enabled) {
@@ -3305,16 +3946,6 @@ enum class Scene3DProfile {
     NeuralSpace,
     DimensionalTunnel,
     CymaticSculpture
-};
-
-enum class SongSceneIdentity {
-    CalmSpace,
-    BassPressure,
-    TechnoArchitecture,
-    AmbientOrbit,
-    MelodicCrystal,
-    BreakbeatFracture,
-    DarkMonolith
 };
 
 struct SongIdentitySelection3D {
@@ -12182,6 +12813,14 @@ void addObject3DScene(GeometryFrame& frame,
     applyMusicalPartKinetics3D(objects, roleScene, metrics, settings, minimumDimension, time);
     applyMusicalPartComposer3D(objects, roleScene, intent, metrics, settings, minimumDimension, time);
     applyMusicalScorePartition3D(objects, roleScene, intent, metrics, settings, minimumDimension, time);
+    applyMusicalRoleRepresentativeClarity3D(objects,
+                                            roleScene,
+                                            intent,
+                                            metrics,
+                                            settings,
+                                            songIdentity,
+                                            minimumDimension,
+                                            time);
 
     InteractionDepthStats3D interactionStats =
         applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
@@ -12195,6 +12834,15 @@ void addObject3DScene(GeometryFrame& frame,
     interactionStats.focus = std::max(interactionStats.focus, lensStats.focus);
     interactionStats.depthPeel = std::max(interactionStats.depthPeel, lensStats.depthPeel);
     applySongIdentityMaterialDirection3D(objects, songIdentity, metrics, settings, minimumDimension, time);
+    applyStereoSpaceDepthFinalizer3D(objects, roleScene, metrics, settings, minimumDimension);
+    applyDarkMonolithFinalDiscipline3D(objects,
+                                       roleScene,
+                                       intent,
+                                       metrics,
+                                       settings,
+                                       songIdentity,
+                                       minimumDimension,
+                                       time);
 
     for (Object3D& object : objects) {
         const Projected3D projected = projectPoint3D(object.position, camera);
