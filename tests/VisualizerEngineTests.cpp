@@ -4961,6 +4961,19 @@ void silenceKeepsStableReadableScaffold()
             "silence should avoid random depth-range jumps");
     require(averageObjectGlow(first) < 0.75f && averageObjectGlow(second) < 0.75f,
             "silence should keep glow restrained");
+    require(first.projected3DFaceCount >= 26 &&
+                first.projected3DMaterialShare > 0.24f &&
+                first.projected3DScreenCoverage > 0.24f,
+            "silence should render a visible calm 3D room with material surfaces, not a dead or tiny scaffold; faces=" +
+                std::to_string(first.projected3DFaceCount) +
+                " material=" + std::to_string(first.projected3DMaterialShare) +
+                " coverage=" + std::to_string(first.projected3DScreenCoverage));
+    require(objectRoleFamilyCount(first,
+                                  Object3DRole::Space,
+                                  {Object3DKind::DepthPlane, Object3DKind::WaveSurface, Object3DKind::Orbiter}) >= 16,
+            "silence should be held by space/depth geometry instead of flat fallback primitives");
+    require(objectRoleFamilyCount(first, Object3DRole::Shadow, {Object3DKind::Column}) >= 3,
+            "silence should include quiet 3D depth markers so the calm room has scale");
 }
 
 void object3DDepthSortsAndProjects()
