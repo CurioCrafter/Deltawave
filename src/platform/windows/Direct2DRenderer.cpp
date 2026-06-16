@@ -343,6 +343,8 @@ void Direct2DRenderer::drawHud(const GeometryFrame& frame,
          << L"  Sep " << (frame.sceneRoleSeparation3D * 100.0f)
          << L"  Own " << (frame.sceneExplicitRoleShare3D * 100.0f)
          << L"  Bridge " << (frame.sceneRoleBridgeShare3D * 100.0f)
+         << L"  Xtalk " << (frame.sceneRoleCrosstalk3D * 100.0f)
+         << L"  Read " << (frame.sceneRoleLegibility3D * 100.0f)
          << L"  Spread " << std::setprecision(2) << frame.sceneRoleDistrictSpread3D << L"\n";
     text << L"FPS " << std::setprecision(1) << performance.fps
          << L"  Frame " << performance.averageFrameMs << L"ms"

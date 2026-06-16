@@ -3206,6 +3206,11 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
                 " objects=" + std::to_string(separatedFrame.objects3D.size()));
     require(separatedFrame.sceneRoleBridgeShare3D < 0.20f,
             "layered pre-drop music should not be dominated by bridge/convergence glue");
+    require(separatedFrame.sceneRoleCrosstalk3D < 0.38f,
+            "layered pre-drop music should keep role crosstalk low instead of meshing parts together; crosstalk=" +
+                std::to_string(separatedFrame.sceneRoleCrosstalk3D) +
+                " bridge=" + std::to_string(separatedFrame.sceneRoleBridgeShare3D) +
+                " explicit=" + std::to_string(separatedFrame.sceneExplicitRoleShare3D));
     require(separatedFrame.sceneRoleDistrictSpread3D > 0.36f,
             "layered pre-drop music should keep role districts spatially readable");
     require(separatedFrame.sceneRoleBalance3D > 0.10f,
@@ -3219,6 +3224,11 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
     require(separatedFrame.sceneRoleSilhouetteContrast3D > 0.16f,
             "layered pre-drop music should make roles read through different silhouettes/materials, not just position; contrast=" +
                 std::to_string(separatedFrame.sceneRoleSilhouetteContrast3D));
+    require(separatedFrame.sceneRoleLegibility3D > 0.30f,
+            "layered pre-drop music should keep the separate musical parts legible; legibility=" +
+                std::to_string(separatedFrame.sceneRoleLegibility3D) +
+                " crosstalk=" + std::to_string(separatedFrame.sceneRoleCrosstalk3D) +
+                " spread=" + std::to_string(separatedFrame.sceneRoleDistrictSpread3D));
 
     require(objectRoleCount(separatedFrame, Object3DRole::Bass) >= 4 &&
                 objectRoleCount(separatedFrame, Object3DRole::Drums) >= 8 &&
@@ -3254,6 +3264,8 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
             "converged drop should still be built from musical-role geometry");
     require(convergedFrame.sceneRoleVocabulary3D > 0.30f,
             "converged drop should preserve enough role vocabulary to remain interpretable");
+    require(convergedFrame.sceneRoleLegibility3D > 0.24f,
+            "earned convergence should still read as composed musical-role geometry, not a shapeless merge");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -4090,6 +4102,94 @@ void motionStabilityAndPatternClarityReduceJitter()
     require(visualEnergyScore(clearIntense) > visualEnergyScore(clearCalm) + 1.5f,
             "stable and clear settings should still react to intense music");
     require(!clearIntense.objects3D.empty(), "stable and clear settings should keep 3D objects visible");
+}
+
+void cameraContinuityEasesAbruptDropsWithoutMutingThem()
+{
+    VisualSettings stable;
+    stable.mode = VisualMode::QuantumTunnel;
+    stable.motionStyle = MotionStyle::HeavyBass;
+    stable.depth3D = 1.0f;
+    stable.objectDensity3D = 0.84f;
+    stable.lightingGlow = 0.86f;
+    stable.scenePersonality = 0.82f;
+    stable.response3D = 0.96f;
+    stable.motionStability = 1.0f;
+    stable.patternClarity = 0.94f;
+    stable.interactiveField = false;
+    stable.environmentReactive = false;
+    stable.qualityScale = 0.92f;
+
+    VisualSettings loose = stable;
+    loose.motionStability = 0.0f;
+    loose.patternClarity = 0.42f;
+
+    AudioMetrics groove = syntheticMetrics();
+    groove.rms = 0.34f;
+    groove.peak = 0.52f;
+    groove.bass = 0.38f;
+    groove.lowMid = 0.30f;
+    groove.mid = 0.24f;
+    groove.stereoWidth = 0.38f;
+    groove.beat = true;
+    groove.beatConfidence = 0.70f;
+    groove.barConfidence = 0.64f;
+    groove.dropIntensity = 0.06f;
+    groove.section = ArrangementSection::Groove;
+    groove.sectionConfidence = 0.72f;
+    groove.style = AudioStyle::Techno;
+    groove.styleConfidence = 0.78f;
+
+    AudioMetrics drop = groove;
+    drop.rms = 0.86f;
+    drop.peak = 1.0f;
+    drop.bass = 0.98f;
+    drop.lowMid = 0.78f;
+    drop.highMid = 0.54f;
+    drop.treble = 0.40f;
+    drop.stereoWidth = 0.52f;
+    drop.spectralFlux = 0.50f;
+    drop.onset = 0.82f;
+    drop.dropIntensity = 0.96f;
+    drop.downbeat = true;
+    drop.downbeatConfidence = 0.92f;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.94f;
+    drop.sectionProgress = 0.10f;
+    drop.style = AudioStyle::BassHeavy;
+    drop.styleConfidence = 0.94f;
+    drop.bassRole = 0.88f;
+    drop.convergenceRole = 0.54f;
+    drop.bandOnsets = {0.90f, 0.74f, 0.44f, 0.30f, 0.22f};
+
+    VisualizerEngine stableEngine;
+    const GeometryFrame stableGroove = stableEngine.buildFrame(groove, stable, 1280.0f, 720.0f, 1.00);
+    const GeometryFrame stableDrop = stableEngine.buildFrame(drop, stable, 1280.0f, 720.0f, 1.10);
+
+    VisualizerEngine looseEngine;
+    const GeometryFrame looseGroove = looseEngine.buildFrame(groove, loose, 1280.0f, 720.0f, 1.00);
+    const GeometryFrame looseDrop = looseEngine.buildFrame(drop, loose, 1280.0f, 720.0f, 1.10);
+
+    VisualizerEngine rawEngine;
+    const GeometryFrame rawDrop = rawEngine.buildFrame(drop, stable, 1280.0f, 720.0f, 1.10);
+
+    const float rawDepthDelta = std::fabs(rawDrop.cameraDepth - stableGroove.cameraDepth);
+    const float stableDepthDelta = std::fabs(stableDrop.cameraDepth - stableGroove.cameraDepth);
+    const float looseDepthDelta = std::fabs(looseDrop.cameraDepth - looseGroove.cameraDepth);
+
+    require(stableDrop.cameraContinuity3D > 0.22f,
+            "high-stability camera director should report eased continuity on abrupt drops");
+    require(stableDrop.cameraMotion3D > 0.015f,
+            "camera continuity should not freeze the drop response");
+    require(stableDepthDelta < rawDepthDelta * 0.88f,
+            "stable camera continuity should reduce one-frame dolly snaps; raw=" +
+                std::to_string(rawDepthDelta) +
+                " stable=" + std::to_string(stableDepthDelta));
+    require(stableDepthDelta > rawDepthDelta * 0.18f,
+            "stable camera continuity should still let bass drops move depth");
+    require(looseDepthDelta > stableDepthDelta * 1.18f ||
+                looseDrop.cameraContinuity3D < stableDrop.cameraContinuity3D,
+            "low-stability camera should preserve sharper impact than stable cinematic easing");
 }
 
 void silenceKeepsStableReadableScaffold()
@@ -5893,11 +5993,13 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include scene intent, material share, and 3D dominance columns");
         require(timelineText.find("projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare") != std::string::npos,
                 "timeline should include projected 3D framing and depth-layer columns");
+        require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
+                "timeline should include cinematic camera continuity columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
                 "timeline should include 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
                 "timeline should include persistent song-arc interpretation columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D") != std::string::npos,
                 "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
                 "timeline should include adaptive audio profile columns");
@@ -6231,11 +6333,13 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain scene intent, material share, and 3D dominance columns");
         require(timelineText.find("projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare") != std::string::npos,
                 "batch timeline should contain projected 3D framing and depth-layer columns");
+        require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
+                "batch timeline should contain cinematic camera continuity columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
                 "batch timeline should contain 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
                 "batch timeline should contain persistent song-arc interpretation columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D") != std::string::npos,
                 "batch timeline should contain separated musical role columns");
     }
 
@@ -6331,6 +6435,7 @@ int main()
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
+        {"cameraContinuityEasesAbruptDropsWithoutMutingThem", viz::tests::cameraContinuityEasesAbruptDropsWithoutMutingThem},
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
         {"threeDScenesRenderMaterialFacesAndDepthHaze", viz::tests::threeDScenesRenderMaterialFacesAndDepthHaze},

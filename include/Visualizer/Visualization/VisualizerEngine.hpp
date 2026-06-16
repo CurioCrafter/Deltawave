@@ -166,16 +166,20 @@ struct GeometryFrame {
     float sceneRoleSeparation3D = 0.0f;
     float sceneExplicitRoleShare3D = 0.0f;
     float sceneRoleBridgeShare3D = 0.0f;
+    float sceneRoleCrosstalk3D = 0.0f;
     float sceneRoleDistrictSpread3D = 0.0f;
     float sceneRoleBalance3D = 0.0f;
     float sceneRoleVocabulary3D = 0.0f;
     float sceneRoleSilhouetteContrast3D = 0.0f;
+    float sceneRoleLegibility3D = 0.0f;
     float cameraDepth = 0.0f;
     float cameraYaw = 0.0f;
     float cameraPitch = 0.0f;
     float cameraRoll = 0.0f;
     Vec2 cameraCenterOffset{};
     float objectDepthRange = 0.0f;
+    float cameraMotion3D = 0.0f;
+    float cameraContinuity3D = 1.0f;
     float flash = 0.0f;
 };
 
@@ -267,6 +271,16 @@ struct SongArcMemory {
     float continuity = 0.0f;
 };
 
+struct CameraMotionMemory {
+    double lastTimeSeconds = -1.0;
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    float cameraDistance = 0.0f;
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+    float roll = 0.0f;
+};
+
 std::string_view toString(VisualMode mode);
 std::string_view toString(Palette palette);
 std::string_view toString(MotionStyle style);
@@ -298,6 +312,7 @@ public:
 
 private:
     mutable SongArcMemory songArc_;
+    mutable CameraMotionMemory cameraMotion_;
 };
 
 } // namespace viz

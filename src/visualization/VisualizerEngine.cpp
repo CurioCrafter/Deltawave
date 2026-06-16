@@ -1015,7 +1015,13 @@ MusicRoleScene3D buildMusicRoleScene3D(const SceneInterpretation& intent,
         role.space = blendRole(role.space, metrics.spaceRole);
         role.fracture = blendRole(role.fracture, metrics.fractureRole);
         role.shadow = blendRole(role.shadow, metrics.shadowRole);
-        role.convergence = blendRole(role.convergence, std::max(metrics.convergenceRole, metrics.dropIntensity * 0.45f));
+        const float convergencePermission = clamp01(metrics.convergenceRole * 0.62f +
+                                                    metrics.dropIntensity * 0.20f +
+                                                    (metrics.phraseBoundary ? metrics.phraseConfidence * 0.18f : 0.0f) +
+                                                    (metrics.downbeat ? metrics.downbeatConfidence * 0.12f : 0.0f));
+        const float analyzedConvergence = clamp01(metrics.convergenceRole * 0.76f +
+                                                  metrics.dropIntensity * convergencePermission * 0.24f);
+        role.convergence = blendRole(role.convergence, analyzedConvergence);
         role.separation = clamp01(std::max(role.separation * 0.44f,
                                            metrics.roleSeparation * 0.92f +
                                                patternClarityOf(settings) * 0.08f));
@@ -1055,6 +1061,20 @@ MusicRoleScene3D buildMusicRoleScene3D(const SceneInterpretation& intent,
         role.separation = clamp01(std::max(role.separation,
                                            metrics.roleSeparation * 0.86f +
                                                patternClarityOf(settings) * 0.10f));
+    }
+    const float earnedConvergence = clamp01(metrics.convergenceRole * 0.54f +
+                                            metrics.dropIntensity * 0.26f +
+                                            (metrics.phraseBoundary ? metrics.phraseConfidence * 0.22f : 0.0f) +
+                                            (metrics.downbeat ? metrics.downbeatConfidence * 0.13f : 0.0f) +
+                                            transientEnergy3D(metrics) * metrics.dropIntensity * 0.12f);
+    const float separationGuard = clamp01(role.separation * 0.58f +
+                                          patternClarityOf(settings) * 0.22f +
+                                          std::min(activeRoles / 7.0f, 1.0f) * 0.20f);
+    role.convergence = clamp01(role.convergence *
+                               (0.34f + earnedConvergence * 0.74f) *
+                               (1.0f - separationGuard * 0.22f));
+    if (earnedConvergence < 0.22f && metrics.convergenceRole < 0.18f) {
+        role.convergence *= 0.58f;
     }
     return role;
 }
@@ -1189,12 +1209,16 @@ Vec3 roleDistrictCenter3D(MusicalRoleDistrict3D district,
                           double time)
 {
     const float phase = static_cast<float>(time);
-    const float separation = clamp01(role.separation * (1.0f - role.convergence * 0.22f));
+    const float earnedConvergence = clamp01(metrics.convergenceRole * 0.56f +
+                                            metrics.dropIntensity * 0.28f +
+                                            (metrics.phraseBoundary ? metrics.phraseConfidence * 0.22f : 0.0f) +
+                                            (metrics.downbeat ? metrics.downbeatConfidence * 0.12f : 0.0f));
+    const float separation = clamp01(role.separation * (1.0f - earnedConvergence * 0.16f - role.convergence * 0.10f));
     const float stageScale = minimumDimension *
-                             (0.32f +
-                              separation * 0.48f +
+                             (0.40f +
+                              separation * 0.62f +
                               scenePersonalityOf(settings) * 0.12f +
-                              patternClarityOf(settings) * 0.06f);
+                              patternClarityOf(settings) * 0.08f);
     const Vec3 convergence = roleConvergencePoint3D(role, minimumDimension);
     Vec3 center = add(convergence, scale(roleDistrictUnitOffset(district), stageScale));
     const float harmonicPhase = (metrics.keyIndex >= 0
@@ -1243,11 +1267,11 @@ Vec3 roleDistrictCenter3D(MusicalRoleDistrict3D district,
     }
 
     const float convergencePull = clamp01(role.convergence *
-                                          (0.34f +
-                                           metrics.dropIntensity * 0.24f +
-                                           (metrics.phraseBoundary ? metrics.phraseConfidence * 0.18f : 0.0f)));
-    const float preserveDistrict = 1.0f - convergencePull * 0.42f;
-    return mix(convergence, center, std::clamp(preserveDistrict, 0.48f, 1.0f));
+                                          (0.16f +
+                                           earnedConvergence * 0.32f +
+                                           metrics.dropIntensity * 0.10f));
+    const float preserveDistrict = 1.0f - convergencePull * 0.30f;
+    return mix(convergence, center, std::clamp(preserveDistrict, 0.62f, 1.0f));
 }
 
 MusicalRoleDistrict3D classifyRoleDistrict3D(const Object3D& object,
@@ -1526,20 +1550,25 @@ void applyMusicalRoleDistrictStaging3D(std::vector<Object3D>& objects,
     }
     sceneCenter = scale(sceneCenter, 1.0f / static_cast<float>(objects.size()));
 
-    const float separation = clamp01(role.separation * (1.0f - role.convergence * 0.30f));
+    const float earnedConvergence = clamp01(metrics.convergenceRole * 0.56f +
+                                            metrics.dropIntensity * 0.26f +
+                                            (metrics.phraseBoundary ? metrics.phraseConfidence * 0.22f : 0.0f) +
+                                            (metrics.downbeat ? metrics.downbeatConfidence * 0.12f : 0.0f));
+    const float separation = clamp01(role.separation * (1.0f - earnedConvergence * 0.18f - role.convergence * 0.12f));
     const float stagingStrength = std::clamp(0.22f +
-                                                 separation * 0.44f +
+                                                 separation * 0.52f +
                                                  scenePersonalityOf(settings) * 0.16f +
                                                  patternClarityOf(settings) * 0.12f +
                                                  std::min(activeMass / 3.8f, 1.0f) * 0.10f,
                                              0.18f,
                                              0.86f);
-    const float keepPattern = std::clamp(0.42f +
-                                             (1.0f - separation) * 0.12f +
-                                             role.convergence * 0.20f +
-                                             (1.0f - patternClarityOf(settings)) * 0.10f,
+    const float keepPattern = std::clamp(0.36f +
+                                             (1.0f - separation) * 0.08f +
+                                             earnedConvergence * 0.14f +
+                                             role.convergence * 0.10f +
+                                             (1.0f - patternClarityOf(settings)) * 0.08f,
                                          0.38f,
-                                         0.78f);
+                                         0.68f);
     const Vec3 convergence = roleConvergencePoint3D(role, minimumDimension);
 
     for (std::size_t i = 0; i < objects.size(); ++i) {
@@ -1591,32 +1620,32 @@ void applyMusicalRoleDistrictStaging3D(std::vector<Object3D>& objects,
         }
 
         const float convergencePull = clamp01(role.convergence *
-                                              (0.16f +
-                                               metrics.dropIntensity * 0.16f +
-                                               (metrics.phraseBoundary ? metrics.phraseConfidence * 0.12f : 0.0f)));
+                                              (0.08f +
+                                               earnedConvergence * 0.22f +
+                                               metrics.dropIntensity * 0.08f));
         if (convergencePull > 0.01f) {
             const Vec3 districtRendezvous = add(convergence,
                                                 scale(roleDistrictUnitOffset(district),
-                                                      minimumDimension * (0.15f + districtStrength * 0.095f) *
-                                                          (1.0f - role.convergence * 0.34f)));
+                                                      minimumDimension * (0.22f + districtStrength * 0.13f) *
+                                                          (1.0f - earnedConvergence * 0.22f)));
             object.position = mix(object.position,
                                   districtRendezvous,
-                                  convergencePull * (0.28f + districtStrength * 0.18f));
+                                  convergencePull * (0.18f + districtStrength * 0.14f));
             if (object.kind == Object3DKind::Link) {
-                object.target = mix(object.target, districtRendezvous, convergencePull * 0.22f);
+                object.target = mix(object.target, districtRendezvous, convergencePull * 0.14f);
             }
         }
 
         if (bridgeRole) {
-            const float bridgePresence = clamp01(0.34f + role.convergence * 0.56f + metrics.dropIntensity * 0.18f);
+            const float bridgePresence = clamp01(0.18f + earnedConvergence * 0.34f + role.convergence * 0.42f);
             object.color.a *= bridgePresence;
-            object.glow *= std::clamp(0.48f + role.convergence * 0.58f, 0.36f, 1.0f);
-            object.scale = scale(object.scale, 0.82f + role.convergence * 0.18f);
+            object.glow *= std::clamp(0.34f + earnedConvergence * 0.26f + role.convergence * 0.42f, 0.28f, 0.94f);
+            object.scale = scale(object.scale, 0.78f + earnedConvergence * 0.10f + role.convergence * 0.12f);
         } else if (convergenceRole) {
-            const float eventPresence = clamp01(0.24f + role.convergence * 1.18f);
+            const float eventPresence = clamp01(0.12f + earnedConvergence * 0.40f + role.convergence * 0.92f);
             object.color.a *= eventPresence;
-            object.glow *= std::clamp(0.30f + role.convergence * 1.28f, 0.20f, 1.25f);
-            object.scale = scale(object.scale, 0.72f + role.convergence * 0.44f);
+            object.glow *= std::clamp(0.20f + earnedConvergence * 0.38f + role.convergence * 0.92f, 0.16f, 1.18f);
+            object.scale = scale(object.scale, 0.68f + earnedConvergence * 0.16f + role.convergence * 0.34f);
         }
 
         applyRoleDialectStaging3D(object,
@@ -1635,13 +1664,13 @@ void applyMusicalRoleDistrictStaging3D(std::vector<Object3D>& objects,
                                     time,
                                     i);
         if (bridgeRole) {
-            const float bridgePresence = clamp01(0.34f + role.convergence * 0.56f + metrics.dropIntensity * 0.18f);
+            const float bridgePresence = clamp01(0.18f + earnedConvergence * 0.34f + role.convergence * 0.42f);
             object.color.a *= bridgePresence;
-            object.glow *= std::clamp(0.48f + role.convergence * 0.58f, 0.36f, 1.0f);
+            object.glow *= std::clamp(0.34f + earnedConvergence * 0.26f + role.convergence * 0.42f, 0.28f, 0.94f);
         } else if (convergenceRole) {
-            const float eventPresence = clamp01(0.24f + role.convergence * 1.18f);
+            const float eventPresence = clamp01(0.12f + earnedConvergence * 0.40f + role.convergence * 0.92f);
             object.color.a *= eventPresence;
-            object.glow *= std::clamp(0.30f + role.convergence * 1.28f, 0.20f, 1.25f);
+            object.glow *= std::clamp(0.20f + earnedConvergence * 0.38f + role.convergence * 0.92f, 0.16f, 1.18f);
         }
     }
 }
@@ -2352,10 +2381,17 @@ struct ProjectedSceneStats3D {
 struct RoleSceneStats3D {
     float explicitRoleShare = 0.0f;
     float bridgeShare = 0.0f;
+    float roleCrosstalk = 0.0f;
     float districtSpread = 0.0f;
     float roleBalance = 0.0f;
     float roleVocabulary = 0.0f;
     float roleSilhouetteContrast = 0.0f;
+    float roleLegibility = 0.0f;
+};
+
+struct CameraContinuityStats3D {
+    float motion = 0.0f;
+    float continuity = 1.0f;
 };
 
 Scene3DProfile profileForMode(VisualMode mode)
@@ -2883,6 +2919,103 @@ void applyCameraInteraction3D(Camera3D& camera,
     camera.roll = std::clamp(camera.roll, -0.18f, 0.18f);
 }
 
+float cameraPoseDistance3D(const Camera3D& camera,
+                           const CameraMotionMemory& memory,
+                           float minimumDimension)
+{
+    const float invDimension = 1.0f / std::max(1.0f, minimumDimension);
+    const float centerDx = (camera.center.x - memory.centerX) * invDimension;
+    const float centerDy = (camera.center.y - memory.centerY) * invDimension;
+    const float depthDelta = (camera.cameraDistance - memory.cameraDistance) * invDimension;
+    const float yawDelta = (camera.yaw - memory.yaw) * 4.4f;
+    const float pitchDelta = (camera.pitch - memory.pitch) * 4.8f;
+    const float rollDelta = (camera.roll - memory.roll) * 5.2f;
+    return std::sqrt(centerDx * centerDx +
+                     centerDy * centerDy +
+                     depthDelta * depthDelta +
+                     yawDelta * yawDelta +
+                     pitchDelta * pitchDelta +
+                     rollDelta * rollDelta);
+}
+
+void storeCameraMotionMemory(CameraMotionMemory& memory, const Camera3D& camera, double time)
+{
+    memory.lastTimeSeconds = time;
+    memory.centerX = camera.center.x;
+    memory.centerY = camera.center.y;
+    memory.cameraDistance = camera.cameraDistance;
+    memory.yaw = camera.yaw;
+    memory.pitch = camera.pitch;
+    memory.roll = camera.roll;
+}
+
+CameraContinuityStats3D applyCameraContinuity3D(Camera3D& camera,
+                                                CameraMotionMemory& memory,
+                                                const AudioMetrics& metrics,
+                                                const VisualSettings& settings,
+                                                const MusicSceneArc3D& arc,
+                                                float minimumDimension,
+                                                double time)
+{
+    float dt = 1.0f / 60.0f;
+    if (memory.lastTimeSeconds >= 0.0) {
+        dt = static_cast<float>(time - memory.lastTimeSeconds);
+    }
+
+    const bool centerJumped = memory.lastTimeSeconds >= 0.0 &&
+                              (std::fabs(camera.center.x - memory.centerX) > minimumDimension * 0.78f ||
+                               std::fabs(camera.center.y - memory.centerY) > minimumDimension * 0.78f);
+    if (memory.lastTimeSeconds < 0.0 ||
+        dt <= 0.0001f ||
+        dt > 8.0f ||
+        centerJumped) {
+        storeCameraMotionMemory(memory, camera, time);
+        return CameraContinuityStats3D{0.0f, 1.0f};
+    }
+    dt = std::clamp(dt, 1.0f / 120.0f, 0.75f);
+
+    const float rawMotion = cameraPoseDistance3D(camera, memory, minimumDimension);
+    if (rawMotion <= 0.0005f) {
+        storeCameraMotionMemory(memory, camera, time);
+        return CameraContinuityStats3D{0.0f, 1.0f};
+    }
+
+    const float stability = motionStabilityOf(settings);
+    const float clarity = patternClarityOf(settings);
+    const float impact = clamp01(std::max(arc.impact, metrics.dropIntensity) +
+                                 (metrics.downbeat ? metrics.downbeatConfidence * 0.10f : 0.0f));
+    const float responseSeconds = std::clamp(0.055f +
+                                                 stability * 0.18f +
+                                                 clarity * 0.060f -
+                                                 impact * 0.090f -
+                                                 metrics.beatConfidence * 0.020f,
+                                             0.045f,
+                                             0.32f);
+    float alpha = 1.0f - std::exp(-dt / responseSeconds);
+    const float minimumAlpha = std::clamp(0.050f +
+                                              impact * 0.16f +
+                                              (1.0f - stability) * 0.12f +
+                                              metrics.dropIntensity * 0.06f,
+                                          0.045f,
+                                          0.42f);
+    alpha = std::clamp(alpha, minimumAlpha, 0.94f);
+
+    const CameraMotionMemory previous = memory;
+    camera.center.x = previous.centerX + (camera.center.x - previous.centerX) * alpha;
+    camera.center.y = previous.centerY + (camera.center.y - previous.centerY) * alpha;
+    camera.cameraDistance = previous.cameraDistance + (camera.cameraDistance - previous.cameraDistance) * alpha;
+    camera.yaw = previous.yaw + (camera.yaw - previous.yaw) * alpha;
+    camera.pitch = previous.pitch + (camera.pitch - previous.pitch) * alpha;
+    camera.roll = previous.roll + (camera.roll - previous.roll) * alpha;
+
+    const float appliedMotion = cameraPoseDistance3D(camera, previous, minimumDimension);
+    storeCameraMotionMemory(memory, camera, time);
+    return CameraContinuityStats3D{
+        appliedMotion,
+        clamp01(1.0f - appliedMotion / std::max(0.001f, rawMotion))
+    };
+}
+
 Projected3D projectPoint3D(Vec3 world, const Camera3D& camera)
 {
     Vec3 cameraPoint = world;
@@ -3262,6 +3395,8 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
 
     stats.explicitRoleShare = explicitRoleMass / std::max(1.0f, totalVisualMass);
     stats.bridgeShare = bridgeMass / std::max(1.0f, totalVisualMass);
+    const float unassignedMass = std::max(0.0f, totalVisualMass - explicitRoleMass - bridgeMass);
+    stats.roleCrosstalk = clamp01((bridgeMass + unassignedMass * 0.32f) / std::max(1.0f, totalVisualMass));
 
     const std::array<float, 7> strengths{
         role.bass,
@@ -3345,6 +3480,12 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
         stats.roleVocabulary = 1.0f;
         stats.roleSilhouetteContrast = 1.0f;
     }
+    stats.roleLegibility = clamp01(stats.explicitRoleShare * 0.36f +
+                                   clamp01(stats.districtSpread * 0.82f) * 0.24f +
+                                   stats.roleVocabulary * 0.20f +
+                                   stats.roleSilhouetteContrast * 0.14f +
+                                   stats.roleBalance * 0.10f -
+                                   stats.roleCrosstalk * 0.28f);
     return stats;
 }
 
@@ -4017,13 +4158,16 @@ void applyPatternReadability3D(std::vector<Object3D>& objects,
                                       object.kind == Object3DKind::WaveSurface ||
                                       object.kind == Object3DKind::Cage ||
                                       object.kind == Object3DKind::Plate
-                                          ? 0.10f
-                                          : 0.04f;
-            object.color.a *= std::clamp(0.94f - roleCrowding * (0.12f + surfaceDamp), 0.68f, 0.96f);
-            object.glow *= std::clamp(0.92f - roleCrowding * 0.16f, 0.66f, 0.94f);
+                                          ? 0.035f
+                                          : 0.015f;
+            object.color.a *= std::clamp(1.03f - roleCrowding * (0.055f + surfaceDamp), 0.82f, 1.06f);
+            object.glow *= std::clamp(1.00f - roleCrowding * 0.055f, 0.84f, 1.04f);
         } else if (object.musicRole == Object3DRole::Bridge || object.musicRole == Object3DRole::Convergence) {
-            object.color.a *= std::clamp(0.78f + role.convergence * 0.16f, 0.62f, 0.90f);
-            object.glow *= std::clamp(0.74f + role.convergence * 0.20f, 0.58f, 0.92f);
+            object.color.a *= std::clamp(0.44f + role.convergence * 0.30f, 0.30f, 0.82f);
+            object.glow *= std::clamp(0.46f + role.convergence * 0.34f, 0.34f, 0.84f);
+        } else {
+            object.color.a *= std::clamp(0.68f - roleCrowding * 0.22f + role.convergence * 0.10f, 0.32f, 0.76f);
+            object.glow *= std::clamp(0.62f - roleCrowding * 0.18f + role.convergence * 0.10f, 0.34f, 0.72f);
         }
     }
 }
@@ -6694,9 +6838,9 @@ void softenBackgroundMeshForRoleScene(std::vector<Object3D>& objects,
     }
 
     const float convergenceRelief = 1.0f - role.convergence * 0.28f;
-    const float dim = 1.0f - separationYield * convergenceRelief * 0.56f;
+    const float dim = 1.0f - separationYield * convergenceRelief * 0.70f;
     const float pushBack = minimumDimension * separationYield * convergenceRelief *
-                           (0.18f + role.space * 0.14f + role.shadow * 0.07f);
+                           (0.22f + role.space * 0.18f + role.shadow * 0.09f);
     const float count = static_cast<float>(objects.size());
     for (std::size_t i = 0; i < objects.size(); ++i) {
         Object3D& object = objects[i];
@@ -6704,10 +6848,10 @@ void softenBackgroundMeshForRoleScene(std::vector<Object3D>& objects,
         object.position.z += pushBack * (0.54f + unit * 0.92f);
         object.position.x *= 1.0f + role.space * 0.055f + role.separation * 0.030f;
         object.position.y *= 1.0f + role.shadow * 0.030f;
-        object.color.a *= std::clamp(dim + (object.kind == Object3DKind::DepthPlane ? 0.05f : 0.0f), 0.34f, 0.90f);
-        object.glow *= std::clamp(0.54f + role.convergence * 0.18f, 0.46f, 0.86f);
+        object.color.a *= std::clamp(dim + (object.kind == Object3DKind::DepthPlane ? 0.035f : 0.0f), 0.26f, 0.78f);
+        object.glow *= std::clamp(0.44f + role.convergence * 0.16f, 0.34f, 0.76f);
         if (object.kind != Object3DKind::Column && object.kind != Object3DKind::TunnelRib) {
-            object.scale = scale(object.scale, 0.82f + role.convergence * 0.08f);
+            object.scale = scale(object.scale, 0.76f + role.convergence * 0.08f);
         }
     }
 }
@@ -6752,9 +6896,9 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     const float roleFocus = clamp01(role.separation * 0.64f +
                                     std::min(activeRoleMass / 3.6f, 1.0f) * 0.28f +
                                     std::min(activeRoleCount / 7.0f, 1.0f) * 0.08f);
-    density *= std::clamp(0.90f + clarity * 0.06f - roleFocus * 0.08f - role.convergence * 0.02f,
-                          0.78f,
-                          0.98f);
+    density *= std::clamp(0.92f + clarity * 0.08f - roleFocus * 0.05f - role.convergence * 0.02f,
+                          0.82f,
+                          1.04f);
     const float earnedConvergence = clamp01(metrics.convergenceRole * 0.52f +
                                             phrasePull * 0.34f +
                                             metrics.dropIntensity * 0.18f +
@@ -6762,11 +6906,11 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     const float authoredConvergence = clamp01(role.convergence * (0.20f + earnedConvergence * 0.68f) +
                                               phrasePull * role.convergence * 0.18f);
     const float convergence = clamp01(authoredConvergence *
-                                      (0.48f +
-                                       earnedConvergence * 0.34f +
-                                       metrics.convergenceRole * 0.20f +
-                                       metrics.dropIntensity * 0.10f -
-                                       roleFocus * 0.10f));
+                                      (0.36f +
+                                       earnedConvergence * 0.42f +
+                                       metrics.convergenceRole * 0.24f +
+                                       metrics.dropIntensity * 0.08f -
+                                       roleFocus * 0.14f));
     const float districtHold = clamp01(roleFocus * (1.0f - convergence * 0.42f));
     const float roleMotionGain = std::clamp(0.54f + (1.0f - stability) * 0.28f + (1.0f - clarity) * 0.18f,
                                             0.50f,
@@ -6826,8 +6970,8 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                                            0.74f,
                                            1.08f);
     const float districtScale = minimumDimension *
-                                (0.46f + role.separation * 0.62f + personality * 0.16f) *
-                                (1.0f - convergence * 0.045f) *
+                                (0.56f + role.separation * 0.74f + personality * 0.18f + clarity * 0.08f) *
+                                (1.0f - earnedConvergence * 0.10f - convergence * 0.045f) *
                                 stabilityTame;
     const auto districtOffset = [&](RoleDistrict district) {
         switch (district) {
@@ -6850,9 +6994,9 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     };
     const auto rolePosition = [&](Vec3 position, RoleDistrict district, float merge) {
         const float readableMerge = clamp01(merge *
-                                            (0.055f + convergence * 0.16f + earnedConvergence * 0.04f) *
-                                            (1.0f - districtHold * 0.82f));
-        const Vec3 offset = scale(districtOffset(district), districtScale * (1.0f - readableMerge * 0.18f));
+                                            (0.045f + convergence * 0.18f + earnedConvergence * 0.12f) *
+                                            (1.0f - districtHold * 0.78f));
+        const Vec3 offset = scale(districtOffset(district), districtScale * (1.0f - readableMerge * 0.12f));
         return mix(add(position, offset), convergencePoint, readableMerge);
     };
 
@@ -7035,13 +7179,13 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
         applyMotionDialect(object);
         applyRoleDialect(object, district, strength);
         const float rolePresence = clamp01(roleFocus * (0.30f + strength * 0.34f) + strength * 0.20f);
-        object.color.a = clamp01(object.color.a * (1.04f + rolePresence * 0.26f));
-        object.glow *= 1.0f + rolePresence * 0.16f;
+        object.color.a = clamp01(object.color.a * (1.08f + rolePresence * 0.42f));
+        object.glow *= 1.0f + rolePresence * 0.24f;
         if (object.kind == Object3DKind::DepthPlane ||
             object.kind == Object3DKind::WaveSurface ||
             object.kind == Object3DKind::Plate ||
             object.kind == Object3DKind::TunnelRib) {
-            object.scale = scale(object.scale, 1.0f + rolePresence * 0.06f);
+            object.scale = scale(object.scale, 1.0f + rolePresence * 0.12f);
         }
         if (anchor) {
             anchors.push_back(object.position);
@@ -7664,39 +7808,49 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                                     ColorRGBA color,
                                     float relationship,
                                     int offset) {
-        relationship *= std::clamp(0.68f + earnedConvergence * 0.28f + convergence * 0.18f,
-                                   0.62f,
+        const float bridgeReadiness = clamp01(earnedConvergence * 0.68f +
+                                              convergence * 0.28f +
+                                              metrics.convergenceRole * 0.18f);
+        relationship *= std::clamp(0.34f + bridgeReadiness * 0.66f + convergence * 0.10f,
+                                   0.30f,
                                    1.02f);
-        const float bridgeThreshold = std::clamp(0.36f - convergence * 0.045f + districtHold * 0.18f,
-                                                 0.30f,
-                                                 0.54f);
+        const float bridgeThreshold = std::clamp(0.48f + districtHold * 0.24f - bridgeReadiness * 0.18f,
+                                                 0.38f,
+                                                 0.72f);
         if (relationship <= bridgeThreshold || fromAnchors.empty() || toAnchors.empty()) {
             return;
         }
 
         const std::size_t fromIndex = static_cast<std::size_t>(std::abs(offset)) % fromAnchors.size();
         const std::size_t toIndex = static_cast<std::size_t>(std::abs(offset * 3 + 1)) % toAnchors.size();
-        const float bridgePull = clamp01(convergence * 0.28f + earnedConvergence * 0.12f);
-        const Vec3 from = mix(fromAnchors[fromIndex], convergencePoint, bridgePull * 0.12f);
-        const Vec3 to = mix(toAnchors[toIndex], convergencePoint, bridgePull * 0.12f);
+        const float bridgePull = clamp01(convergence * 0.16f + earnedConvergence * 0.10f);
+        const Vec3 from = mix(fromAnchors[fromIndex], convergencePoint, bridgePull * 0.08f);
+        const Vec3 to = mix(toAnchors[toIndex], convergencePoint, bridgePull * 0.08f);
         pushLink(from,
                  to,
-                 withAlpha(color, 0.014f + relationship * 0.034f + convergence * 0.044f),
-                 0.026f + relationship * 0.080f + convergence * 0.12f);
+                 withAlpha(color,
+                           0.006f +
+                               relationship * (0.016f + bridgeReadiness * 0.026f) +
+                               convergence * 0.026f),
+                 0.014f + relationship * (0.038f + bridgeReadiness * 0.050f) + convergence * 0.08f);
 
-        if (convergence > 0.34f && relationship > bridgeThreshold + 0.08f) {
+        if (convergence > 0.38f && bridgeReadiness > 0.34f && relationship > bridgeThreshold + 0.08f) {
             const Vec3 span = subtract(to, from);
             const float spanLength = std::max(1.0f, length(span));
             Object3D surface = makeObject3D((offset % 2 == 0) ? Object3DKind::WaveSurface : Object3DKind::Plate,
-                                            mix(mix(from, to, 0.5f), convergencePoint, convergence * 0.16f),
+                                            mix(mix(from, to, 0.5f), convergencePoint, convergence * 0.10f),
                                             Vec3{spanLength * (0.20f + convergence * 0.13f),
                                                  minimumDimension * (0.018f + relationship * 0.030f),
                                                  minimumDimension * (0.012f + convergence * 0.020f)},
                                             Vec3{std::atan2(span.y, std::max(1.0f, std::fabs(span.x))),
                                                  std::atan2(span.z, std::max(1.0f, std::fabs(span.x))),
                                                  std::atan2(span.y, span.x)},
-                                            withAlpha(color, 0.050f + relationship * 0.060f + convergence * 0.080f),
-                                            0.08f + relationship * 0.18f + convergence * 0.28f);
+                                            withAlpha(color,
+                                                      0.030f +
+                                                          relationship * 0.045f +
+                                                          bridgeReadiness * 0.040f +
+                                                          convergence * 0.055f),
+                                            0.05f + relationship * 0.12f + bridgeReadiness * 0.10f + convergence * 0.20f);
             surface.scale = scale(surface.scale, personalityScale);
             surface.musicRole = Object3DRole::Bridge;
             applyMotionDialect(surface);
@@ -7732,7 +7886,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                    std::min(role.melody, role.space) * (0.52f + metrics.stereoWidth * 0.28f),
                    5);
 
-    if (convergence > 0.26f) {
+    if (convergence > 0.30f && earnedConvergence > 0.20f) {
         Object3D knot = makeObject3D(Object3DKind::Cage,
                                      convergencePoint,
                                      Vec3{minimumDimension * (0.12f + convergence * 0.12f),
@@ -7749,9 +7903,9 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
         const auto connectRole = [&](const std::vector<Vec3>& anchors, ColorRGBA color, int stride) {
             for (std::size_t i = 0; i < anchors.size(); i += static_cast<std::size_t>(std::max(1, stride))) {
                 pushLink(anchors[i],
-                         mix(anchors[i], convergencePoint, 0.46f + convergence * 0.22f),
+                         mix(anchors[i], convergencePoint, 0.30f + convergence * 0.20f),
                          color,
-                         0.065f + convergence * 0.24f,
+                         0.040f + earnedConvergence * 0.070f + convergence * 0.20f,
                          Object3DRole::Convergence);
             }
         };
@@ -7882,6 +8036,7 @@ void addObject3DScene(GeometryFrame& frame,
                       const InteractionState& interaction,
                       const EnvironmentState& environment,
                       const MusicSceneArc3D& songArc,
+                      CameraMotionMemory& cameraMemory,
                       const std::array<ColorRGBA, 5>& colors,
                       float width,
                       float height,
@@ -7912,6 +8067,8 @@ void addObject3DScene(GeometryFrame& frame,
     const SongSceneIdentity songIdentity = songSceneIdentityFor(intent, metrics, settings.mode);
     Camera3D camera = makeCamera3D(settings, metrics, intent, songArc, songIdentity, width, height, speed, time);
     applyCameraInteraction3D(camera, interaction, settings, width, height);
+    const CameraContinuityStats3D cameraContinuity =
+        applyCameraContinuity3D(camera, cameraMemory, metrics, settings, songArc, minimumDimension, time);
     const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
     SectionNarrative3D sectionNarrative = buildSectionNarrative3D(metrics, choreography, intent);
     sectionNarrative.build = std::max(sectionNarrative.build, songArc.anticipation * 0.78f);
@@ -8106,10 +8263,12 @@ void addObject3DScene(GeometryFrame& frame,
     frame.sceneRoleSeparation3D = roleScene.separation;
     frame.sceneExplicitRoleShare3D = roleStats.explicitRoleShare;
     frame.sceneRoleBridgeShare3D = roleStats.bridgeShare;
+    frame.sceneRoleCrosstalk3D = roleStats.roleCrosstalk;
     frame.sceneRoleDistrictSpread3D = roleStats.districtSpread;
     frame.sceneRoleBalance3D = roleStats.roleBalance;
     frame.sceneRoleVocabulary3D = roleStats.roleVocabulary;
     frame.sceneRoleSilhouetteContrast3D = roleStats.roleSilhouetteContrast;
+    frame.sceneRoleLegibility3D = roleStats.roleLegibility;
     frame.objects3D = std::move(objects);
     frame.scene3DName = mode3DName(settings.mode);
     frame.sceneIntent = intent.primary;
@@ -8120,6 +8279,8 @@ void addObject3DScene(GeometryFrame& frame,
     frame.cameraRoll = camera.roll;
     frame.cameraCenterOffset = Vec2{camera.center.x - width * 0.5f, camera.center.y - height * 0.5f};
     frame.objectDepthRange = range;
+    frame.cameraMotion3D = cameraContinuity.motion;
+    frame.cameraContinuity3D = cameraContinuity.continuity;
 }
 
 void addQuantumTunnel(GeometryFrame& frame,
@@ -10322,7 +10483,7 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
     frame.retained2DVisualRatio = frame.authored2DVisualWeight > 0.0f
                                       ? frame.retained2DVisualWeight / frame.authored2DVisualWeight
                                       : 0.0f;
-    addObject3DScene(frame, visualMetrics, settings, interaction, environment, songArc, colors, width, height, speed, intensity, density, timeSeconds);
+    addObject3DScene(frame, visualMetrics, settings, interaction, environment, songArc, cameraMotion_, colors, width, height, speed, intensity, density, timeSeconds);
     frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
 
     return frame;
