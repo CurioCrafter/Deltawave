@@ -2992,11 +2992,42 @@ void musicalRoleDistrictsConvergeOnlyWhenEarned()
     const Vec3 spaceCenter = objectFamilyCentroid(separatedFrame,
                                                   {Object3DKind::DepthPlane,
                                                    Object3DKind::Orbiter});
+    const Vec3 fractureCenter = objectFamilyCentroid(separatedFrame, {Object3DKind::Plate});
+    const Vec3 shadowCenter = objectFamilyCentroid(separatedFrame, {Object3DKind::Anchor});
 
     require(centroidDistance(bassCenter, melodyCenter) > 250.0f,
             "bass pressure and melody braids should occupy visibly different 3D districts");
     require(spaceCenter.z > bassCenter.z + 220.0f,
             "spatial depth fields should sit behind bass pressure instead of collapsing into the same mesh");
+    require(centroidDistance(fractureCenter, spaceCenter) > 220.0f,
+            "fracture cuts should remain legible as their own 3D district instead of dissolving into spatial ambience");
+    require(centroidDistance(shadowCenter, melodyCenter) > 190.0f,
+            "shadow anchors should stay visually separate from the melody district before convergence");
+
+    const auto stagedRoleSpread = [](const GeometryFrame& frame) {
+        const std::array<Vec3, 5> centers{
+            objectFamilyCentroid(frame, {Object3DKind::TunnelRib}),
+            objectFamilyCentroid(frame, {Object3DKind::Ribbon, Object3DKind::Node, Object3DKind::Shard}),
+            objectFamilyCentroid(frame, {Object3DKind::DepthPlane, Object3DKind::Orbiter}),
+            objectFamilyCentroid(frame, {Object3DKind::Plate}),
+            objectFamilyCentroid(frame, {Object3DKind::Anchor})
+        };
+        float total = 0.0f;
+        int pairs = 0;
+        for (std::size_t i = 0; i < centers.size(); ++i) {
+            for (std::size_t j = i + 1U; j < centers.size(); ++j) {
+                total += centroidDistance(centers[i], centers[j]);
+                ++pairs;
+            }
+        }
+        return pairs > 0 ? total / static_cast<float>(pairs) : 0.0f;
+    };
+    const float separatedSpread = stagedRoleSpread(separatedFrame);
+    const float convergedSpread = stagedRoleSpread(convergedFrame);
+    require(convergedSpread < separatedSpread * 0.88f,
+            "earned convergence should pull separate musical districts together into a composed 3D event");
+    require(convergedSpread > 130.0f,
+            "earned convergence should not collapse all musical roles into one unreadable blob");
     require(separatedFrame.projected3DFillVisualWeight > 180.0f &&
                 convergedFrame.projected3DFillVisualWeight > 180.0f,
             "both separated and converged role scenes should be solid volumetric geometry");
