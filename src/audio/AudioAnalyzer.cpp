@@ -805,6 +805,11 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
                                      0.02f,
                                      0.30f);
     const float bassPressure = rise(metrics.bass, 0.20f, 0.78f);
+    const float articulatedBassPressure = clamp01(rise(metrics.peak, 0.42f, 0.72f) * 0.42f +
+                                                  rise(metrics.lowMid, 0.07f, 0.20f) * 0.28f +
+                                                  rise(metrics.bass, 0.78f, 0.94f) * 0.24f +
+                                                  lowBandHit * 0.14f +
+                                                  metrics.dropIntensity * 0.10f);
     const float spatialCalm = clamp01(metrics.stereoWidth * 0.48f +
                                       (1.0f - transient) * 0.24f +
                                       styleEvidence(metrics, AudioStyle::Wide) * 0.18f +
@@ -818,6 +823,23 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
     const float sectionBreakdown = metrics.section == ArrangementSection::Breakdown
                                        ? metrics.sectionConfidence
                                        : 0.0f;
+    const float darkTexture = clamp01((1.0f - highEnergy) * 0.42f +
+                                      (1.0f - transient) * 0.18f +
+                                      (1.0f - metrics.stereoWidth) * 0.12f +
+                                      (metrics.keyMode == MusicalMode::Minor ? metrics.keyConfidence * 0.18f : 0.0f) +
+                                      metrics.harmonicEnergy * 0.10f -
+                                      articulatedBassPressure * 0.28f -
+                                      metrics.dropIntensity * 0.20f -
+                                      rhythmGrid * 0.08f);
+    const float sparseLowMass = clamp01(rise(lowEnergy, 0.22f, 0.62f) *
+                                        (1.0f - rise(metrics.bass, 0.76f, 0.94f)) *
+                                        (1.0f - rise(metrics.dropIntensity, 0.30f, 0.62f)) *
+                                        (1.0f - rise(lowBandHit, 0.42f, 0.82f)) *
+                                        (1.0f - rise(metrics.peak, 0.42f, 0.72f)) *
+                                        (1.0f - rise(metrics.lowMid, 0.07f, 0.20f)));
+    const float darkMinimalPressure = clamp01(darkTexture * 0.60f +
+                                              sparseLowMass * 0.36f +
+                                              sectionBreakdown * 0.16f);
 
     float bassRole = audible * clamp01(metrics.bass * 0.46f +
                                        metrics.lowMid * 0.20f +
@@ -872,6 +894,7 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
     float shadowRole = audible * clamp01((1.0f - highEnergy) * lowEnergy * 0.34f +
                                          bassDominance * 0.18f +
                                          sectionBreakdown * 0.20f +
+                                         darkMinimalPressure * 0.36f +
                                          (1.0f - metrics.stereoWidth) * 0.10f +
                                          (metrics.keyMode == MusicalMode::Minor ? metrics.keyConfidence * 0.18f : 0.0f) +
                                          styleEvidence(metrics, AudioStyle::BassHeavy) * 0.08f -
@@ -910,6 +933,7 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
                                            lowBandHit * 0.20f +
                                            rhythmGrid * 0.18f +
                                            styleEvidence(metrics, AudioStyle::BassHeavy) * 0.24f -
+                                           darkMinimalPressure * 0.18f -
                                            spatialCalm * 0.16f -
                                            harmonicFocus * 0.12f);
     const float harmonicLift = clamp01((1.0f - rhythmGrid) * 0.28f +
@@ -929,6 +953,23 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
                                               metrics.phraseConfidence * 0.08f) *
                                              (0.58f + harmonicLift * 0.52f) -
                                              transient * 0.08f));
+
+    if (darkMinimalPressure > 0.34f) {
+        shadowRole = std::max(shadowRole,
+                              audible * clamp01(0.18f +
+                                                darkMinimalPressure * 0.58f +
+                                                lowEnergy * 0.12f +
+                                                (metrics.keyMode == MusicalMode::Minor ? metrics.keyConfidence * 0.08f : 0.0f)));
+        const float restraint = clamp01((darkMinimalPressure - 0.28f) / 0.50f);
+        const float sparseRestraint = restraint * (1.0f - articulatedBassPressure * 0.72f);
+        bassRole *= std::clamp(1.0f - sparseRestraint * 0.52f, 0.40f, 1.0f);
+        drumRole *= std::clamp(1.0f - restraint * 0.18f, 0.70f, 1.0f);
+        fractureRole *= std::clamp(1.0f - restraint * 0.14f, 0.72f, 1.0f);
+        spaceRole *= std::clamp(1.0f - restraint * 0.10f, 0.76f, 1.0f);
+    }
+    if (articulatedBassPressure > 0.18f && metrics.bass > 0.70f) {
+        shadowRole *= std::clamp(1.0f - articulatedBassPressure * 0.34f, 0.60f, 1.0f);
+    }
 
     const float impactRoles = clamp01(bassRole * 0.58f + drumRole * 0.50f + fractureRole * 0.30f);
     const float lyricalRoles = clamp01(melodyRole * 0.54f + harmonyRole * 0.48f + spaceRole * 0.24f);

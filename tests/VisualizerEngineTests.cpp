@@ -709,6 +709,32 @@ void sceneDirectorUsesMusicalRolesForAmbiguousStyles()
     require(bass.motionStyle == MotionStyle::HeavyBass,
             "dominant bass role should select heavy-bass motion");
 
+    SceneDirector darkMinimalDirector;
+    AudioMetrics darkMinimalMetrics = withRoles(0.56f, 0.18f, 0.06f, 0.18f, 0.10f, 0.16f, 0.58f, 0.16f);
+    darkMinimalMetrics.style = AudioStyle::BassHeavy;
+    darkMinimalMetrics.styleConfidence = 0.60f;
+    darkMinimalMetrics.bass = 0.64f;
+    darkMinimalMetrics.lowMid = 0.34f;
+    darkMinimalMetrics.highMid = 0.012f;
+    darkMinimalMetrics.treble = 0.008f;
+    darkMinimalMetrics.stereoWidth = 0.16f;
+    darkMinimalMetrics.spectralFlux = 0.08f;
+    darkMinimalMetrics.beatConfidence = 0.26f;
+    darkMinimalMetrics.barConfidence = 0.10f;
+    darkMinimalMetrics.downbeatConfidence = 0.08f;
+    darkMinimalMetrics.dropIntensity = 0.14f;
+    darkMinimalMetrics.keyConfidence = 0.62f;
+    darkMinimalMetrics.keyMode = MusicalMode::Minor;
+    darkMinimalMetrics.harmonicEnergy = 0.46f;
+    const VisualSettings darkMinimal = darkMinimalDirector.resolve(base, darkMinimalMetrics, 0.0);
+    require(darkMinimal.mode == VisualMode::ResonanceTessellation ||
+                darkMinimal.mode == VisualMode::FractalCathedral,
+            "dark/minimal low-end should choose monumental shadow geometry instead of the bass tunnel");
+    require(darkMinimal.palette == Palette::MonochromeLaser,
+            "dark/minimal low-end should use restrained monochrome lighting");
+    require(darkMinimal.motionStyle == MotionStyle::Smooth,
+            "dark/minimal low-end should use restrained motion instead of heavy-bass compression");
+
     SceneDirector drumDirector;
     AudioMetrics drumMetrics = withRoles(0.16f, 0.88f, 0.08f, 0.10f, 0.14f, 0.16f, 0.08f, 0.30f);
     drumMetrics.barConfidence = 0.68f;
@@ -2714,6 +2740,16 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
                                                           1280.0f,
                                                           720.0f,
                                                           4.0);
+    const GeometryFrame shadowFrame = engine.buildFrame(withRoles(0.34f, 0.12f, 0.08f, 0.20f, 0.12f, 0.14f, 0.92f, 0.16f),
+                                                        settings,
+                                                        1280.0f,
+                                                        720.0f,
+                                                        4.0);
+    const GeometryFrame ensembleFrame = engine.buildFrame(withRoles(0.58f, 0.52f, 0.46f, 0.44f, 0.38f, 0.34f, 0.42f, 0.16f),
+                                                          settings,
+                                                          1280.0f,
+                                                          720.0f,
+                                                          4.0);
 
     require(bassFrame.sceneBassRole3D > 0.68f &&
                 bassFrame.sceneBassRole3D > bassFrame.sceneMelodyRole3D + 0.24f,
@@ -2731,6 +2767,11 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
     require(fractureFrame.sceneFractureRole3D > 0.70f &&
                 fractureFrame.sceneFractureRole3D > fractureFrame.sceneSpaceRole3D + 0.28f,
             "explicit fracture role should drive cut-plane metrics");
+    require(shadowFrame.sceneShadowRole3D > 0.68f &&
+                shadowFrame.sceneShadowRole3D > shadowFrame.sceneSpaceRole3D + 0.24f,
+            "explicit shadow role should drive monolith/shadow metrics");
+    require(ensembleFrame.sceneRoleSeparation3D > 0.72f,
+            "multi-role music should retain readable separate 3D musical districts before convergence");
 
     require(objectFamilyCount(bassFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) >
                 objectFamilyCount(spaceFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) + 2,
@@ -2747,6 +2788,22 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
     require(objectFamilyCount(fractureFrame, {Object3DKind::Shard, Object3DKind::Plate}) >
                 objectFamilyCount(spaceFrame, {Object3DKind::Shard, Object3DKind::Plate}) + 4,
             "explicit fracture role should author more cut planes than a space role");
+    require(objectFamilyCount(shadowFrame, {Object3DKind::Column, Object3DKind::Anchor}) >
+                objectFamilyCount(spaceFrame, {Object3DKind::Column, Object3DKind::Anchor}) + 2,
+            "explicit shadow role should author more monoliths/anchors than a space role");
+
+    int activeFamilies = 0;
+    activeFamilies += objectFamilyCount(ensembleFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) > 0 ? 1 : 0;
+    activeFamilies += objectFamilyCount(ensembleFrame, {Object3DKind::Cage}) > 0 ? 1 : 0;
+    activeFamilies += objectFamilyCount(ensembleFrame, {Object3DKind::Orbiter, Object3DKind::Node}) > 0 ? 1 : 0;
+    activeFamilies += objectFamilyCount(ensembleFrame, {Object3DKind::DepthPlane, Object3DKind::WaveSurface}) > 0 ? 1 : 0;
+    activeFamilies += objectFamilyCount(ensembleFrame, {Object3DKind::Shard, Object3DKind::Plate}) > 0 ? 1 : 0;
+    activeFamilies += objectFamilyCount(ensembleFrame, {Object3DKind::Anchor}) > 0 ? 1 : 0;
+    require(activeFamilies >= 6,
+            "multi-role music should author separate visible 3D families for different musical parts");
+    require(objectKindCount(ensembleFrame, Object3DKind::Link) <
+                static_cast<int>(ensembleFrame.objects3D.size()) * 45 / 100,
+            "role convergence should connect districts without turning the frame mostly into link noise");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()

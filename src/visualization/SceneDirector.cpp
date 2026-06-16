@@ -141,8 +141,13 @@ bool structuralTechnoCue(const AudioMetrics& metrics)
 
 bool darkMinimalCue(const AudioMetrics& metrics)
 {
+    const bool articulatedBassPressure = metrics.rms > 0.28f &&
+                                         (metrics.peak > 0.48f ||
+                                          metrics.lowMid > 0.075f ||
+                                          (metrics.bass > 0.78f && metrics.style == AudioStyle::BassHeavy));
     const bool heavyDrop = metrics.style == AudioStyle::BassHeavy &&
                            (metrics.dropIntensity > 0.34f ||
+                            articulatedBassPressure ||
                             (metrics.bass > 0.82f && metrics.beatConfidence > 0.58f));
     const bool lockedTechnoGroove = metrics.style == AudioStyle::Techno &&
                                     metrics.bass > 0.38f &&
@@ -371,6 +376,22 @@ void applyRoleDirectedTarget(SceneTarget& target, const AudioMetrics& metrics)
     const float fracture = metrics.fractureRole;
     const float shadow = metrics.shadowRole;
     const float convergence = metrics.convergenceRole;
+    const bool hardDrop = metrics.dropIntensity > 0.58f ||
+                          (metrics.section == ArrangementSection::Drop && metrics.sectionConfidence > 0.62f);
+    const bool articulatedBassRole = bass > 0.58f &&
+                                     (metrics.bass > 0.76f ||
+                                      metrics.peak > 0.48f ||
+                                      metrics.lowMid > 0.075f ||
+                                      convergence > 0.50f);
+    const bool restrainedShadow = !hardDrop &&
+                                  !articulatedBassRole &&
+                                  (darkMinimalCue(metrics) ||
+                                   (shadow > 0.38f &&
+                                    shadow > space + 0.06f &&
+                                    shadow > drums - 0.03f &&
+                                    shadow > fracture - 0.03f &&
+                                    bass < shadow + 0.28f &&
+                                    convergence < 0.54f));
 
     const auto liftRole3D = [&]() {
         target.depth3D = std::max(target.depth3D, 0.78f + roleConfidence * 0.16f);
@@ -395,9 +416,22 @@ void applyRoleDirectedTarget(SceneTarget& target, const AudioMetrics& metrics)
         return;
     }
 
+    if (restrainedShadow) {
+        target.mode = metrics.keyConfidence > 0.24f ? VisualMode::ResonanceTessellation : VisualMode::FractalCathedral;
+        target.palette = Palette::MonochromeLaser;
+        target.motionStyle = MotionStyle::Smooth;
+        target.colorImpact = std::min(target.colorImpact, 0.64f);
+        target.objectDensity3D = std::clamp(target.objectDensity3D, 0.42f, 0.68f);
+        target.motionStability = std::max(target.motionStability, 0.92f);
+        target.speed *= 0.70f;
+        liftRole3D();
+        return;
+    }
+
     if ((bass > 0.42f || (bass > 0.34f && convergence > 0.28f)) &&
         bass > space + 0.12f &&
-        bass > melody + 0.10f) {
+        bass > melody + 0.10f &&
+        (bass > drums + 0.06f || metrics.bass > 0.74f || convergence > 0.42f || hardDrop)) {
         target.mode = convergence > 0.56f && metrics.stereoWidth > 0.50f
                           ? VisualMode::HyperspacePolytope
                           : VisualMode::QuantumTunnel;
@@ -1092,10 +1126,39 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
 
     const bool roleAware = hasMusicalRoles(metrics);
     const float melodyRoleScore = melodicRole(metrics);
+    const bool hardDropNow = metrics.dropIntensity > 0.66f ||
+                             (metrics.section == ArrangementSection::Drop && metrics.sectionConfidence > 0.70f);
+    const bool darkTextureNow = darkMinimalCue(metrics);
+    const bool articulatedBassRole = metrics.bassRole > 0.58f &&
+                                     (metrics.bass > 0.76f ||
+                                      metrics.peak > 0.48f ||
+                                      metrics.lowMid > 0.075f ||
+                                      metrics.convergenceRole > 0.50f);
+    const bool shadowCanChallengeBass = darkTextureNow ||
+                                        (metrics.dropIntensity < 0.42f &&
+                                         metrics.convergenceRole < 0.54f &&
+                                         metrics.shadowRole > metrics.drumRole - 0.03f &&
+                                         metrics.shadowRole > metrics.bassRole - 0.26f &&
+                                         !articulatedBassRole);
+    const bool roleShadowDominant = roleAware &&
+                                    !hardDropNow &&
+                                    metrics.shadowRole > 0.34f &&
+                                    metrics.shadowRole > metrics.spaceRole + 0.06f &&
+                                    metrics.shadowRole > metrics.fractureRole - 0.04f &&
+                                    shadowCanChallengeBass;
+    const bool darkMinimalRoleCue = darkTextureNow ||
+                                    (roleShadowDominant &&
+                                     metrics.dropIntensity < 0.42f &&
+                                     metrics.bassRole < metrics.shadowRole + 0.34f);
     const bool roleBassDominant = roleAware &&
+                                  !darkMinimalRoleCue &&
                                   metrics.bassRole > 0.40f &&
                                   metrics.bassRole > metrics.spaceRole + 0.10f &&
-                                  metrics.bassRole > melodyRoleScore + 0.08f;
+                                  metrics.bassRole > melodyRoleScore + 0.08f &&
+                                  (metrics.bassRole > metrics.drumRole + 0.06f ||
+                                   metrics.bass > 0.74f ||
+                                   metrics.convergenceRole > 0.42f ||
+                                   hardDropNow);
     const bool roleDrumDominant = roleAware &&
                                   metrics.drumRole > 0.34f &&
                                   metrics.drumRole > metrics.spaceRole + 0.06f &&
@@ -1115,13 +1178,6 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
                                       metrics.fractureRole > metrics.bassRole + 0.06f &&
                                       metrics.fractureRole > metrics.shadowRole + 0.03f &&
                                       metrics.fractureRole > melodyRoleScore;
-    const bool roleShadowDominant = roleAware &&
-                                    metrics.shadowRole > 0.34f &&
-                                    metrics.shadowRole > metrics.spaceRole + 0.06f &&
-                                    metrics.shadowRole > metrics.fractureRole - 0.04f;
-
-    const bool hardDropNow = metrics.dropIntensity > 0.66f ||
-                             (metrics.section == ArrangementSection::Drop && metrics.sectionConfidence > 0.70f);
     const bool hardBreakNow = transientBreakCue(metrics) &&
                               (metrics.spectralFlux > 0.32f || metrics.onset > 0.30f || highBandOnset(metrics) > 0.40f);
     const bool hardRoleBreakNow = roleFractureDominant &&
@@ -1131,11 +1187,16 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
                                 breakMemory_ > technoMemory_ - 0.02f &&
                                 breakMemory_ > darkMemory_ + 0.04f) ||
                                roleFractureDominant;
-    const bool dominantBass = (bassMemory_ > 0.54f &&
+    const bool drumRoleOutweighsBass = roleDrumDominant &&
+                                       metrics.drumRole > metrics.bassRole + 0.04f;
+    const bool dominantBass = (!darkMinimalRoleCue &&
+                               !drumRoleOutweighsBass &&
+                               bassMemory_ > 0.54f &&
                                bassMemory_ > darkMemory_ + 0.08f &&
                                (metrics.bass > 0.50f || metrics.bassRole > 0.40f)) ||
                               roleBassDominant;
-    const bool dominantDark = (darkMemory_ > 0.46f &&
+    const bool dominantDark = darkMinimalRoleCue ||
+                              (darkMemory_ > 0.46f &&
                                darkMemory_ > ambientMemory_ + 0.08f &&
                                (metrics.bass > 0.42f || metrics.shadowRole > 0.34f)) ||
                               roleShadowDominant;

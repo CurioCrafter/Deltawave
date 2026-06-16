@@ -596,10 +596,17 @@ void analyzerReportsSeparatedMusicalRoles()
 
     const AudioMetrics dark = analyzePulsedStyle(86.0f, 0.26f, 0.50f, 0.08f, 0.01f, 0.05f, 60.0 / 124.0, false);
     requireRolesNormalized(dark, "dark");
-    require(dark.shadowRole > 0.14f && dark.shadowRole > bright.shadowRole + 0.04f,
+    require(dark.shadowRole > 0.20f && dark.shadowRole > bright.shadowRole + 0.08f,
             "dark sparse low material should expose shadow/monolith role; dark shadow=" +
                 std::to_string(dark.shadowRole) +
                 " bright shadow=" + std::to_string(bright.shadowRole));
+    require(dark.shadowRole > 0.50f &&
+                dark.shadowRole > dark.spaceRole + 0.06f &&
+                dark.bassRole < bass.bassRole - 0.05f,
+            "dark sparse low material should expose shadow while staying below a true bass-drop role; dark shadow=" +
+                std::to_string(dark.shadowRole) +
+                " dark bass=" + std::to_string(dark.bassRole) +
+                " bass-drop role=" + std::to_string(bass.bassRole));
 
     require(std::min({techno.roleSeparation,
                       bass.roleSeparation,
