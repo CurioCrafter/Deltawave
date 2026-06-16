@@ -35,6 +35,12 @@ Vec2 polar(Vec2 center, float radius, float angle)
     return Vec2{center.x + std::cos(angle) * radius, center.y + std::sin(angle) * radius};
 }
 
+ColorRGBA edgeTintForFilledMaterial(ColorRGBA color)
+{
+    color.a = std::clamp(color.a * 0.18f, 0.0f, 0.16f);
+    return color;
+}
+
 std::wstring widen(std::string_view value)
 {
     return std::wstring(value.begin(), value.end());
@@ -236,12 +242,14 @@ void Direct2DRenderer::drawPolyline(const Polyline& line)
         safeRelease(geometry);
     }
 
-    brush_->SetColor(toD2D(line.color));
+    const ColorRGBA strokeColor = line.filled ? edgeTintForFilledMaterial(line.color) : line.color;
+    const float strokeWidth = line.filled ? std::max(0.35f, line.strokeWidth * 0.26f) : line.strokeWidth;
+    brush_->SetColor(toD2D(strokeColor));
     for (std::size_t i = 1; i < line.points.size(); ++i) {
-        renderTarget_->DrawLine(point(line.points[i - 1]), point(line.points[i]), brush_, line.strokeWidth);
+        renderTarget_->DrawLine(point(line.points[i - 1]), point(line.points[i]), brush_, strokeWidth);
     }
     if (line.closed) {
-        renderTarget_->DrawLine(point(line.points.back()), point(line.points.front()), brush_, line.strokeWidth);
+        renderTarget_->DrawLine(point(line.points.back()), point(line.points.front()), brush_, strokeWidth);
     }
 }
 

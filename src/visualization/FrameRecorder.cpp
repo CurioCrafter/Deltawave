@@ -22,6 +22,12 @@ Vec2 polar(Vec2 center, float radius, float angle)
     return Vec2{center.x + std::cos(angle) * radius, center.y + std::sin(angle) * radius};
 }
 
+ColorRGBA edgeTintForFilledMaterial(ColorRGBA color)
+{
+    color.a = std::clamp(color.a * 0.18f, 0.0f, 0.16f);
+    return color;
+}
+
 std::string timestamp()
 {
     const auto now = std::chrono::system_clock::now();
@@ -113,11 +119,13 @@ bool FrameRecorder::writeFrame(const GeometryFrame& frame, const FrameRenderOpti
         if (line.filled && line.closed && line.points.size() >= 3U) {
             drawFilledPolygon(line.points, line.color);
         }
+        const ColorRGBA strokeColor = line.filled ? edgeTintForFilledMaterial(line.color) : line.color;
+        const float strokeWidth = line.filled ? std::max(0.35f, line.strokeWidth * 0.26f) : line.strokeWidth;
         for (std::size_t i = 1; i < line.points.size(); ++i) {
-            drawLine(line.points[i - 1], line.points[i], line.strokeWidth, line.color);
+            drawLine(line.points[i - 1], line.points[i], strokeWidth, strokeColor);
         }
         if (line.closed) {
-            drawLine(line.points.back(), line.points.front(), line.strokeWidth, line.color);
+            drawLine(line.points.back(), line.points.front(), strokeWidth, strokeColor);
         }
     }
     for (const Particle& particle : frame.particles) {

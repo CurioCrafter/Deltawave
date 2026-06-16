@@ -110,6 +110,28 @@ std::uint64_t sumPpmPixelBytes(const std::filesystem::path& path)
     return sum;
 }
 
+int ppmPixelByteSum(const std::filesystem::path& path, int sampleX, int sampleY)
+{
+    std::ifstream input(path, std::ios::binary);
+    std::string magic;
+    int width = 0;
+    int height = 0;
+    int maximum = 0;
+    input >> magic >> width >> height >> maximum;
+    input.get();
+    require(magic == "P6", "test helper expected a binary PPM frame");
+    require(width > 0 && height > 0 && maximum == 255, "test helper expected a valid PPM header");
+    require(sampleX >= 0 && sampleX < width && sampleY >= 0 && sampleY < height,
+            "test helper sample point should be inside the PPM frame");
+
+    const std::streamoff offset = static_cast<std::streamoff>((sampleY * width + sampleX) * 3);
+    input.seekg(offset, std::ios::cur);
+    unsigned char rgb[3] = {};
+    input.read(reinterpret_cast<char*>(rgb), 3);
+    require(input.good(), "test helper should read a full RGB sample");
+    return static_cast<int>(rgb[0]) + static_cast<int>(rgb[1]) + static_cast<int>(rgb[2]);
+}
+
 float colorDistance(ColorRGBA a, ColorRGBA b)
 {
     return std::fabs(a.r - b.r) + std::fabs(a.g - b.g) + std::fabs(a.b - b.b);
@@ -992,7 +1014,7 @@ void recorderFillsMaterialPolygons()
     frame.background = ColorRGBA{0.0f, 0.0f, 0.0f, 1.0f};
     frame.polylines.push_back(Polyline{
         {Vec2{8.0f, 8.0f}, Vec2{56.0f, 8.0f}, Vec2{56.0f, 56.0f}, Vec2{8.0f, 56.0f}},
-        1.0f,
+        8.0f,
         ColorRGBA{0.1f, 0.8f, 1.0f, 0.70f},
         true,
         true
@@ -1007,9 +1029,14 @@ void recorderFillsMaterialPolygons()
     require(recorder.writeFrame(frame, error), "fill recorder should write: " + error);
     recorder.stop();
 
-    const std::uint64_t filledSum = sumPpmPixelBytes(root / "frame_000000.ppm");
+    const std::filesystem::path framePath = root / "frame_000000.ppm";
+    const std::uint64_t filledSum = sumPpmPixelBytes(framePath);
+    const int interior = ppmPixelByteSum(framePath, 32, 32);
+    const int edge = ppmPixelByteSum(framePath, 32, 10);
     std::filesystem::remove_all(root);
     require(filledSum > 280000U, "filled material polygon should affect the interior pixels, not just the outline");
+    require(edge <= interior + 42,
+            "filled material polygon edge stroke should stay subtle instead of overpowering the surface");
 }
 
 void recorderTrailsPersistPreviousFrame()
