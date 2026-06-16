@@ -36,6 +36,7 @@ void audioSyncProfilePersistsSensitivity();
 void audioAnalyzerLoadsAndSavesSyncProfile();
 void analyzerReportsAdvancedSyncMetrics();
 void analyzerClassifiesMusicalStyleCues();
+void analyzerReportsSeparatedMusicalRoles();
 void analyzerTracksBarPhaseAndDownbeats();
 void analyzerDetectsArrangementSections();
 void supportBundleWritesDiagnosticsWithoutCopyingLargeMedia();
@@ -2504,6 +2505,126 @@ void sameModeSongIdentitiesAuthorDistinct3DSetPieces()
     const auto uniqueEnd = std::unique(signatures.begin(), signatures.end());
     require(std::distance(signatures.begin(), uniqueEnd) >= 6,
             "same visual mode should still produce distinct 3D object grammars for different song identities");
+}
+
+void analyzerRolesDriveSeparate3DObjectFamilies()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.90f;
+    settings.lightingGlow = 0.90f;
+    settings.scenePersonality = 0.90f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.88f;
+    settings.patternClarity = 0.92f;
+    settings.complexity = 1.25f;
+    settings.intensity = 1.2f;
+
+    AudioMetrics base = syntheticMetrics();
+    base.rms = 0.42f;
+    base.peak = 0.70f;
+    base.bass = 0.30f;
+    base.lowMid = 0.28f;
+    base.mid = 0.32f;
+    base.highMid = 0.26f;
+    base.treble = 0.22f;
+    base.stereoWidth = 0.46f;
+    base.spectralFlux = 0.18f;
+    base.onset = 0.20f;
+    base.beat = true;
+    base.beatConfidence = 0.48f;
+    base.barConfidence = 0.44f;
+    base.downbeatConfidence = 0.30f;
+    base.phraseIntensity = 0.28f;
+    base.phraseConfidence = 0.52f;
+    base.harmonicEnergy = 0.40f;
+    base.keyConfidence = 0.45f;
+    base.style = AudioStyle::Wide;
+    base.styleConfidence = 0.50f;
+    base.section = ArrangementSection::Groove;
+    base.sectionConfidence = 0.58f;
+
+    const auto withRoles = [base](float bass,
+                                  float drums,
+                                  float melody,
+                                  float harmony,
+                                  float space,
+                                  float fracture,
+                                  float shadow,
+                                  float convergence) {
+        AudioMetrics metrics = base;
+        metrics.bassRole = bass;
+        metrics.drumRole = drums;
+        metrics.melodyRole = melody;
+        metrics.harmonyRole = harmony;
+        metrics.spaceRole = space;
+        metrics.fractureRole = fracture;
+        metrics.shadowRole = shadow;
+        metrics.convergenceRole = convergence;
+        metrics.roleSeparation = 0.84f;
+        return metrics;
+    };
+
+    const GeometryFrame bassFrame = engine.buildFrame(withRoles(0.92f, 0.18f, 0.08f, 0.10f, 0.14f, 0.08f, 0.36f, 0.50f),
+                                                      settings,
+                                                      1280.0f,
+                                                      720.0f,
+                                                      4.0);
+    const GeometryFrame drumFrame = engine.buildFrame(withRoles(0.16f, 0.92f, 0.12f, 0.10f, 0.12f, 0.18f, 0.08f, 0.32f),
+                                                      settings,
+                                                      1280.0f,
+                                                      720.0f,
+                                                      4.0);
+    const GeometryFrame melodyFrame = engine.buildFrame(withRoles(0.08f, 0.12f, 0.90f, 0.76f, 0.22f, 0.12f, 0.06f, 0.22f),
+                                                        settings,
+                                                        1280.0f,
+                                                        720.0f,
+                                                        4.0);
+    const GeometryFrame spaceFrame = engine.buildFrame(withRoles(0.08f, 0.08f, 0.18f, 0.34f, 0.94f, 0.08f, 0.10f, 0.10f),
+                                                       settings,
+                                                       1280.0f,
+                                                       720.0f,
+                                                       4.0);
+    const GeometryFrame fractureFrame = engine.buildFrame(withRoles(0.10f, 0.18f, 0.18f, 0.12f, 0.10f, 0.94f, 0.08f, 0.26f),
+                                                          settings,
+                                                          1280.0f,
+                                                          720.0f,
+                                                          4.0);
+
+    require(bassFrame.sceneBassRole3D > 0.68f &&
+                bassFrame.sceneBassRole3D > bassFrame.sceneMelodyRole3D + 0.24f,
+            "explicit bass role should drive bass-scene metrics");
+    require(drumFrame.sceneDrumRole3D > 0.68f &&
+                drumFrame.sceneDrumRole3D > drumFrame.sceneSpaceRole3D + 0.24f,
+            "explicit drum role should drive drum/sequencer metrics");
+    require(melodyFrame.sceneMelodyRole3D > 0.66f &&
+                melodyFrame.sceneHarmonyRole3D > 0.55f &&
+                melodyFrame.sceneMelodyRole3D > melodyFrame.sceneBassRole3D + 0.24f,
+            "explicit melody/harmony roles should drive elevated harmonic metrics");
+    require(spaceFrame.sceneSpaceRole3D > 0.70f &&
+                spaceFrame.sceneSpaceRole3D > spaceFrame.sceneDrumRole3D + 0.28f,
+            "explicit space role should drive depth-field metrics");
+    require(fractureFrame.sceneFractureRole3D > 0.70f &&
+                fractureFrame.sceneFractureRole3D > fractureFrame.sceneSpaceRole3D + 0.28f,
+            "explicit fracture role should drive cut-plane metrics");
+
+    require(objectFamilyCount(bassFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) >
+                objectFamilyCount(spaceFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) + 2,
+            "explicit bass role should author more pressure ribs/columns than a space role");
+    require(objectFamilyCount(drumFrame, {Object3DKind::Column, Object3DKind::Link, Object3DKind::Cage}) >
+                objectFamilyCount(spaceFrame, {Object3DKind::Column, Object3DKind::Link, Object3DKind::Cage}) + 3,
+            "explicit drum role should author more sequencer architecture than a space role");
+    require(objectFamilyCount(melodyFrame, {Object3DKind::Shard, Object3DKind::Node, Object3DKind::Cage, Object3DKind::Link}) >
+                objectFamilyCount(bassFrame, {Object3DKind::Shard, Object3DKind::Node, Object3DKind::Cage, Object3DKind::Link}) + 4,
+            "explicit melody role should author more crystalline constellations than a bass role");
+    require(objectFamilyCount(spaceFrame, {Object3DKind::DepthPlane, Object3DKind::Orbiter, Object3DKind::WaveSurface}) >
+                objectFamilyCount(drumFrame, {Object3DKind::DepthPlane, Object3DKind::Orbiter, Object3DKind::WaveSurface}) + 3,
+            "explicit space role should author more depth fields/orbiters than a drum role");
+    require(objectFamilyCount(fractureFrame, {Object3DKind::Shard, Object3DKind::Plate}) >
+                objectFamilyCount(spaceFrame, {Object3DKind::Shard, Object3DKind::Plate}) + 4,
+            "explicit fracture role should author more cut planes than a space role");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -5010,6 +5131,7 @@ int main()
         {"audioAnalyzerLoadsAndSavesSyncProfile", viz::tests::audioAnalyzerLoadsAndSavesSyncProfile},
         {"analyzerReportsAdvancedSyncMetrics", viz::tests::analyzerReportsAdvancedSyncMetrics},
         {"analyzerClassifiesMusicalStyleCues", viz::tests::analyzerClassifiesMusicalStyleCues},
+        {"analyzerReportsSeparatedMusicalRoles", viz::tests::analyzerReportsSeparatedMusicalRoles},
         {"analyzerTracksBarPhaseAndDownbeats", viz::tests::analyzerTracksBarPhaseAndDownbeats},
         {"analyzerDetectsArrangementSections", viz::tests::analyzerDetectsArrangementSections},
         {"geometryModesProduceShapes", viz::tests::geometryModesProduceShapes},
@@ -5034,6 +5156,7 @@ int main()
         {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
         {"autoSceneProfilesProduceDistinct3DSignatures", viz::tests::autoSceneProfilesProduceDistinct3DSignatures},
         {"sameModeSongIdentitiesAuthorDistinct3DSetPieces", viz::tests::sameModeSongIdentitiesAuthorDistinct3DSetPieces},
+        {"analyzerRolesDriveSeparate3DObjectFamilies", viz::tests::analyzerRolesDriveSeparate3DObjectFamilies},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},

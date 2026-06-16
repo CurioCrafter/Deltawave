@@ -862,6 +862,32 @@ MusicRoleScene3D buildMusicRoleScene3D(const SceneInterpretation& intent,
                                role.bass * metrics.dropIntensity * 0.18f +
                                role.harmony * metrics.phraseConfidence * 0.10f);
 
+    const float analyzerRoleSum = metrics.bassRole +
+                                  metrics.drumRole +
+                                  metrics.melodyRole +
+                                  metrics.harmonyRole +
+                                  metrics.spaceRole +
+                                  metrics.fractureRole +
+                                  metrics.shadowRole +
+                                  metrics.convergenceRole;
+    if (analyzerRoleSum > 0.001f || metrics.roleSeparation > 0.001f) {
+        const float roleBlend = std::clamp(0.66f + metrics.roleSeparation * 0.24f, 0.66f, 0.90f);
+        const auto blendRole = [roleBlend](float fallback, float analyzed) {
+            return clamp01(fallback + (std::clamp(analyzed, 0.0f, 1.0f) - fallback) * roleBlend);
+        };
+        role.bass = blendRole(role.bass, metrics.bassRole);
+        role.drums = blendRole(role.drums, metrics.drumRole);
+        role.melody = blendRole(role.melody, metrics.melodyRole);
+        role.harmony = blendRole(role.harmony, metrics.harmonyRole);
+        role.space = blendRole(role.space, metrics.spaceRole);
+        role.fracture = blendRole(role.fracture, metrics.fractureRole);
+        role.shadow = blendRole(role.shadow, metrics.shadowRole);
+        role.convergence = blendRole(role.convergence, std::max(metrics.convergenceRole, metrics.dropIntensity * 0.45f));
+        role.separation = clamp01(std::max(role.separation * 0.44f,
+                                           metrics.roleSeparation * 0.92f +
+                                               patternClarityOf(settings) * 0.08f));
+    }
+
     const float activeRoles = (role.bass > 0.16f ? 1.0f : 0.0f) +
                               (role.drums > 0.16f ? 1.0f : 0.0f) +
                               (role.melody > 0.16f ? 1.0f : 0.0f) +
@@ -874,6 +900,11 @@ MusicRoleScene3D buildMusicRoleScene3D(const SceneInterpretation& intent,
                               patternClarityOf(settings) * 0.18f +
                               motionStabilityOf(settings) * 0.12f -
                               role.convergence * 0.08f);
+    if (analyzerRoleSum > 0.001f || metrics.roleSeparation > 0.001f) {
+        role.separation = clamp01(std::max(role.separation,
+                                           metrics.roleSeparation * 0.86f +
+                                               patternClarityOf(settings) * 0.10f));
+    }
     return role;
 }
 
@@ -4861,6 +4892,43 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     std::vector<Vec3> fractureAnchors;
     std::vector<Vec3> shadowAnchors;
 
+    enum class RoleDistrict {
+        Bass,
+        Drums,
+        Melody,
+        Harmony,
+        Space,
+        Fracture,
+        Shadow
+    };
+
+    const float districtScale = minimumDimension *
+                                (0.16f + role.separation * 0.15f + personality * 0.04f) *
+                                (1.0f - convergence * 0.28f);
+    const auto districtOffset = [&](RoleDistrict district) {
+        switch (district) {
+        case RoleDistrict::Bass:
+            return Vec3{0.00f, 0.22f, -0.48f};
+        case RoleDistrict::Drums:
+            return Vec3{-0.52f, 0.02f, -0.08f};
+        case RoleDistrict::Melody:
+            return Vec3{0.48f, -0.24f, 0.12f};
+        case RoleDistrict::Harmony:
+            return Vec3{0.18f, -0.16f, 0.42f};
+        case RoleDistrict::Space:
+            return Vec3{-0.10f, -0.02f, 0.62f};
+        case RoleDistrict::Fracture:
+            return Vec3{0.58f, 0.12f, -0.22f};
+        case RoleDistrict::Shadow:
+            return Vec3{-0.40f, 0.20f, 0.24f};
+        }
+        return Vec3{};
+    };
+    const auto rolePosition = [&](Vec3 position, RoleDistrict district, float merge) {
+        const Vec3 offset = scale(districtOffset(district), districtScale * (1.0f - merge * 0.46f));
+        return mix(add(position, offset), convergencePoint, merge);
+    };
+
     const auto applyMotionDialect = [&](Object3D& object) {
         const float seed = static_cast<float>(objects.size() + 1U) * 0.713f +
                            static_cast<float>(static_cast<int>(object.kind)) * 0.271f;
@@ -4948,7 +5016,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 (unit - 0.5f) * minimumDimension * 0.10f,
                 minimumDimension * (0.26f + unit * (0.88f + role.space * 0.24f))
             };
-            position = mix(position, convergencePoint, convergence * 0.10f);
+            position = rolePosition(position, RoleDistrict::Space, convergence * 0.10f);
             pushObject(makeObject3D(Object3DKind::DepthPlane,
                                     position,
                                     Vec3{minimumDimension * (0.32f + role.space * 0.18f + unit * 0.06f),
@@ -4970,7 +5038,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 std::sin(angle * 0.73f) * minimumDimension * (0.10f + role.space * 0.06f),
                 minimumDimension * (0.18f + static_cast<float>(i % 4) * 0.20f)
             };
-            position = mix(position, convergencePoint, convergence * 0.12f);
+            position = rolePosition(position, RoleDistrict::Space, convergence * 0.12f);
             pushObject(makeObject3D(Object3DKind::Orbiter,
                                     position,
                                     Vec3{minimumDimension * (0.010f + role.space * 0.010f),
@@ -4994,7 +5062,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 minimumDimension * (0.18f + compression * 0.14f),
                 minimumDimension * (-0.62f + unit * (1.26f + metrics.dropIntensity * 0.28f) - compression)
             };
-            position = mix(position, convergencePoint, convergence * (0.22f + role.bass * 0.18f));
+            position = rolePosition(position, RoleDistrict::Bass, convergence * (0.22f + role.bass * 0.18f));
             const float radius = minimumDimension * (0.16f + unit * 0.16f + role.bass * 0.11f - compression * 0.035f);
             pushObject(makeObject3D(Object3DKind::TunnelRib,
                                     position,
@@ -5018,7 +5086,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 minimumDimension * (0.19f + std::fabs(lane) * 0.025f),
                 minimumDimension * (-0.34f + unit * 0.28f - metrics.dropIntensity * 0.10f)
             };
-            position = mix(position, convergencePoint, convergence * 0.20f);
+            position = rolePosition(position, RoleDistrict::Bass, convergence * 0.20f);
             pushObject(makeObject3D(Object3DKind::Column,
                                     position,
                                     Vec3{minimumDimension * (0.026f + role.bass * 0.018f),
@@ -5051,7 +5119,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                     minimumDimension * (-0.01f + (laneUnit - 0.5f) * 0.08f),
                     minimumDimension * (-0.22f + stepUnit * 0.72f + stepPulse * role.drums * 0.05f)
                 };
-                position = mix(position, convergencePoint, convergence * 0.16f);
+                position = rolePosition(position, RoleDistrict::Drums, convergence * 0.16f);
                 pushObject(makeObject3D(Object3DKind::Column,
                                         position,
                                         Vec3{minimumDimension * (0.010f + stepPulse * 0.008f),
@@ -5088,7 +5156,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 -minimumDimension * (0.14f + role.melody * 0.12f + chroma * 0.05f),
                 minimumDimension * (0.00f + chroma * 0.56f + role.harmony * 0.12f)
             };
-            position = mix(position, convergencePoint, convergence * 0.18f);
+            position = rolePosition(position, RoleDistrict::Melody, convergence * 0.18f);
             const Object3DKind kind = i % 4 == 0 ? Object3DKind::Cage : (i % 2 == 0 ? Object3DKind::Shard : Object3DKind::Node);
             pushObject(makeObject3D(kind,
                                     position,
@@ -5120,7 +5188,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 -minimumDimension * (0.035f + role.harmony * 0.055f),
                 minimumDimension * (0.08f + unit * 0.42f + harmonic * 0.12f)
             };
-            position = mix(position, convergencePoint, convergence * 0.24f);
+            position = rolePosition(position, RoleDistrict::Harmony, convergence * 0.24f);
             pushObject(makeObject3D(Object3DKind::Cage,
                                     position,
                                     Vec3{minimumDimension * (0.060f + role.harmony * 0.050f),
@@ -5155,7 +5223,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 (stagger - 0.5f) * minimumDimension * (0.16f + role.fracture * 0.08f),
                 minimumDimension * (-0.26f + unit * 0.76f + role.fracture * 0.12f)
             };
-            position = mix(position, convergencePoint, convergence * 0.20f);
+            position = rolePosition(position, RoleDistrict::Fracture, convergence * 0.20f);
             pushObject(makeObject3D(i % 3 == 0 ? Object3DKind::Plate : Object3DKind::Shard,
                                     position,
                                     Vec3{minimumDimension * (0.020f + role.fracture * 0.030f),
@@ -5181,7 +5249,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                 minimumDimension * (0.15f + role.shadow * 0.06f),
                 minimumDimension * (-0.06f + unit * 0.42f + role.shadow * 0.10f)
             };
-            position = mix(position, convergencePoint, convergence * 0.10f);
+            position = rolePosition(position, RoleDistrict::Shadow, convergence * 0.10f);
             pushObject(makeObject3D(Object3DKind::Column,
                                     position,
                                     Vec3{minimumDimension * (0.020f + role.shadow * 0.018f),
@@ -5199,7 +5267,7 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
             minimumDimension * (0.02f + role.shadow * 0.04f),
             minimumDimension * (0.16f + role.shadow * 0.18f)
         };
-        anchorPosition = mix(anchorPosition, convergencePoint, convergence * 0.12f);
+        anchorPosition = rolePosition(anchorPosition, RoleDistrict::Shadow, convergence * 0.12f);
         pushObject(makeObject3D(Object3DKind::Anchor,
                                 anchorPosition,
                                 Vec3{minimumDimension * (0.018f + role.shadow * 0.014f),

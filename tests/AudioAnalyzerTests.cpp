@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -120,6 +121,24 @@ AudioMetrics analyzePulsedStyle(float lowHz,
         metrics = analyzer.analyzeInterleaved(kick.data(), 4096, baseTime);
     }
     return metrics;
+}
+
+void requireRolesNormalized(const AudioMetrics& metrics, const std::string& label)
+{
+    const float roles[] = {
+        metrics.bassRole,
+        metrics.drumRole,
+        metrics.melodyRole,
+        metrics.harmonyRole,
+        metrics.spaceRole,
+        metrics.fractureRole,
+        metrics.shadowRole,
+        metrics.convergenceRole,
+        metrics.roleSeparation
+    };
+    for (float role : roles) {
+        require(role >= 0.0f && role <= 1.0f, label + " musical role values should stay normalized");
+    }
 }
 
 } // namespace
@@ -514,6 +533,81 @@ void analyzerClassifiesMusicalStyleCues()
     }
     require(quiet.style == AudioStyle::Ambient || quiet.style == AudioStyle::Silence,
             "very quiet musical content should stay calm instead of becoming a dance/drop style");
+}
+
+void analyzerReportsSeparatedMusicalRoles()
+{
+    const AudioMetrics techno = analyzePulsedStyle(142.0f, 0.06f, 0.20f, 0.48f, 0.18f, 0.14f, 60.0 / 128.0, true);
+    requireRolesNormalized(techno, "techno");
+    require(techno.drumRole > 0.30f &&
+                techno.drumRole > techno.spaceRole + 0.08f &&
+                techno.drumRole > techno.melodyRole,
+            "techno should expose the drum/sequencer role instead of a generic cloud; drum=" +
+                std::to_string(techno.drumRole) +
+                " space=" + std::to_string(techno.spaceRole) +
+                " melody=" + std::to_string(techno.melodyRole));
+
+    const AudioMetrics bass = analyzePulsedStyle(72.0f, 0.18f, 0.88f, 0.12f, 0.04f, 0.14f, 60.0 / 140.0, false);
+    requireRolesNormalized(bass, "bass");
+    require(bass.bassRole > 0.44f &&
+                bass.bassRole > bass.melodyRole + 0.18f &&
+                bass.bassRole > bass.spaceRole + 0.18f,
+            "bass-heavy material should drive bass pressure separately; bass=" +
+                std::to_string(bass.bassRole) +
+                " melody=" + std::to_string(bass.melodyRole) +
+                " space=" + std::to_string(bass.spaceRole));
+
+    const AudioMetrics bright = analyzePulsedStyle(260.0f, 0.01f, 0.025f, 0.06f, 0.95f, 0.34f, 60.0 / 104.0, true);
+    requireRolesNormalized(bright, "bright");
+    require(bright.fractureRole > 0.32f &&
+                bright.fractureRole > bright.spaceRole + 0.10f,
+            "bright transient material should drive fracture/cut-plane motion; fracture=" +
+                std::to_string(bright.fractureRole) +
+                " space=" + std::to_string(bright.spaceRole));
+
+    AudioAnalyzer wideAnalyzer(48000, 2);
+    AudioMetrics wide;
+    const std::vector<float> wideFrame = makeStyleFrame(180.0f, 0.10f, 620.0f, 0.21f, 2800.0f, 0.22f, 0.96f, false);
+    for (int frame = 0; frame < 18; ++frame) {
+        wide = wideAnalyzer.analyzeInterleaved(wideFrame.data(), 4096, static_cast<double>(frame) * 0.12);
+    }
+    requireRolesNormalized(wide, "wide");
+    require(wide.spaceRole > 0.32f &&
+                wide.spaceRole > wide.drumRole + 0.14f &&
+                wide.spaceRole > wide.bassRole + 0.12f,
+            "wide/ambient material should read as spatial depth; space=" +
+                std::to_string(wide.spaceRole) +
+                " drum=" + std::to_string(wide.drumRole) +
+                " bass=" + std::to_string(wide.bassRole));
+
+    AudioAnalyzer melodicAnalyzer(48000, 2);
+    AudioMetrics melodic;
+    const std::vector<float> melodicFrame = makeStyleFrame(261.63f, 0.035f, 659.25f, 0.26f, 1046.50f, 0.18f, 0.42f, false);
+    for (int frame = 0; frame < 18; ++frame) {
+        melodic = melodicAnalyzer.analyzeInterleaved(melodicFrame.data(), 4096, static_cast<double>(frame) * 0.12);
+    }
+    requireRolesNormalized(melodic, "melodic");
+    require(melodic.melodyRole > melodic.bassRole + 0.12f &&
+                melodic.harmonyRole > melodic.bassRole + 0.08f,
+            "harmonic material should drive melody/harmony roles instead of bass mass; melody=" +
+                std::to_string(melodic.melodyRole) +
+                " harmony=" + std::to_string(melodic.harmonyRole) +
+                " bass=" + std::to_string(melodic.bassRole));
+
+    const AudioMetrics dark = analyzePulsedStyle(86.0f, 0.26f, 0.50f, 0.08f, 0.01f, 0.05f, 60.0 / 124.0, false);
+    requireRolesNormalized(dark, "dark");
+    require(dark.shadowRole > 0.14f && dark.shadowRole > bright.shadowRole + 0.04f,
+            "dark sparse low material should expose shadow/monolith role; dark shadow=" +
+                std::to_string(dark.shadowRole) +
+                " bright shadow=" + std::to_string(bright.shadowRole));
+
+    require(std::min({techno.roleSeparation,
+                      bass.roleSeparation,
+                      bright.roleSeparation,
+                      wide.roleSeparation,
+                      melodic.roleSeparation,
+                      dark.roleSeparation}) > 0.26f,
+            "musical role interpreter should keep non-silent profiles separable");
 }
 
 void analyzerTracksBarPhaseAndDownbeats()

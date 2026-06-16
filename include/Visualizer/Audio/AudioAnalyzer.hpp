@@ -66,6 +66,15 @@ struct AudioMetrics {
     float styleConfidence = 0.0f;
     float keyConfidence = 0.0f;
     float harmonicEnergy = 0.0f;
+    float bassRole = 0.0f;
+    float drumRole = 0.0f;
+    float melodyRole = 0.0f;
+    float harmonyRole = 0.0f;
+    float spaceRole = 0.0f;
+    float fractureRole = 0.0f;
+    float shadowRole = 0.0f;
+    float convergenceRole = 0.0f;
+    float roleSeparation = 0.0f;
     float sectionConfidence = 0.0f;
     float sectionProgress = 0.0f;
     float styleAdaptation = 0.0f;
@@ -143,6 +152,7 @@ private:
     void updateChromaMetrics(AudioMetrics& metrics,
                              const std::array<float, kSpectrumBinCount>& frequencies);
     void updateAdvancedSyncMetrics(AudioMetrics& metrics);
+    void updateMusicalRoleMetrics(AudioMetrics& metrics);
     void updateArrangementSection(AudioMetrics& metrics,
                                   float longAverage,
                                   float shortAverage,
