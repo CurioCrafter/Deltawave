@@ -21,6 +21,15 @@ struct AnalysisTimelineEntry {
     int retained2DPrimitiveCount = 0;
     int projected3DPrimitiveCount = 0;
     float threeDDominance = 0.0f;
+    float sceneBassRole3D = 0.0f;
+    float sceneDrumRole3D = 0.0f;
+    float sceneMelodyRole3D = 0.0f;
+    float sceneHarmonyRole3D = 0.0f;
+    float sceneSpaceRole3D = 0.0f;
+    float sceneFractureRole3D = 0.0f;
+    float sceneShadowRole3D = 0.0f;
+    float sceneConvergence3D = 0.0f;
+    float sceneRoleSeparation3D = 0.0f;
 };
 
 class AnalysisTimelineWriter {

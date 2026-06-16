@@ -309,7 +309,16 @@ bool exportAudioToFrames(const OfflineExportOptions& options,
                 geometry.authored2DPrimitiveCount,
                 geometry.retained2DPrimitiveCount,
                 geometry.projected3DPrimitiveCount,
-                geometry.threeDDominance
+                geometry.threeDDominance,
+                geometry.sceneBassRole3D,
+                geometry.sceneDrumRole3D,
+                geometry.sceneMelodyRole3D,
+                geometry.sceneHarmonyRole3D,
+                geometry.sceneSpaceRole3D,
+                geometry.sceneFractureRole3D,
+                geometry.sceneShadowRole3D,
+                geometry.sceneConvergence3D,
+                geometry.sceneRoleSeparation3D
             },
             error)) {
             return false;

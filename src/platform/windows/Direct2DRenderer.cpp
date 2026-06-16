@@ -324,6 +324,15 @@ void Direct2DRenderer::drawHud(const GeometryFrame& frame,
          << L"  Fill " << std::setprecision(1) << frame.projected3DFillVisualWeight
          << L"  Haze " << std::setprecision(0) << (frame.depthFogStrength * 100.0f) << L"%"
          << L"  Story " << (frame.sectionNarrative3D * 100.0f) << L"%\n";
+    text << L"3D Roles B" << std::setprecision(0) << (frame.sceneBassRole3D * 100.0f)
+         << L" D" << (frame.sceneDrumRole3D * 100.0f)
+         << L" M" << (frame.sceneMelodyRole3D * 100.0f)
+         << L" H" << (frame.sceneHarmonyRole3D * 100.0f)
+         << L" S" << (frame.sceneSpaceRole3D * 100.0f)
+         << L" F" << (frame.sceneFractureRole3D * 100.0f)
+         << L" Sh" << (frame.sceneShadowRole3D * 100.0f)
+         << L"  Converge " << (frame.sceneConvergence3D * 100.0f)
+         << L"  Sep " << (frame.sceneRoleSeparation3D * 100.0f) << L"%\n";
     text << L"FPS " << std::setprecision(1) << performance.fps
          << L"  Frame " << performance.averageFrameMs << L"ms"
          << L"  Core " << performance.averageCoreMs << L"ms"

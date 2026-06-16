@@ -128,6 +128,15 @@ struct GeometryFrame {
     float sectionDrop3D = 0.0f;
     float sectionGroove3D = 0.0f;
     float sectionBreakdown3D = 0.0f;
+    float sceneBassRole3D = 0.0f;
+    float sceneDrumRole3D = 0.0f;
+    float sceneMelodyRole3D = 0.0f;
+    float sceneHarmonyRole3D = 0.0f;
+    float sceneSpaceRole3D = 0.0f;
+    float sceneFractureRole3D = 0.0f;
+    float sceneShadowRole3D = 0.0f;
+    float sceneConvergence3D = 0.0f;
+    float sceneRoleSeparation3D = 0.0f;
     float cameraDepth = 0.0f;
     float cameraYaw = 0.0f;
     float cameraPitch = 0.0f;

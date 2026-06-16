@@ -2441,7 +2441,32 @@ void sameModeSongIdentitiesAuthorDistinct3DSetPieces()
                 "same-mode song identity frame should remain 3D-dominant");
         require(frame->objectDepthRange > 90.0f,
                 "same-mode song identity frame should use real depth");
+        require(frame->sceneRoleSeparation3D > 0.58f,
+                "same-mode song identity frame should keep musical roles separated instead of meshing all parts together");
     }
+
+    require(bassFrame.sceneBassRole3D > 0.70f &&
+                bassFrame.sceneBassRole3D > bassFrame.sceneMelodyRole3D + 0.24f &&
+                bassFrame.sceneConvergence3D > ambientFrame.sceneConvergence3D + 0.22f,
+            "bass/drop music should read as deep mass and convergence, not generic motion");
+    require(technoFrame.sceneDrumRole3D > 0.58f &&
+                technoFrame.sceneDrumRole3D > ambientFrame.sceneDrumRole3D + 0.24f,
+            "techno should expose a strong drum/sequencer role distinct from ambient space");
+    require(ambientFrame.sceneSpaceRole3D > 0.54f &&
+                ambientFrame.sceneSpaceRole3D > ambientFrame.sceneBassRole3D + 0.24f,
+            "ambient should emphasize spatial depth fields instead of bass mass");
+    require(melodicFrame.sceneMelodyRole3D > 0.58f &&
+                melodicFrame.sceneHarmonyRole3D > 0.48f &&
+                melodicFrame.sceneMelodyRole3D > melodicFrame.sceneBassRole3D + 0.22f,
+            "melodic music should drive elevated melody/harmony roles");
+    require(breakFrame.sceneFractureRole3D > 0.56f &&
+                breakFrame.sceneFractureRole3D > ambientFrame.sceneFractureRole3D + 0.26f,
+            "breakbeat should create a fractured cut-plane role instead of smooth ambient orbit; break fracture=" +
+                std::to_string(breakFrame.sceneFractureRole3D) +
+                " ambient fracture=" + std::to_string(ambientFrame.sceneFractureRole3D));
+    require(darkFrame.sceneShadowRole3D > 0.40f &&
+                darkFrame.sceneShadowRole3D > ambientFrame.sceneShadowRole3D + 0.16f,
+            "dark minimal should expose sparse shadow/monolith structure");
 
     require(objectFamilyCount(bassFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) >
                 objectFamilyCount(melodicFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) + 4,
@@ -4593,6 +4618,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include phrase structure columns");
         require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance") != std::string::npos,
                 "timeline should include scene intent and 3D dominance columns");
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
+                "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
                 "timeline should include adaptive audio profile columns");
     }
@@ -4923,6 +4950,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain phrase structure columns");
         require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance") != std::string::npos,
                 "batch timeline should contain scene intent and 3D dominance columns");
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
+                "batch timeline should contain separated musical role columns");
     }
 
     std::filesystem::remove_all(root);
