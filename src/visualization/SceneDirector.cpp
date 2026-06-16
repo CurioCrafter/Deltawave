@@ -35,6 +35,12 @@ struct SceneTarget {
     float hueShift = 0.0f;
     float depth3D = 0.55f;
     float colorImpact = 0.65f;
+    float objectDensity3D = 0.65f;
+    float lightingGlow = 0.62f;
+    float scenePersonality = 0.5f;
+    float response3D = 0.88f;
+    float motionStability = 0.72f;
+    float patternClarity = 0.78f;
     float intensity = 1.0f;
     float speed = 1.0f;
 };
@@ -70,6 +76,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     target.hueShift = wrapUnit(base.hueShift);
     target.depth3D = base.depth3D;
     target.colorImpact = base.colorImpact;
+    target.objectDensity3D = base.objectDensity3D;
+    target.lightingGlow = base.lightingGlow;
+    target.scenePersonality = base.scenePersonality;
+    target.response3D = base.response3D;
+    target.motionStability = base.motionStability;
+    target.patternClarity = base.patternClarity;
     target.intensity = base.intensity;
     target.speed = base.speed;
 
@@ -88,6 +100,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = MotionStyle::Smooth;
         target.depth3D = base.depth3D * 0.55f;
         target.colorImpact = base.colorImpact * 0.45f;
+        target.objectDensity3D = std::min(base.objectDensity3D, 0.42f);
+        target.lightingGlow = std::min(base.lightingGlow, 0.38f);
+        target.scenePersonality = std::min(base.scenePersonality, 0.34f);
+        target.response3D = std::min(base.response3D, 0.40f);
+        target.motionStability = std::max(base.motionStability, 0.90f);
+        target.patternClarity = std::max(base.patternClarity, 0.92f);
         target.intensity = base.intensity * 0.48f;
         target.speed = base.speed * 0.62f;
         break;
@@ -97,6 +115,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = MotionStyle::AmbientDrift;
         target.depth3D = std::max(base.depth3D, 0.62f + metrics.stereoWidth * 0.16f);
         target.colorImpact = std::max(base.colorImpact, 0.52f + metrics.harmonicEnergy * 0.16f);
+        target.objectDensity3D = std::max(base.objectDensity3D, 0.56f + metrics.stereoWidth * 0.14f);
+        target.lightingGlow = std::max(base.lightingGlow, 0.58f + metrics.harmonicEnergy * 0.14f);
+        target.scenePersonality = std::max(base.scenePersonality, 0.58f + metrics.stereoWidth * 0.12f);
+        target.response3D = std::max(base.response3D, 0.62f + metrics.phraseIntensity * 0.16f);
+        target.motionStability = std::max(base.motionStability, 0.84f);
+        target.patternClarity = std::max(base.patternClarity, 0.86f);
         target.intensity = base.intensity * (0.72f + metrics.phraseIntensity * 0.55f);
         target.speed = base.speed * (0.62f + metrics.stereoWidth * 0.32f);
         break;
@@ -108,6 +132,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = metrics.spectralFlux > 0.52f ? MotionStyle::Breakbeat : MotionStyle::Mechanical;
         target.depth3D = std::max(base.depth3D, 0.68f + metrics.stereoWidth * 0.18f + metrics.dropIntensity * 0.12f);
         target.colorImpact = std::max(base.colorImpact, 0.76f + metrics.treble * 0.12f + metrics.dropIntensity * 0.08f);
+        target.objectDensity3D = std::max(base.objectDensity3D, 0.74f + metrics.beatConfidence * 0.10f);
+        target.lightingGlow = std::max(base.lightingGlow, 0.68f + metrics.beatConfidence * 0.10f);
+        target.scenePersonality = std::max(base.scenePersonality, 0.70f + metrics.spectralFlux * 0.12f);
+        target.response3D = std::max(base.response3D, 0.78f + metrics.beatConfidence * 0.12f);
+        target.motionStability = std::max(base.motionStability, 0.78f);
+        target.patternClarity = std::max(base.patternClarity, 0.84f);
         target.intensity = base.intensity * (1.08f + energy * 0.5f + metrics.dropIntensity * 0.42f);
         target.speed = base.speed * (0.92f + bpmScale * 0.28f + metrics.beatConfidence * 0.22f);
         break;
@@ -117,6 +147,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = MotionStyle::HeavyBass;
         target.depth3D = std::max(base.depth3D, 0.78f + metrics.bass * 0.18f + metrics.dropIntensity * 0.12f);
         target.colorImpact = std::max(base.colorImpact, 0.72f + metrics.bass * 0.12f);
+        target.objectDensity3D = std::max(base.objectDensity3D, 0.72f + metrics.dropIntensity * 0.16f);
+        target.lightingGlow = std::max(base.lightingGlow, 0.72f + metrics.dropIntensity * 0.16f);
+        target.scenePersonality = std::max(base.scenePersonality, 0.72f + metrics.bass * 0.16f);
+        target.response3D = std::max(base.response3D, 0.84f + metrics.dropIntensity * 0.12f);
+        target.motionStability = std::max(base.motionStability, 0.80f);
+        target.patternClarity = std::max(base.patternClarity, 0.82f);
         target.intensity = base.intensity * (1.2f + metrics.bass * 0.78f + metrics.dropIntensity * 0.55f);
         target.speed = base.speed * (0.9f + bpmScale * 0.22f + metrics.onset * 0.36f);
         break;
@@ -126,6 +162,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = metrics.onset > 0.42f ? MotionStyle::Breakbeat : MotionStyle::Liquid;
         target.depth3D = std::max(base.depth3D, 0.58f + metrics.spectralFlux * 0.16f);
         target.colorImpact = std::max(base.colorImpact, 0.84f + metrics.treble * 0.12f);
+        target.objectDensity3D = std::max(base.objectDensity3D, 0.68f + metrics.spectralFlux * 0.16f);
+        target.lightingGlow = std::max(base.lightingGlow, 0.78f + metrics.treble * 0.14f);
+        target.scenePersonality = std::max(base.scenePersonality, 0.70f + metrics.onset * 0.12f);
+        target.response3D = std::max(base.response3D, 0.76f + metrics.onset * 0.14f);
+        target.motionStability = std::max(base.motionStability, metrics.onset > 0.42f ? 0.76f : 0.82f);
+        target.patternClarity = std::max(base.patternClarity, 0.86f);
         target.intensity = base.intensity * (0.95f + metrics.treble * 0.75f + metrics.spectralFlux * 0.45f);
         target.speed = base.speed * (0.95f + bpmScale * 0.18f + metrics.highMid * 0.3f);
         break;
@@ -137,6 +179,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = MotionStyle::Liquid;
         target.depth3D = std::max(base.depth3D, 0.76f + metrics.stereoWidth * 0.2f);
         target.colorImpact = std::max(base.colorImpact, 0.62f + metrics.stereoWidth * 0.12f + metrics.harmonicEnergy * 0.1f);
+        target.objectDensity3D = std::max(base.objectDensity3D, 0.62f + metrics.stereoWidth * 0.18f);
+        target.lightingGlow = std::max(base.lightingGlow, 0.62f + metrics.harmonicEnergy * 0.16f);
+        target.scenePersonality = std::max(base.scenePersonality, 0.66f + metrics.stereoWidth * 0.18f);
+        target.response3D = std::max(base.response3D, 0.70f + metrics.stereoWidth * 0.16f);
+        target.motionStability = std::max(base.motionStability, 0.82f);
+        target.patternClarity = std::max(base.patternClarity, 0.84f);
         target.intensity = base.intensity * (0.92f + metrics.stereoWidth * 0.52f + metrics.phraseIntensity * 0.3f);
         target.speed = base.speed * (0.82f + bpmScale * 0.2f + metrics.stereoWidth * 0.26f);
         break;
@@ -171,6 +219,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
             target.motionStyle = MotionStyle::AmbientDrift;
             target.depth3D = std::max(target.depth3D, 0.68f + metrics.stereoWidth * 0.12f);
             target.colorImpact = std::max(target.colorImpact, 0.58f + metrics.harmonicEnergy * 0.18f);
+            target.objectDensity3D = std::min(target.objectDensity3D, 0.62f + metrics.harmonicEnergy * 0.10f);
+            target.lightingGlow = std::max(target.lightingGlow, 0.58f + metrics.harmonicEnergy * 0.16f);
+            target.scenePersonality = std::max(target.scenePersonality, 0.56f + metrics.sectionProgress * 0.10f);
+            target.response3D = std::min(target.response3D, 0.74f + metrics.phraseIntensity * 0.10f);
+            target.motionStability = std::max(target.motionStability, 0.88f);
+            target.patternClarity = std::max(target.patternClarity, 0.90f);
             target.intensity *= 0.72f + metrics.sectionProgress * 0.18f;
             target.speed *= 0.68f + metrics.stereoWidth * 0.18f;
         }
@@ -191,6 +245,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
             target.motionStyle = metrics.stereoWidth > 0.42f ? MotionStyle::Hyperspace : MotionStyle::Mechanical;
             target.depth3D = std::max(target.depth3D, 0.72f + metrics.sectionProgress * 0.12f + metrics.buildTension * 0.14f);
             target.colorImpact = std::max(target.colorImpact, 0.74f + metrics.buildTension * 0.12f + metrics.treble * 0.08f);
+            target.objectDensity3D = std::max(target.objectDensity3D, 0.70f + metrics.sectionProgress * 0.14f);
+            target.lightingGlow = std::max(target.lightingGlow, 0.70f + metrics.buildTension * 0.18f);
+            target.scenePersonality = std::max(target.scenePersonality, 0.72f + metrics.buildTension * 0.16f);
+            target.response3D = std::max(target.response3D, 0.78f + metrics.buildTension * 0.16f);
+            target.motionStability = std::max(target.motionStability, 0.80f);
+            target.patternClarity = std::max(target.patternClarity, 0.84f);
             target.intensity *= 1.0f + metrics.sectionProgress * 0.32f + metrics.buildTension * 0.24f + metrics.phraseIntensity * 0.18f;
             target.speed *= 1.0f + metrics.sectionProgress * 0.16f + metrics.buildTension * 0.16f;
         }
@@ -208,6 +268,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
             target.motionStyle = metrics.bass > 0.58f ? MotionStyle::HeavyBass : MotionStyle::Hyperspace;
             target.depth3D = std::max(target.depth3D, 0.86f + metrics.dropIntensity * 0.1f);
             target.colorImpact = std::max(target.colorImpact, 0.82f + metrics.dropIntensity * 0.1f);
+            target.objectDensity3D = std::max(target.objectDensity3D, 0.82f + metrics.dropIntensity * 0.10f);
+            target.lightingGlow = std::max(target.lightingGlow, 0.80f + metrics.dropIntensity * 0.14f);
+            target.scenePersonality = std::max(target.scenePersonality, 0.82f + metrics.dropIntensity * 0.10f);
+            target.response3D = std::max(target.response3D, 0.88f + metrics.dropIntensity * 0.10f);
+            target.motionStability = std::max(target.motionStability, 0.80f);
+            target.patternClarity = std::max(target.patternClarity, 0.82f);
             target.intensity *= 1.16f + metrics.dropIntensity * 0.34f;
             target.speed *= 1.06f + metrics.beatConfidence * 0.14f;
         }
@@ -216,6 +282,13 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         if (metrics.sectionConfidence > 0.58f && metrics.bpm >= 112.0f && metrics.bpm <= 156.0f &&
             metrics.style == AudioStyle::Techno && metrics.dropIntensity < 0.4f) {
             target.mode = VisualMode::PolyrhythmLattice;
+        }
+        if (metrics.sectionConfidence > 0.48f) {
+            target.objectDensity3D = std::max(target.objectDensity3D, 0.72f + metrics.beatConfidence * 0.08f);
+            target.scenePersonality = std::max(target.scenePersonality, 0.66f + metrics.beatConfidence * 0.08f);
+            target.response3D = std::max(target.response3D, 0.74f + metrics.beatConfidence * 0.10f);
+            target.motionStability = std::max(target.motionStability, 0.82f);
+            target.patternClarity = std::max(target.patternClarity, 0.86f);
         }
         break;
     }
@@ -230,6 +303,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = metrics.stereoWidth > 0.46f ? MotionStyle::Hyperspace : MotionStyle::Mechanical;
         target.depth3D = std::max(target.depth3D, 0.78f + metrics.buildTension * 0.14f);
         target.colorImpact = std::max(target.colorImpact, 0.78f + metrics.buildTension * 0.1f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.76f + metrics.buildTension * 0.12f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.74f + metrics.buildTension * 0.14f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.76f + metrics.buildTension * 0.12f);
+        target.response3D = std::max(target.response3D, 0.82f + metrics.buildTension * 0.12f);
+        target.motionStability = std::max(target.motionStability, 0.80f);
+        target.patternClarity = std::max(target.patternClarity, 0.84f);
         target.intensity *= 1.04f + metrics.buildTension * 0.2f;
         target.speed *= 1.02f + metrics.buildTension * 0.14f;
     }
@@ -245,6 +324,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = MotionStyle::Smooth;
         target.depth3D = std::max(target.depth3D, 0.72f + metrics.buildTension * 0.12f);
         target.colorImpact = std::max(target.colorImpact, 0.84f + metrics.harmonicEnergy * 0.1f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.72f + metrics.harmonicEnergy * 0.12f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.80f + metrics.harmonicEnergy * 0.14f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.78f + metrics.harmonicEnergy * 0.12f);
+        target.response3D = std::max(target.response3D, 0.80f + metrics.buildTension * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.86f);
+        target.patternClarity = std::max(target.patternClarity, 0.90f);
         target.intensity *= 1.05f + metrics.harmonicEnergy * 0.12f + metrics.buildTension * 0.08f;
     }
 
@@ -257,25 +342,52 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = metrics.bass > 0.58f ? MotionStyle::HeavyBass : MotionStyle::Hyperspace;
         target.depth3D = std::max(target.depth3D, 0.92f);
         target.colorImpact = std::max(target.colorImpact, 0.88f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.88f + metrics.dropIntensity * 0.08f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.86f + metrics.dropIntensity * 0.10f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.86f + metrics.dropIntensity * 0.08f);
+        target.response3D = std::max(target.response3D, 0.92f + metrics.dropIntensity * 0.08f);
+        target.motionStability = std::max(target.motionStability, 0.80f);
+        target.patternClarity = std::max(target.patternClarity, 0.82f);
         target.intensity *= 1.18f;
         target.speed *= 1.08f;
     } else if (metrics.bandOnsets[0] > 0.55f && metrics.beatConfidence > 0.5f) {
         target.mode = VisualMode::PolyrhythmLattice;
         target.motionStyle = MotionStyle::Mechanical;
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.76f + metrics.beatConfidence * 0.10f);
+        target.response3D = std::max(target.response3D, 0.78f + metrics.beatConfidence * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.84f);
+        target.patternClarity = std::max(target.patternClarity, 0.86f);
     } else if (target.mode != VisualMode::CymaticInterference &&
                (metrics.phraseIntensity > 0.62f || metrics.buildTension > 0.7f) &&
                metrics.stereoWidth > 0.25f) {
         target.mode = VisualMode::FractalCathedral;
         target.motionStyle = MotionStyle::AmbientDrift;
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.66f + metrics.phraseIntensity * 0.12f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.66f + metrics.harmonicEnergy * 0.16f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.68f + metrics.phraseIntensity * 0.14f);
+        target.response3D = std::max(target.response3D, 0.70f + metrics.phraseIntensity * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.86f);
+        target.patternClarity = std::max(target.patternClarity, 0.88f);
     } else if (metrics.bandOnsets[4] > 0.44f && metrics.treble > 0.38f) {
         target.mode = VisualMode::SpectralOrigami;
         target.motionStyle = MotionStyle::Breakbeat;
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.72f + metrics.spectralFlux * 0.14f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.80f + metrics.treble * 0.12f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.76f + metrics.onset * 0.12f);
+        target.response3D = std::max(target.response3D, 0.78f + metrics.onset * 0.14f);
+        target.motionStability = std::max(target.motionStability, 0.76f);
+        target.patternClarity = std::max(target.patternClarity, 0.86f);
     } else if (target.mode != VisualMode::ResonanceTessellation &&
                target.mode != VisualMode::CymaticInterference &&
                metrics.keyConfidence > 0.58f &&
                metrics.harmonicEnergy > 0.58f) {
         target.mode = VisualMode::ChromaKaleidoscope;
         target.motionStyle = MotionStyle::Liquid;
+        target.lightingGlow = std::max(target.lightingGlow, 0.72f + metrics.harmonicEnergy * 0.14f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.78f + metrics.harmonicEnergy * 0.12f);
+        target.response3D = std::max(target.response3D, 0.76f + metrics.phraseIntensity * 0.12f);
+        target.motionStability = std::max(target.motionStability, 0.82f);
+        target.patternClarity = std::max(target.patternClarity, 0.88f);
     }
 
     if (metrics.downbeatConfidence > 0.58f &&
@@ -287,11 +399,23 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.motionStyle = metrics.stereoWidth > 0.52f ? MotionStyle::Liquid : MotionStyle::Smooth;
         target.depth3D = std::max(target.depth3D, 0.72f + metrics.stereoWidth * 0.12f);
         target.colorImpact = std::max(target.colorImpact, 0.70f + metrics.harmonicEnergy * 0.12f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.68f + metrics.barConfidence * 0.12f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.70f + metrics.downbeatConfidence * 0.12f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.74f + metrics.harmonicEnergy * 0.12f);
+        target.response3D = std::max(target.response3D, 0.76f + metrics.downbeatConfidence * 0.12f);
+        target.motionStability = std::max(target.motionStability, 0.84f);
+        target.patternClarity = std::max(target.patternClarity, 0.88f);
         target.intensity *= 1.0f + metrics.barConfidence * 0.14f + metrics.downbeatConfidence * 0.08f;
     }
 
     target.depth3D = clampSetting(target.depth3D, 0.0f, 1.0f);
     target.colorImpact = clampSetting(target.colorImpact, 0.0f, 1.0f);
+    target.objectDensity3D = clampSetting(target.objectDensity3D, 0.08f, 1.0f);
+    target.lightingGlow = clampSetting(target.lightingGlow, 0.05f, 1.0f);
+    target.scenePersonality = clampSetting(target.scenePersonality, 0.0f, 1.0f);
+    target.response3D = clampSetting(target.response3D, 0.05f, 1.0f);
+    target.motionStability = clampSetting(target.motionStability, 0.25f, 1.0f);
+    target.patternClarity = clampSetting(target.patternClarity, 0.25f, 1.0f);
     target.intensity = clampSetting(target.intensity, 0.15f, 4.0f);
     target.speed = clampSetting(target.speed, 0.1f, 4.0f);
     return target;
@@ -330,6 +454,12 @@ void SceneDirector::reset()
     smoothedHueShift_ = 0.0f;
     smoothedDepth3D_ = 0.55f;
     smoothedColorImpact_ = 0.65f;
+    smoothedObjectDensity3D_ = 0.65f;
+    smoothedLightingGlow_ = 0.62f;
+    smoothedScenePersonality_ = 0.5f;
+    smoothedResponse3D_ = 0.88f;
+    smoothedMotionStability_ = 0.72f;
+    smoothedPatternClarity_ = 0.78f;
     smoothedIntensity_ = 1.0f;
     smoothedSpeed_ = 1.0f;
 }
@@ -346,6 +476,12 @@ void SceneDirector::initialize(const VisualSettings& base, double timeSeconds)
     smoothedHueShift_ = wrapUnit(base.hueShift);
     smoothedDepth3D_ = base.depth3D;
     smoothedColorImpact_ = base.colorImpact;
+    smoothedObjectDensity3D_ = base.objectDensity3D;
+    smoothedLightingGlow_ = base.lightingGlow;
+    smoothedScenePersonality_ = base.scenePersonality;
+    smoothedResponse3D_ = base.response3D;
+    smoothedMotionStability_ = base.motionStability;
+    smoothedPatternClarity_ = base.patternClarity;
     smoothedIntensity_ = base.intensity;
     smoothedSpeed_ = base.speed;
 }
@@ -403,6 +539,18 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
     smoothedHueShift_ = smoothHue(smoothedHueShift_, target.hueShift, alpha);
     smoothedDepth3D_ = smooth(smoothedDepth3D_, target.depth3D, alpha);
     smoothedColorImpact_ = smooth(smoothedColorImpact_, target.colorImpact, alpha);
+    const float alpha3D = std::clamp(alpha +
+                                         metrics.dropIntensity * 0.12f +
+                                         metrics.onset * 0.06f +
+                                         metrics.downbeatConfidence * 0.04f,
+                                     0.10f,
+                                     0.56f);
+    smoothedObjectDensity3D_ = smooth(smoothedObjectDensity3D_, target.objectDensity3D, alpha3D);
+    smoothedLightingGlow_ = smooth(smoothedLightingGlow_, target.lightingGlow, alpha3D);
+    smoothedScenePersonality_ = smooth(smoothedScenePersonality_, target.scenePersonality, alpha3D);
+    smoothedResponse3D_ = smooth(smoothedResponse3D_, target.response3D, alpha3D);
+    smoothedMotionStability_ = smooth(smoothedMotionStability_, target.motionStability, alpha);
+    smoothedPatternClarity_ = smooth(smoothedPatternClarity_, target.patternClarity, alpha);
 
     VisualSettings resolved = base;
     resolved.mode = currentMode_;
@@ -411,6 +559,12 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
     resolved.hueShift = smoothedHueShift_;
     resolved.depth3D = clampSetting(smoothedDepth3D_, 0.0f, 1.0f);
     resolved.colorImpact = clampSetting(smoothedColorImpact_, 0.0f, 1.0f);
+    resolved.objectDensity3D = clampSetting(smoothedObjectDensity3D_, 0.08f, 1.0f);
+    resolved.lightingGlow = clampSetting(smoothedLightingGlow_, 0.05f, 1.0f);
+    resolved.scenePersonality = clampSetting(smoothedScenePersonality_, 0.0f, 1.0f);
+    resolved.response3D = clampSetting(smoothedResponse3D_, 0.05f, 1.0f);
+    resolved.motionStability = clampSetting(smoothedMotionStability_, 0.25f, 1.0f);
+    resolved.patternClarity = clampSetting(smoothedPatternClarity_, 0.25f, 1.0f);
     resolved.intensity = clampSetting(smoothedIntensity_, 0.15f, 4.0f);
     resolved.speed = clampSetting(smoothedSpeed_, 0.1f, 4.0f);
     if (transitionDurationSeconds_ > 0.0) {

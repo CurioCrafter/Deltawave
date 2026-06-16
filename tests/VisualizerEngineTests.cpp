@@ -203,6 +203,44 @@ std::array<int, 14> objectKindSignature(const GeometryFrame& frame)
     return signature;
 }
 
+std::array<int, 5> objectSpatialSignature(const GeometryFrame& frame)
+{
+    if (frame.objects3D.empty()) {
+        return {};
+    }
+
+    float minX = frame.objects3D.front().position.x;
+    float maxX = minX;
+    float minY = frame.objects3D.front().position.y;
+    float maxY = minY;
+    float minZ = frame.objects3D.front().position.z;
+    float maxZ = minZ;
+    float sumX = 0.0f;
+    float sumY = 0.0f;
+    for (const Object3D& object : frame.objects3D) {
+        minX = std::min(minX, object.position.x);
+        maxX = std::max(maxX, object.position.x);
+        minY = std::min(minY, object.position.y);
+        maxY = std::max(maxY, object.position.y);
+        minZ = std::min(minZ, object.position.z);
+        maxZ = std::max(maxZ, object.position.z);
+        sumX += object.position.x;
+        sumY += object.position.y;
+    }
+
+    const float count = static_cast<float>(frame.objects3D.size());
+    const float xRange = maxX - minX;
+    const float yRange = maxY - minY;
+    const float zRange = maxZ - minZ;
+    return {
+        static_cast<int>(std::round(xRange / 34.0f)),
+        static_cast<int>(std::round(yRange / 34.0f)),
+        static_cast<int>(std::round(zRange / 44.0f)),
+        static_cast<int>(std::round((sumX / count) / 28.0f)),
+        static_cast<int>(std::round((sumY / count) / 28.0f))
+    };
+}
+
 float averageObjectZ(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -1347,6 +1385,87 @@ void object3DRespondsStronglyToMusicAcrossModes()
     }
 }
 
+void allModesStay3DFirstInStillFrames()
+{
+    const VisualMode modes[] = {
+        VisualMode::QuantumTunnel,
+        VisualMode::TechnoMandala,
+        VisualMode::LissajousMesh,
+        VisualMode::FrequencyBloom,
+        VisualMode::FractalCathedral,
+        VisualMode::PolyrhythmLattice,
+        VisualMode::SpectralOrigami,
+        VisualMode::ChromaKaleidoscope,
+        VisualMode::HyperspacePolytope,
+        VisualMode::PhaseWeave,
+        VisualMode::ResonanceTessellation,
+        VisualMode::NeuralConstellation,
+        VisualMode::CymaticInterference
+    };
+
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.92f;
+    settings.lightingGlow = 0.9f;
+    settings.scenePersonality = 0.86f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.86f;
+    settings.patternClarity = 0.9f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.rms = 0.62f;
+    metrics.peak = 0.94f;
+    metrics.bass = 0.72f;
+    metrics.lowMid = 0.56f;
+    metrics.mid = 0.52f;
+    metrics.highMid = 0.68f;
+    metrics.treble = 0.74f;
+    metrics.stereoWidth = 0.70f;
+    metrics.spectralFlux = 0.58f;
+    metrics.onset = 0.54f;
+    metrics.beat = true;
+    metrics.beatConfidence = 0.9f;
+    metrics.downbeat = true;
+    metrics.downbeatConfidence = 0.78f;
+    metrics.dropIntensity = 0.52f;
+    metrics.phraseIntensity = 0.70f;
+    metrics.phraseConfidence = 0.82f;
+    metrics.buildTension = 0.68f;
+    metrics.keyIndex = 5;
+    metrics.keyMode = MusicalMode::Minor;
+    metrics.keyConfidence = 0.78f;
+    metrics.harmonicEnergy = 0.76f;
+    metrics.bandOnsets = {0.72f, 0.58f, 0.42f, 0.66f, 0.60f};
+
+    std::vector<std::array<int, 5>> spatialSignatures;
+    for (std::size_t i = 0; i < std::size(modes); ++i) {
+        settings.mode = modes[i];
+        const GeometryFrame frame = engine.buildFrame(metrics,
+                                                      settings,
+                                                      1280.0f,
+                                                      720.0f,
+                                                      5.0 + static_cast<double>(i) * 0.23);
+        require(frame.projected3DPrimitiveCount > 0, "each visual mode should project real 3D geometry");
+        require(frame.objects3D.size() >= 8U, "each visual mode should author a meaningful 3D object set");
+        require(frame.retained2DPrimitiveCount < frame.authored2DPrimitiveCount,
+                "3D-first composition should suppress legacy 2D primitives in every mode");
+        require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.4f,
+                "projected 3D visual weight should dominate retained 2D guides in every mode");
+        require(frame.threeDDominance > 1.25f, "each mode should report clear 3D dominance");
+        require(frame.objectDepthRange > 80.0f, "each mode should occupy visible depth in still captures");
+        spatialSignatures.push_back(objectSpatialSignature(frame));
+    }
+
+    std::sort(spatialSignatures.begin(), spatialSignatures.end());
+    const auto uniqueSpatialEnd = std::unique(spatialSignatures.begin(), spatialSignatures.end());
+    require(std::distance(spatialSignatures.begin(), uniqueSpatialEnd) >= 9,
+            "manual modes should not collapse into the same 3D spatial silhouette");
+}
+
 void songProfilesScaleMusicallyWithoutChaos()
 {
     VisualizerEngine engine;
@@ -1917,6 +2036,109 @@ void autoSceneSelectsMotionStyleFromMusic()
     const VisualSettings brightSettings = director.resolve(base, bright, 4.0);
     require(brightSettings.motionStyle == MotionStyle::Breakbeat,
             "Auto Scene should select breakbeat choreography for bright transient profiles");
+}
+
+void autoSceneDrives3DCompositionThroughSections()
+{
+    SceneDirector director;
+    VisualSettings base;
+    base.autoScene = true;
+    base.mode = VisualMode::LissajousMesh;
+    base.palette = Palette::MonochromeLaser;
+    base.motionStyle = MotionStyle::Smooth;
+    base.depth3D = 0.34f;
+    base.colorImpact = 0.36f;
+    base.objectDensity3D = 0.34f;
+    base.lightingGlow = 0.30f;
+    base.scenePersonality = 0.28f;
+    base.response3D = 0.36f;
+    base.motionStability = 0.52f;
+    base.patternClarity = 0.54f;
+    base.intensity = 0.82f;
+    base.speed = 0.82f;
+
+    AudioMetrics breakdown = syntheticMetrics();
+    breakdown.style = AudioStyle::Ambient;
+    breakdown.styleConfidence = 0.9f;
+    breakdown.rms = 0.18f;
+    breakdown.stereoWidth = 0.64f;
+    breakdown.harmonicEnergy = 0.62f;
+    breakdown.phraseIntensity = 0.48f;
+    breakdown.section = ArrangementSection::Breakdown;
+    breakdown.sectionConfidence = 0.84f;
+    breakdown.sectionProgress = 0.34f;
+    (void)director.resolve(base, breakdown, 0.0);
+    const VisualSettings breakdownSettings = director.resolve(base, breakdown, 0.7);
+
+    require(breakdownSettings.motionStyle == MotionStyle::AmbientDrift,
+            "breakdowns should become stable ambient 3D spaces");
+    require(breakdownSettings.objectDensity3D > base.objectDensity3D + 0.06f,
+            "breakdowns should still raise a sparse 3D scene above the base");
+    require(breakdownSettings.motionStability > base.motionStability,
+            "breakdowns should increase choreographic stability");
+    require(breakdownSettings.patternClarity > base.patternClarity,
+            "breakdowns should increase pattern readability");
+
+    AudioMetrics build = syntheticMetrics();
+    build.style = AudioStyle::Techno;
+    build.styleConfidence = 0.9f;
+    build.rms = 0.48f;
+    build.bass = 0.52f;
+    build.treble = 0.48f;
+    build.stereoWidth = 0.46f;
+    build.spectralFlux = 0.44f;
+    build.beat = true;
+    build.beatConfidence = 0.86f;
+    build.buildTension = 0.84f;
+    build.phraseIntensity = 0.62f;
+    build.phraseConfidence = 0.78f;
+    build.section = ArrangementSection::Build;
+    build.sectionConfidence = 0.86f;
+    build.sectionProgress = 0.68f;
+    build.bandOnsets = {0.44f, 0.38f, 0.48f, 0.52f, 0.40f};
+    const VisualSettings buildSettings = director.resolve(base, build, 1.55);
+
+    require(buildSettings.objectDensity3D > breakdownSettings.objectDensity3D + 0.06f,
+            "builds should visibly thicken the 3D object field");
+    require(buildSettings.lightingGlow > breakdownSettings.lightingGlow + 0.06f,
+            "builds should brighten 3D lighting");
+    require(buildSettings.scenePersonality > breakdownSettings.scenePersonality + 0.06f,
+            "builds should push scene personality beyond the breakdown");
+    require(buildSettings.response3D > breakdownSettings.response3D + 0.06f,
+            "builds should make 3D response more active");
+
+    AudioMetrics drop = syntheticMetrics();
+    drop.style = AudioStyle::BassHeavy;
+    drop.styleConfidence = 0.94f;
+    drop.rms = 0.84f;
+    drop.peak = 1.0f;
+    drop.bass = 0.98f;
+    drop.lowMid = 0.74f;
+    drop.treble = 0.42f;
+    drop.stereoWidth = 0.50f;
+    drop.spectralFlux = 0.50f;
+    drop.onset = 0.86f;
+    drop.beat = true;
+    drop.beatConfidence = 0.96f;
+    drop.downbeat = true;
+    drop.downbeatConfidence = 0.9f;
+    drop.dropIntensity = 0.96f;
+    drop.phraseIntensity = 0.74f;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.94f;
+    drop.bandOnsets = {0.88f, 0.76f, 0.48f, 0.36f, 0.28f};
+    const VisualSettings dropSettings = director.resolve(base, drop, 2.35);
+
+    require(dropSettings.motionStyle == MotionStyle::HeavyBass,
+            "drops should switch into heavy-bass 3D choreography");
+    require(dropSettings.objectDensity3D > buildSettings.objectDensity3D,
+            "drops should increase 3D mass over builds");
+    require(dropSettings.lightingGlow > buildSettings.lightingGlow,
+            "drops should increase 3D lighting impact");
+    require(dropSettings.response3D > buildSettings.response3D,
+            "drops should make the 3D scene respond harder");
+    require(dropSettings.depth3D > breakdownSettings.depth3D + 0.20f,
+            "drops should push the camera and objects deeper than breakdowns");
 }
 
 void motionStabilityAndPatternClarityReduceJitter()
@@ -3744,12 +3966,14 @@ int main()
         {"depth3DProjectsGeometryIntoPerspectiveSpace", viz::tests::depth3DProjectsGeometryIntoPerspectiveSpace},
         {"object3DModesProduceDistinctSignatures", viz::tests::object3DModesProduceDistinctSignatures},
         {"object3DRespondsStronglyToMusicAcrossModes", viz::tests::object3DRespondsStronglyToMusicAcrossModes},
+        {"allModesStay3DFirstInStillFrames", viz::tests::allModesStay3DFirstInStillFrames},
         {"songProfilesScaleMusicallyWithoutChaos", viz::tests::songProfilesScaleMusicallyWithoutChaos},
         {"motionStylesCreateDistinct3DChoreography", viz::tests::motionStylesCreateDistinct3DChoreography},
         {"musicProfilesDriveDifferent3DChoreography", viz::tests::musicProfilesDriveDifferent3DChoreography},
         {"threeDFirstCompositionSuppressesLegacy2D", viz::tests::threeDFirstCompositionSuppressesLegacy2D},
         {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
+        {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
