@@ -639,6 +639,128 @@ void sceneDirectorAdaptsVisualSettings()
             "bright high-flux metrics should direct toward spectral origami");
 }
 
+void sceneDirectorUsesMusicalRolesForAmbiguousStyles()
+{
+    VisualSettings base;
+    base.autoScene = true;
+    base.mode = VisualMode::LissajousMesh;
+    base.palette = Palette::MonochromeLaser;
+    base.depth3D = 0.72f;
+    base.objectDensity3D = 0.70f;
+    base.lightingGlow = 0.70f;
+    base.scenePersonality = 0.70f;
+    base.response3D = 0.78f;
+    base.motionStability = 0.82f;
+    base.patternClarity = 0.86f;
+
+    AudioMetrics ambiguous = syntheticMetrics();
+    ambiguous.style = AudioStyle::Wide;
+    ambiguous.styleConfidence = 0.38f;
+    ambiguous.rms = 0.32f;
+    ambiguous.peak = 0.56f;
+    ambiguous.bass = 0.28f;
+    ambiguous.lowMid = 0.24f;
+    ambiguous.mid = 0.26f;
+    ambiguous.highMid = 0.18f;
+    ambiguous.treble = 0.14f;
+    ambiguous.stereoWidth = 0.52f;
+    ambiguous.spectralFlux = 0.16f;
+    ambiguous.onset = 0.18f;
+    ambiguous.beatConfidence = 0.24f;
+    ambiguous.barConfidence = 0.20f;
+    ambiguous.downbeatConfidence = 0.16f;
+    ambiguous.dropIntensity = 0.14f;
+    ambiguous.phraseIntensity = 0.22f;
+    ambiguous.phraseConfidence = 0.44f;
+    ambiguous.harmonicEnergy = 0.42f;
+    ambiguous.keyIndex = 5;
+    ambiguous.keyMode = MusicalMode::Minor;
+    ambiguous.keyConfidence = 0.34f;
+    ambiguous.section = ArrangementSection::Groove;
+    ambiguous.sectionConfidence = 0.56f;
+
+    const auto withRoles = [ambiguous](float bass,
+                                       float drums,
+                                       float melody,
+                                       float harmony,
+                                       float space,
+                                       float fracture,
+                                       float shadow,
+                                       float convergence) {
+        AudioMetrics metrics = ambiguous;
+        metrics.bassRole = bass;
+        metrics.drumRole = drums;
+        metrics.melodyRole = melody;
+        metrics.harmonyRole = harmony;
+        metrics.spaceRole = space;
+        metrics.fractureRole = fracture;
+        metrics.shadowRole = shadow;
+        metrics.convergenceRole = convergence;
+        metrics.roleSeparation = 0.84f;
+        return metrics;
+    };
+
+    SceneDirector bassDirector;
+    const VisualSettings bass = bassDirector.resolve(base,
+                                                     withRoles(0.88f, 0.14f, 0.08f, 0.12f, 0.16f, 0.08f, 0.24f, 0.42f),
+                                                     0.0);
+    require(bass.mode == VisualMode::QuantumTunnel,
+            "dominant bass role should direct ambiguous style into pressure/tunnel scene");
+    require(bass.motionStyle == MotionStyle::HeavyBass,
+            "dominant bass role should select heavy-bass motion");
+
+    SceneDirector drumDirector;
+    AudioMetrics drumMetrics = withRoles(0.16f, 0.88f, 0.08f, 0.10f, 0.14f, 0.16f, 0.08f, 0.30f);
+    drumMetrics.barConfidence = 0.68f;
+    drumMetrics.downbeatConfidence = 0.58f;
+    drumMetrics.bpm = 128.0f;
+    const VisualSettings drums = drumDirector.resolve(base, drumMetrics, 0.0);
+    require(drums.mode == VisualMode::TechnoMandala || drums.mode == VisualMode::PolyrhythmLattice,
+            "dominant drum role should direct ambiguous style into mechanical architecture");
+    require(drums.motionStyle == MotionStyle::Mechanical,
+            "dominant drum role should select mechanical motion");
+
+    SceneDirector melodicDirector;
+    AudioMetrics melodicMetrics = withRoles(0.06f, 0.10f, 0.78f, 0.62f, 0.24f, 0.08f, 0.06f, 0.18f);
+    melodicMetrics.keyConfidence = 0.78f;
+    melodicMetrics.harmonicEnergy = 0.76f;
+    const VisualSettings melodic = melodicDirector.resolve(base, melodicMetrics, 0.0);
+    require(melodic.mode == VisualMode::ChromaKaleidoscope || melodic.mode == VisualMode::ResonanceTessellation,
+            "dominant melody/harmony roles should direct ambiguous style into harmonic geometry");
+    require(melodic.motionStyle == MotionStyle::Liquid,
+            "dominant melody role should select flowing liquid motion");
+
+    SceneDirector spaceDirector;
+    const VisualSettings space = spaceDirector.resolve(base,
+                                                       withRoles(0.06f, 0.08f, 0.18f, 0.28f, 0.90f, 0.06f, 0.08f, 0.08f),
+                                                       0.0);
+    require(space.mode == VisualMode::PhaseWeave,
+            "dominant space role should direct ambiguous style into spatial phase weave");
+    require(space.motionStyle == MotionStyle::AmbientDrift,
+            "dominant space role should select ambient drift motion");
+
+    SceneDirector fractureDirector;
+    const VisualSettings fracture = fractureDirector.resolve(base,
+                                                             withRoles(0.18f, 0.22f, 0.10f, 0.10f, 0.14f, 0.90f, 0.08f, 0.46f),
+                                                             0.0);
+    require(fracture.mode == VisualMode::SpectralOrigami,
+            "dominant fracture role should direct ambiguous style into cut-plane scene");
+    require(fracture.motionStyle == MotionStyle::Breakbeat,
+            "dominant fracture role should select breakbeat motion");
+
+    SceneDirector shadowDirector;
+    AudioMetrics shadowMetrics = withRoles(0.30f, 0.12f, 0.08f, 0.18f, 0.12f, 0.20f, 0.82f, 0.18f);
+    shadowMetrics.keyConfidence = 0.54f;
+    shadowMetrics.keyMode = MusicalMode::Minor;
+    const VisualSettings shadow = shadowDirector.resolve(base, shadowMetrics, 0.0);
+    require(shadow.mode == VisualMode::ResonanceTessellation || shadow.mode == VisualMode::FractalCathedral,
+            "dominant shadow role should direct ambiguous style into dark monumental geometry");
+    require(shadow.palette == Palette::MonochromeLaser,
+            "dominant shadow role should select restrained monochrome lighting");
+    require(shadow.motionStyle == MotionStyle::Smooth,
+            "dominant shadow role should select restrained smooth motion");
+}
+
 void sceneDirectorEmitsModeTransitionPulse()
 {
     SceneDirector director;
@@ -5137,6 +5259,7 @@ int main()
         {"geometryModesProduceShapes", viz::tests::geometryModesProduceShapes},
         {"advancedModesReactToSyncMetrics", viz::tests::advancedModesReactToSyncMetrics},
         {"sceneDirectorAdaptsVisualSettings", viz::tests::sceneDirectorAdaptsVisualSettings},
+        {"sceneDirectorUsesMusicalRolesForAmbiguousStyles", viz::tests::sceneDirectorUsesMusicalRolesForAmbiguousStyles},
         {"sceneDirectorEmitsModeTransitionPulse", viz::tests::sceneDirectorEmitsModeTransitionPulse},
         {"sceneTransitionAddsMorphGeometry", viz::tests::sceneTransitionAddsMorphGeometry},
         {"hyperspacePolytopeRespondsToDimensionalEnergy", viz::tests::hyperspacePolytopeRespondsToDimensionalEnergy},

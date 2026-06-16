@@ -38,6 +38,38 @@ float highBandOnset(const AudioMetrics& metrics)
     return std::max(metrics.bandOnsets[3], metrics.bandOnsets[4]);
 }
 
+float musicalRoleSum(const AudioMetrics& metrics)
+{
+    return metrics.bassRole +
+           metrics.drumRole +
+           metrics.melodyRole +
+           metrics.harmonyRole +
+           metrics.spaceRole +
+           metrics.fractureRole +
+           metrics.shadowRole +
+           metrics.convergenceRole;
+}
+
+bool hasMusicalRoles(const AudioMetrics& metrics)
+{
+    return musicalRoleSum(metrics) > 0.015f || metrics.roleSeparation > 0.015f;
+}
+
+float melodicRole(const AudioMetrics& metrics)
+{
+    return std::max(metrics.melodyRole, metrics.harmonyRole);
+}
+
+float strongestMusicalRole(const AudioMetrics& metrics)
+{
+    return std::max({metrics.bassRole,
+                     metrics.drumRole,
+                     melodicRole(metrics),
+                     metrics.spaceRole,
+                     metrics.fractureRole,
+                     metrics.shadowRole});
+}
+
 bool transientBreakCue(const AudioMetrics& metrics)
 {
     const bool lockedTechno = metrics.style == AudioStyle::Techno &&
@@ -237,6 +269,51 @@ ContinuityScores scoreContinuity(const AudioMetrics& metrics)
                                  (metrics.style == AudioStyle::Ambient ? 0.30f : 0.0f),
                              0.0f,
                              1.0f);
+
+    if (hasMusicalRoles(metrics)) {
+        const float melodyRoleScore = melodicRole(metrics);
+        const float roleConfidence = std::clamp(metrics.roleSeparation * 0.72f +
+                                                strongestMusicalRole(metrics) * 0.42f,
+                                                0.0f,
+                                                1.0f);
+        scores.ambient = std::clamp(scores.ambient +
+                                        (metrics.spaceRole * 0.48f + metrics.harmonyRole * 0.12f -
+                                         metrics.bassRole * 0.16f - metrics.drumRole * 0.10f -
+                                         metrics.fractureRole * 0.12f) *
+                                            roleConfidence,
+                                    0.0f,
+                                    1.0f);
+        scores.techno = std::clamp(scores.techno +
+                                       (metrics.drumRole * 0.54f + metrics.convergenceRole * 0.10f -
+                                        metrics.spaceRole * 0.14f - melodyRoleScore * 0.08f) *
+                                           roleConfidence,
+                                   0.0f,
+                                   1.0f);
+        scores.bass = std::clamp(scores.bass +
+                                     (metrics.bassRole * 0.58f + metrics.convergenceRole * 0.12f -
+                                      metrics.spaceRole * 0.12f - metrics.harmonyRole * 0.08f) *
+                                         roleConfidence,
+                                 0.0f,
+                                 1.0f);
+        scores.melodic = std::clamp(scores.melodic +
+                                        (melodyRoleScore * 0.58f + metrics.spaceRole * 0.06f -
+                                         metrics.bassRole * 0.14f - metrics.fractureRole * 0.08f) *
+                                            roleConfidence,
+                                    0.0f,
+                                    1.0f);
+        scores.broken = std::clamp(scores.broken +
+                                       (metrics.fractureRole * 0.58f + metrics.convergenceRole * 0.18f -
+                                        metrics.spaceRole * 0.10f - metrics.harmonyRole * 0.08f) *
+                                           roleConfidence,
+                                   0.0f,
+                                   1.0f);
+        scores.dark = std::clamp(scores.dark +
+                                     (metrics.shadowRole * 0.58f + metrics.bassRole * 0.08f -
+                                      metrics.spaceRole * 0.12f - metrics.fractureRole * 0.08f) *
+                                         roleConfidence,
+                                 0.0f,
+                                 1.0f);
+    }
     return scores;
 }
 
@@ -270,6 +347,131 @@ float harmonicHueTarget(const VisualSettings& base, const AudioMetrics& metrics)
         delta += 1.0f;
     }
     return wrapUnit(base.hueShift + delta * weight);
+}
+
+void applyRoleDirectedTarget(SceneTarget& target, const AudioMetrics& metrics)
+{
+    if (!hasMusicalRoles(metrics) ||
+        (metrics.style == AudioStyle::Silence && metrics.rms < 0.035f && metrics.peak < 0.08f)) {
+        return;
+    }
+
+    const float roleConfidence = std::clamp(metrics.roleSeparation * 0.70f +
+                                            strongestMusicalRole(metrics) * 0.42f,
+                                            0.0f,
+                                            1.0f);
+    if (roleConfidence < 0.26f) {
+        return;
+    }
+
+    const float melody = melodicRole(metrics);
+    const float bass = metrics.bassRole;
+    const float drums = metrics.drumRole;
+    const float space = metrics.spaceRole;
+    const float fracture = metrics.fractureRole;
+    const float shadow = metrics.shadowRole;
+    const float convergence = metrics.convergenceRole;
+
+    const auto liftRole3D = [&]() {
+        target.depth3D = std::max(target.depth3D, 0.78f + roleConfidence * 0.16f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.64f + roleConfidence * 0.18f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.64f + roleConfidence * 0.18f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.72f + roleConfidence * 0.16f);
+        target.response3D = std::max(target.response3D, 0.74f + roleConfidence * 0.18f);
+        target.patternClarity = std::max(target.patternClarity, 0.86f);
+    };
+
+    if (fracture > 0.42f &&
+        fracture > space + 0.08f &&
+        fracture > melody + 0.04f) {
+        target.mode = VisualMode::SpectralOrigami;
+        target.palette = Palette::AcidAurora;
+        target.motionStyle = MotionStyle::Breakbeat;
+        target.colorImpact = std::max(target.colorImpact, 0.86f);
+        target.motionStability = std::max(target.motionStability, 0.80f);
+        target.intensity *= 1.02f + fracture * 0.22f + convergence * 0.12f;
+        target.speed *= 0.96f + fracture * 0.20f;
+        liftRole3D();
+        return;
+    }
+
+    if ((bass > 0.42f || (bass > 0.34f && convergence > 0.28f)) &&
+        bass > space + 0.12f &&
+        bass > melody + 0.10f) {
+        target.mode = convergence > 0.56f && metrics.stereoWidth > 0.50f
+                          ? VisualMode::HyperspacePolytope
+                          : VisualMode::QuantumTunnel;
+        target.palette = Palette::InfraredChrome;
+        target.motionStyle = MotionStyle::HeavyBass;
+        target.colorImpact = std::max(target.colorImpact, 0.78f + bass * 0.12f);
+        target.motionStability = std::max(target.motionStability, 0.84f);
+        target.intensity *= 1.04f + bass * 0.30f + convergence * 0.18f;
+        target.speed *= 0.88f + std::max(metrics.beatConfidence, drums) * 0.22f;
+        liftRole3D();
+        return;
+    }
+
+    if (shadow > 0.36f &&
+        shadow > space + 0.08f &&
+        shadow > fracture - 0.02f) {
+        target.mode = metrics.keyConfidence > 0.24f ? VisualMode::ResonanceTessellation : VisualMode::FractalCathedral;
+        target.palette = Palette::MonochromeLaser;
+        target.motionStyle = MotionStyle::Smooth;
+        target.colorImpact = std::min(target.colorImpact, 0.64f);
+        target.objectDensity3D = std::clamp(target.objectDensity3D, 0.42f, 0.68f);
+        target.motionStability = std::max(target.motionStability, 0.92f);
+        target.speed *= 0.72f;
+        liftRole3D();
+        return;
+    }
+
+    if (drums > 0.34f &&
+        drums > space + 0.08f &&
+        drums > melody + 0.06f &&
+        fracture < drums + 0.18f) {
+        target.mode = metrics.downbeatConfidence > 0.50f || metrics.barConfidence > 0.58f || drums > 0.62f
+                          ? VisualMode::TechnoMandala
+                          : VisualMode::PolyrhythmLattice;
+        target.palette = Palette::NeonVoltage;
+        target.motionStyle = MotionStyle::Mechanical;
+        target.motionStability = std::max(target.motionStability, 0.86f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.76f);
+        target.intensity *= 1.0f + drums * 0.16f + convergence * 0.10f;
+        target.speed *= 0.94f + bpmSpeedScale(metrics.bpm) * 0.14f + drums * 0.10f;
+        liftRole3D();
+        return;
+    }
+
+    if (melody > 0.30f &&
+        melody > bass + 0.08f &&
+        melody > fracture + 0.02f) {
+        target.mode = metrics.harmonyRole > metrics.melodyRole + 0.08f && metrics.keyConfidence > 0.34f
+                          ? VisualMode::ResonanceTessellation
+                          : VisualMode::ChromaKaleidoscope;
+        target.palette = Palette::AcidAurora;
+        target.motionStyle = MotionStyle::Liquid;
+        target.colorImpact = std::max(target.colorImpact, 0.84f);
+        target.motionStability = std::max(target.motionStability, 0.84f);
+        target.intensity *= 0.96f + melody * 0.18f + metrics.harmonyRole * 0.12f;
+        target.speed *= 0.86f + melody * 0.16f;
+        liftRole3D();
+        return;
+    }
+
+    if (space > 0.34f &&
+        space > bass + 0.10f &&
+        space > drums + 0.08f &&
+        space > fracture + 0.08f) {
+        target.mode = VisualMode::PhaseWeave;
+        target.palette = Palette::OceanicPulse;
+        target.motionStyle = MotionStyle::AmbientDrift;
+        target.colorImpact = std::max(target.colorImpact, 0.62f + metrics.harmonyRole * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.90f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.58f + space * 0.14f);
+        target.intensity *= 0.78f + space * 0.18f;
+        target.speed *= 0.64f + space * 0.18f;
+        liftRole3D();
+    }
 }
 
 SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
@@ -749,6 +951,8 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.intensity *= 1.0f + metrics.barConfidence * 0.14f + metrics.downbeatConfidence * 0.08f;
     }
 
+    applyRoleDirectedTarget(target, metrics);
+
     target.depth3D = clampSetting(target.depth3D, 0.0f, 1.0f);
     target.colorImpact = clampSetting(target.colorImpact, 0.0f, 1.0f);
     target.objectDensity3D = clampSetting(target.objectDensity3D, 0.08f, 1.0f);
@@ -886,23 +1090,60 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
 
     SceneTarget target = targetFor(base, metrics);
 
+    const bool roleAware = hasMusicalRoles(metrics);
+    const float melodyRoleScore = melodicRole(metrics);
+    const bool roleBassDominant = roleAware &&
+                                  metrics.bassRole > 0.40f &&
+                                  metrics.bassRole > metrics.spaceRole + 0.10f &&
+                                  metrics.bassRole > melodyRoleScore + 0.08f;
+    const bool roleDrumDominant = roleAware &&
+                                  metrics.drumRole > 0.34f &&
+                                  metrics.drumRole > metrics.spaceRole + 0.06f &&
+                                  metrics.drumRole > melodyRoleScore + 0.04f;
+    const bool roleMelodicDominant = roleAware &&
+                                     melodyRoleScore > 0.30f &&
+                                     melodyRoleScore > metrics.bassRole + 0.06f &&
+                                     melodyRoleScore > metrics.fractureRole + 0.02f;
+    const bool roleSpaceDominant = roleAware &&
+                                   metrics.spaceRole > 0.34f &&
+                                   metrics.spaceRole > metrics.bassRole + 0.08f &&
+                                   metrics.spaceRole > metrics.drumRole + 0.06f &&
+                                   metrics.spaceRole > metrics.fractureRole + 0.06f;
+    const bool roleFractureDominant = roleAware &&
+                                      metrics.fractureRole > 0.40f &&
+                                      metrics.fractureRole > metrics.spaceRole + 0.06f &&
+                                      metrics.fractureRole > metrics.bassRole + 0.06f &&
+                                      metrics.fractureRole > metrics.shadowRole + 0.03f &&
+                                      metrics.fractureRole > melodyRoleScore;
+    const bool roleShadowDominant = roleAware &&
+                                    metrics.shadowRole > 0.34f &&
+                                    metrics.shadowRole > metrics.spaceRole + 0.06f &&
+                                    metrics.shadowRole > metrics.fractureRole - 0.04f;
+
     const bool hardDropNow = metrics.dropIntensity > 0.66f ||
                              (metrics.section == ArrangementSection::Drop && metrics.sectionConfidence > 0.70f);
     const bool hardBreakNow = transientBreakCue(metrics) &&
                               (metrics.spectralFlux > 0.32f || metrics.onset > 0.30f || highBandOnset(metrics) > 0.40f);
-    const bool dominantBreak = breakMemory_ > 0.46f &&
-                               breakMemory_ > bassMemory_ - 0.04f &&
-                               breakMemory_ > technoMemory_ - 0.02f;
-    const bool dominantBass = bassMemory_ > 0.54f &&
-                              bassMemory_ > darkMemory_ + 0.08f &&
-                              metrics.bass > 0.50f;
-    const bool dominantDark = darkMemory_ > 0.46f &&
-                              darkMemory_ > ambientMemory_ + 0.08f &&
-                              metrics.bass > 0.42f;
-    const bool dominantMelodic = melodicMemory_ > 0.46f &&
-                                 melodicMemory_ > technoMemory_ + 0.04f &&
-                                 metrics.bass < 0.38f &&
-                                 metrics.dropIntensity < 0.46f;
+    const bool hardRoleBreakNow = roleFractureDominant &&
+                                  (metrics.convergenceRole > 0.24f || metrics.roleSeparation > 0.52f);
+    const bool dominantBreak = (breakMemory_ > 0.46f &&
+                                breakMemory_ > bassMemory_ + 0.05f &&
+                                breakMemory_ > technoMemory_ - 0.02f &&
+                                breakMemory_ > darkMemory_ + 0.04f) ||
+                               roleFractureDominant;
+    const bool dominantBass = (bassMemory_ > 0.54f &&
+                               bassMemory_ > darkMemory_ + 0.08f &&
+                               (metrics.bass > 0.50f || metrics.bassRole > 0.40f)) ||
+                              roleBassDominant;
+    const bool dominantDark = (darkMemory_ > 0.46f &&
+                               darkMemory_ > ambientMemory_ + 0.08f &&
+                               (metrics.bass > 0.42f || metrics.shadowRole > 0.34f)) ||
+                              roleShadowDominant;
+    const bool dominantMelodic = (melodicMemory_ > 0.46f &&
+                                  melodicMemory_ > technoMemory_ + 0.04f &&
+                                  metrics.bass < 0.38f &&
+                                  metrics.dropIntensity < 0.46f) ||
+                                 roleMelodicDominant;
     const bool explicitDimensionalTarget =
         (target.mode == VisualMode::HyperspacePolytope &&
          metrics.spectralFlux > 0.48f &&
@@ -928,29 +1169,42 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
         target.mode == VisualMode::FractalCathedral &&
         (metrics.phraseIntensity > 0.56f || metrics.buildTension > 0.64f) &&
         metrics.stereoWidth > 0.24f;
-    const bool dominantAmbient = ambientMemory_ > 0.42f &&
-                                 ambientMemory_ > technoMemory_ + 0.04f &&
-                                 metrics.dropIntensity < 0.52f &&
+    const bool dominantAmbient = (ambientMemory_ > 0.42f &&
+                                  ambientMemory_ > technoMemory_ + 0.04f &&
+                                  metrics.dropIntensity < 0.52f &&
+                                  !hardBreakNow &&
+                                  !hardRoleBreakNow &&
+                                  !hardDropNow &&
+                                  !roleBassDominant &&
+                                  !roleDrumDominant &&
+                                  !roleFractureDominant &&
+                                  !roleShadowDominant &&
+                                  !roleMelodicDominant &&
+                                  !dominantDark &&
+                                  !explicitHarmonicStructure &&
+                                  !explicitNeuralTarget &&
+                                  !explicitHarmonicColor &&
+                                  !explicitPhraseArchitecture) ||
+                                 roleSpaceDominant;
+    const bool dominantTechno = (technoMemory_ > 0.42f &&
+                                 technoMemory_ > ambientMemory_ + 0.04f &&
+                                 technoMemory_ > melodicMemory_ + 0.02f &&
                                  !hardBreakNow &&
+                                 !hardRoleBreakNow &&
                                  !hardDropNow &&
                                  !dominantDark &&
+                                 !roleBassDominant &&
+                                 !roleFractureDominant &&
+                                 !roleShadowDominant &&
+                                 !roleSpaceDominant &&
+                                 !explicitDimensionalTarget &&
                                  !explicitHarmonicStructure &&
                                  !explicitNeuralTarget &&
                                  !explicitHarmonicColor &&
-                                 !explicitPhraseArchitecture;
-    const bool dominantTechno = technoMemory_ > 0.42f &&
-                                technoMemory_ > ambientMemory_ + 0.04f &&
-                                technoMemory_ > melodicMemory_ + 0.02f &&
-                                !hardBreakNow &&
-                                !hardDropNow &&
-                                !dominantDark &&
-                                !explicitDimensionalTarget &&
-                                !explicitHarmonicStructure &&
-                                !explicitNeuralTarget &&
-                                !explicitHarmonicColor &&
-                                !explicitPhraseArchitecture;
+                                 !explicitPhraseArchitecture) ||
+                                roleDrumDominant;
 
-    if (hardBreakNow || dominantBreak) {
+    if (hardRoleBreakNow || hardBreakNow || dominantBreak) {
         target.mode = VisualMode::SpectralOrigami;
         target.palette = Palette::AcidAurora;
         target.motionStyle = MotionStyle::Breakbeat;
@@ -958,7 +1212,7 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
         target.motionStability = std::max(target.motionStability, 0.80f);
         reinforce3DSettings(target);
     } else if (hardDropNow || dominantBass) {
-        target.mode = metrics.stereoWidth > 0.52f && metrics.spectralFlux > 0.36f
+        target.mode = metrics.stereoWidth > 0.52f && metrics.spectralFlux > 0.36f && !roleBassDominant
                           ? VisualMode::HyperspacePolytope
                           : VisualMode::QuantumTunnel;
         target.palette = Palette::InfraredChrome;
@@ -977,14 +1231,16 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
         target.motionStability = std::max(target.motionStability, 0.92f);
         reinforce3DSettings(target);
     } else if (dominantMelodic) {
-        target.mode = melodicMemory_ > 0.58f ? VisualMode::ChromaKaleidoscope : VisualMode::FrequencyBloom;
+        target.mode = metrics.harmonyRole > metrics.melodyRole + 0.08f && metrics.keyConfidence > 0.34f
+                          ? VisualMode::ResonanceTessellation
+                          : (melodicMemory_ > 0.58f ? VisualMode::ChromaKaleidoscope : VisualMode::FrequencyBloom);
         target.palette = Palette::AcidAurora;
         target.motionStyle = MotionStyle::Liquid;
         target.colorImpact = std::max(target.colorImpact, 0.84f);
         target.motionStability = std::max(target.motionStability, 0.84f);
         reinforce3DSettings(target);
     } else if (dominantTechno) {
-        target.mode = technoMemory_ > 0.62f || metrics.downbeatConfidence > 0.52f
+        target.mode = technoMemory_ > 0.62f || metrics.downbeatConfidence > 0.52f || metrics.drumRole > 0.62f
                           ? VisualMode::TechnoMandala
                           : VisualMode::PolyrhythmLattice;
         target.palette = Palette::NeonVoltage;
@@ -993,9 +1249,7 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
         target.motionStability = std::max(target.motionStability, 0.84f);
         reinforce3DSettings(target);
     } else if (dominantAmbient) {
-        target.mode = ambientMemory_ > 0.58f || metrics.stereoWidth > 0.44f
-                          ? VisualMode::PhaseWeave
-                          : VisualMode::LissajousMesh;
+        target.mode = VisualMode::PhaseWeave;
         target.palette = Palette::OceanicPulse;
         target.motionStyle = MotionStyle::AmbientDrift;
         target.depth3D = std::max(target.depth3D, 0.82f);
@@ -1007,7 +1261,6 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
         target.motionStability = std::max(target.motionStability, 0.94f);
         target.patternClarity = std::max(target.patternClarity, 0.94f);
     }
-
     const bool targetIsSoftField = target.mode == VisualMode::PhaseWeave ||
                                    target.mode == VisualMode::LissajousMesh;
     const bool targetIsSoftOrCathedral = targetIsSoftField ||
@@ -1061,7 +1314,15 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
                              (metrics.spectralFlux > 0.30f ||
                               highBandOnset(metrics) > 0.38f ||
                               metrics.onset > 0.26f);
-    const bool strongMusicIdentity = strongBreak ||
+    const bool strongRoleIdentity = (roleBassDominant ||
+                                     roleDrumDominant ||
+                                     roleMelodicDominant ||
+                                     roleSpaceDominant ||
+                                     roleFractureDominant ||
+                                     roleShadowDominant) &&
+                                    (metrics.roleSeparation > 0.32f || strongestMusicalRole(metrics) > 0.46f);
+    const bool strongMusicIdentity = strongRoleIdentity ||
+                                     strongBreak ||
                                      ((target.mode == VisualMode::ChromaKaleidoscope ||
                                        target.mode == VisualMode::FrequencyBloom) &&
                                       melodicCue(metrics)) ||
@@ -1088,6 +1349,7 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
                                              metrics.dropIntensity * 0.36f +
                                              metrics.phraseIntensity * 0.22f +
                                              metrics.buildTension * 0.16f +
+                                             metrics.roleSeparation * 0.10f +
                                              metrics.beatConfidence * 0.12f +
                                              metrics.downbeatConfidence * 0.08f,
                                          0.45f,
