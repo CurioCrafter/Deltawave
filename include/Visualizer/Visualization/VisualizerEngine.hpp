@@ -130,6 +130,7 @@ struct GeometryFrame {
     float sectionDrop3D = 0.0f;
     float sectionGroove3D = 0.0f;
     float sectionBreakdown3D = 0.0f;
+    float sectionRelease3D = 0.0f;
     float sceneBassRole3D = 0.0f;
     float sceneDrumRole3D = 0.0f;
     float sceneMelodyRole3D = 0.0f;

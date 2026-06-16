@@ -5105,7 +5105,12 @@ SectionNarrative3D buildSectionNarrative3D(const AudioMetrics& metrics,
                           : metrics.buildTension * confidence * 0.22f;
     narrative.drop = metrics.section == ArrangementSection::Drop
                          ? confidence * (0.45f + metrics.dropIntensity * 0.46f + (1.0f - progress) * 0.16f)
-                         : metrics.dropIntensity * 0.24f;
+                         : metrics.dropIntensity *
+                               clamp01(0.36f +
+                                       metrics.bass * 0.22f +
+                                       metrics.onset * 0.12f +
+                                       metrics.phraseConfidence * 0.10f +
+                                       (metrics.style == AudioStyle::BassHeavy ? metrics.styleConfidence * 0.10f : 0.0f));
     narrative.groove = metrics.section == ArrangementSection::Groove
                            ? confidence * clamp01(metrics.beatConfidence * 0.52f +
                                                   metrics.barConfidence * 0.30f +
@@ -5119,7 +5124,12 @@ SectionNarrative3D buildSectionNarrative3D(const AudioMetrics& metrics,
                                                      (1.0f - metrics.dropIntensity) * 0.14f)
                               : 0.0f;
     narrative.release = metrics.section == ArrangementSection::Drop
-                            ? confidence * progress * clamp01(0.28f + motion.dropImpact * 0.34f)
+                            ? confidence *
+                                  smootherStep(0.42f, 0.92f, progress) *
+                                  clamp01(0.38f +
+                                          motion.dropImpact * 0.30f +
+                                          metrics.phraseConfidence * 0.18f +
+                                          metrics.phraseIntensity * 0.12f)
                             : (metrics.phraseBoundary ? metrics.phraseConfidence * 0.22f : 0.0f);
     narrative.build = clamp01(narrative.build);
     narrative.drop = clamp01(narrative.drop);
@@ -5300,6 +5310,43 @@ void addSectionNarrativeObjects3D(std::vector<Object3D>& objects,
                                            Vec3{0.0f, angle, phase * 0.014f},
                                            withAlpha(colors[(i + 4) % 5], 0.18f + narrative.breakdown * 0.18f),
                                            0.14f + narrative.breakdown * 0.30f));
+        }
+    }
+
+    if (narrative.release > 0.05f) {
+        const int arcs = scaledCount(5 + static_cast<int>(std::round(narrative.release * 5.0f)),
+                                     density * (0.42f + narrative.release * 0.34f));
+        std::vector<Vec3> recoveryAnchors;
+        recoveryAnchors.reserve(static_cast<std::size_t>(arcs));
+        for (int i = 0; i < arcs; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, arcs - 1));
+            const float lane = unit * 2.0f - 1.0f;
+            const float angle = lane * kPi * (0.30f + narrative.release * 0.16f) +
+                                phase * (0.018f + narrative.release * 0.016f);
+            const float expansion = std::sin(unit * kPi) * narrative.release;
+            const Vec3 position{
+                std::sin(angle) * minimumDimension * (0.20f + expansion * 0.18f) * stereo,
+                -minimumDimension * (0.06f + expansion * 0.08f),
+                minimumDimension * (-0.08f + unit * (0.76f + narrative.release * 0.22f))
+            };
+            recoveryAnchors.push_back(position);
+            objects.push_back(makeObject3D((i % 2 == 0) ? Object3DKind::WaveSurface : Object3DKind::Ribbon,
+                                           position,
+                                           Vec3{minimumDimension * (0.10f + narrative.release * 0.10f + expansion * 0.08f),
+                                                minimumDimension * (0.030f + narrative.release * 0.050f),
+                                                minimumDimension * (0.012f + narrative.release * 0.030f)},
+                                           Vec3{0.38f + unit * 0.12f,
+                                                angle * 0.18f,
+                                                metrics.phrasePhase * kPi + unit * 0.42f},
+                                           withAlpha(mix(colors[(i + 2) % 5], colors[4], 0.48f),
+                                                     0.12f + narrative.release * 0.22f),
+                                           0.14f + narrative.release * 0.38f + motion.phraseLift * 0.12f));
+        }
+        for (std::size_t i = 1; i < recoveryAnchors.size(); ++i) {
+            pushLink(recoveryAnchors[i - 1U],
+                     recoveryAnchors[i],
+                     withAlpha(colors[(i + 3U) % 5U], 0.06f + narrative.release * 0.12f),
+                     0.08f + narrative.release * 0.22f);
         }
     }
 }
@@ -6867,6 +6914,7 @@ void addObject3DScene(GeometryFrame& frame,
     frame.sectionDrop3D = sectionNarrative.drop;
     frame.sectionGroove3D = sectionNarrative.groove;
     frame.sectionBreakdown3D = sectionNarrative.breakdown;
+    frame.sectionRelease3D = sectionNarrative.release;
     frame.sceneBassRole3D = roleScene.bass;
     frame.sceneDrumRole3D = roleScene.drums;
     frame.sceneMelodyRole3D = roleScene.melody;

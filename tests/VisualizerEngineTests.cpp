@@ -3940,6 +3940,13 @@ void sectionNarrativeAuthorsDistinct3DStructures()
     drop.bass = 0.84f;
     drop.bandOnsets[0] = 0.74f;
 
+    AudioMetrics release = drop;
+    release.sectionProgress = 0.92f;
+    release.dropIntensity = 0.42f;
+    release.phraseBoundary = true;
+    release.phraseConfidence = 0.84f;
+    release.phraseIntensity = 0.62f;
+
     AudioMetrics groove = neutral;
     groove.section = ArrangementSection::Groove;
     groove.sectionConfidence = 0.88f;
@@ -3963,6 +3970,7 @@ void sectionNarrativeAuthorsDistinct3DStructures()
     const GeometryFrame neutralFrame = engine.buildFrame(neutral, settings, 1280.0f, 720.0f, 2.0);
     const GeometryFrame buildFrame = engine.buildFrame(build, settings, 1280.0f, 720.0f, 2.0);
     const GeometryFrame dropFrame = engine.buildFrame(drop, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame releaseFrame = engine.buildFrame(release, settings, 1280.0f, 720.0f, 2.0);
     const GeometryFrame grooveFrame = engine.buildFrame(groove, settings, 1280.0f, 720.0f, 2.0);
     const GeometryFrame breakdownFrame = engine.buildFrame(breakdown, settings, 1280.0f, 720.0f, 2.0);
 
@@ -3972,6 +3980,8 @@ void sectionNarrativeAuthorsDistinct3DStructures()
             "build sections should report a strong rising 3D narrative");
     require(dropFrame.sectionDrop3D > 0.70f,
             "drop sections should report a strong pressure 3D narrative");
+    require(releaseFrame.sectionRelease3D > 0.45f,
+            "late drop/phrase recovery should report a strong 3D release narrative");
     require(grooveFrame.sectionGroove3D > 0.55f,
             "groove sections should report a strong locked 3D narrative");
     require(breakdownFrame.sectionBreakdown3D > 0.55f,
@@ -3990,11 +4000,15 @@ void sectionNarrativeAuthorsDistinct3DStructures()
     require(objectFamilyCount(dropFrame, {Object3DKind::TunnelRib, Object3DKind::Plate}) >
                 objectFamilyCount(neutralFrame, {Object3DKind::TunnelRib, Object3DKind::Plate}) + 5,
             "drop narrative should add pressure ribs and shock plates");
+    require(objectFamilyCount(releaseFrame, {Object3DKind::WaveSurface, Object3DKind::Ribbon}) >
+                objectFamilyCount(dropFrame, {Object3DKind::WaveSurface, Object3DKind::Ribbon}),
+            "release narrative should add recovery arcs and wave surfaces after the drop impact");
     require(objectFamilyCount(grooveFrame, {Object3DKind::Column, Object3DKind::Link}) >
                 objectFamilyCount(neutralFrame, {Object3DKind::Column, Object3DKind::Link}) + 12,
             "groove narrative should add locked sequencer columns and rails");
     require(buildFrame.projected3DVisualWeight > buildFrame.retained2DVisualWeight * 1.6f &&
                 dropFrame.projected3DVisualWeight > dropFrame.retained2DVisualWeight * 1.6f &&
+                releaseFrame.projected3DVisualWeight > releaseFrame.retained2DVisualWeight * 1.6f &&
                 grooveFrame.projected3DVisualWeight > grooveFrame.retained2DVisualWeight * 1.6f &&
                 breakdownFrame.projected3DVisualWeight > breakdownFrame.retained2DVisualWeight * 1.6f,
             "section narrative structures should remain 3D-dominant");
@@ -5377,6 +5391,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include phrase structure columns");
         require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
                 "timeline should include scene intent, material share, and 3D dominance columns");
+        require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
+                "timeline should include 3D section narrative columns");
         require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
                 "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
@@ -5709,6 +5725,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain phrase structure columns");
         require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
                 "batch timeline should contain scene intent, material share, and 3D dominance columns");
+        require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
+                "batch timeline should contain 3D section narrative columns");
         require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
                 "batch timeline should contain separated musical role columns");
     }
