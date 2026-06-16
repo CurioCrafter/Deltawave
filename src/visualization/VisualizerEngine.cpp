@@ -2049,7 +2049,7 @@ void renderWireObject3D(GeometryFrame& frame,
                          Vec3{1.0f, -1.0f, 0.0f},
                          Vec3{1.0f, 1.0f, 0.0f},
                          Vec3{-1.0f, 1.0f, 0.0f}},
-                        0.48f,
+                        0.58f,
                         0.04f);
         const int ridges = 4;
         for (int i = -ridges; i <= ridges; ++i) {
@@ -2079,7 +2079,7 @@ void renderWireObject3D(GeometryFrame& frame,
                          Vec3{1.0f, -1.0f, 0.0f},
                          Vec3{1.0f, 1.0f, 0.0f},
                          Vec3{-1.0f, 1.0f, 0.0f}},
-                        0.30f,
+                        0.42f,
                         -0.03f);
         const int grid = 4;
         for (int i = -grid; i <= grid; ++i) {
@@ -2157,13 +2157,13 @@ void renderWireObject3D(GeometryFrame& frame,
                          Vec3{1.0f, -1.0f, -1.0f},
                          Vec3{1.0f, 1.0f, -1.0f},
                          Vec3{-1.0f, 1.0f, -1.0f}},
-                        0.24f,
+                        0.30f,
                         -0.04f);
         addMaterialFace({Vec3{-1.0f, -1.0f, 1.0f},
                          Vec3{1.0f, -1.0f, 1.0f},
                          Vec3{1.0f, 1.0f, 1.0f},
                          Vec3{-1.0f, 1.0f, 1.0f}},
-                        0.32f,
+                        0.40f,
                         0.06f);
         for (const auto& edge : cageEdges) {
             addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], color, stroke * 0.86f);
@@ -2176,7 +2176,7 @@ void renderWireObject3D(GeometryFrame& frame,
                          Vec3{1.0f, -1.0f, 0.0f},
                          Vec3{1.0f, 1.0f, 0.0f},
                          Vec3{-1.0f, 1.0f, 0.0f}},
-                        0.28f,
+                        0.40f,
                         0.02f);
         constexpr int rows = 5;
         constexpr int columns = 10;
@@ -2247,12 +2247,28 @@ void renderWireObject3D(GeometryFrame& frame,
     }
 
     if (object.kind == Object3DKind::Link) {
+        const Vec3 segment = subtract(object.target, object.position);
+        Vec3 ribbonSide = normalize(cross(segment, Vec3{0.0f, 0.0f, 1.0f}));
+        if (length(ribbonSide) <= 0.0001f) {
+            ribbonSide = normalize(cross(segment, Vec3{0.0f, 1.0f, 0.0f}));
+        }
+        const float ribbonWidth = std::clamp(0.006f + object.glow * 0.010f, 0.006f, 0.030f) *
+                                  std::max({object.scale.x, object.scale.y, object.scale.z, 1.0f});
+        const Vec3 offset = scale(ribbonSide, ribbonWidth * 64.0f);
+        addProjectedFace(frame,
+                         camera,
+                         {add(object.position, offset),
+                          add(object.target, offset),
+                          subtract(object.target, offset),
+                          subtract(object.position, offset)},
+                         withAlpha(color, color.a * 0.58f),
+                         0.25f + object.glow * 0.30f);
         addProjectedLine(frame,
                          camera,
                          object.position,
                          object.target,
-                         withAlpha(color, color.a * 0.72f),
-                         0.7f + object.glow * 1.2f);
+                         withAlpha(color, color.a * 0.34f),
+                         0.45f + object.glow * 0.82f);
         return;
     }
 
@@ -5042,6 +5058,33 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                                 0.16f + strength * 0.46f),
                    anchors);
     };
+    const auto pushRoleFieldSurface = [&](RoleDistrict district,
+                                          float strength,
+                                          Object3DKind kind,
+                                          ColorRGBA color,
+                                          Vec3 scaleBias,
+                                          Vec3 localOffset,
+                                          Vec3 rotationBias,
+                                          float mergeScale) {
+        if (strength <= 0.14f) {
+            return;
+        }
+
+        Vec3 position = rolePosition(localOffset, district, convergence * mergeScale);
+        Object3D surface = makeObject3D(kind,
+                                        position,
+                                        multiply(scaleBias,
+                                                 Vec3{minimumDimension * (0.72f + strength * 0.34f),
+                                                      minimumDimension * (0.72f + strength * 0.34f),
+                                                      minimumDimension * (0.72f + strength * 0.34f)}),
+                                        add(rotationBias,
+                                            Vec3{phase * (0.004f + strength * 0.003f),
+                                                 metrics.phrasePhase * 0.12f,
+                                                 phase * (0.006f + strength * 0.004f)}),
+                                        withAlpha(color, 0.095f + strength * 0.175f),
+                                        0.10f + strength * 0.28f);
+        pushObject(surface, spaceAnchors, false);
+    };
 
     pushRoleKeystone(RoleDistrict::Bass,
                      role.bass,
@@ -5092,6 +5135,63 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
                      colors[4],
                      Vec3{0.040f, 0.34f, 0.052f},
                      3.7f);
+
+    pushRoleFieldSurface(RoleDistrict::Bass,
+                         role.bass,
+                         Object3DKind::DepthPlane,
+                         colors[1],
+                         Vec3{0.32f, 0.090f, 0.030f},
+                         Vec3{0.0f, minimumDimension * 0.09f, minimumDimension * -0.08f},
+                         Vec3{0.58f, 0.0f, 0.0f},
+                         0.12f);
+    pushRoleFieldSurface(RoleDistrict::Drums,
+                         role.drums,
+                         Object3DKind::Plate,
+                         colors[0],
+                         Vec3{0.22f, 0.075f, 0.020f},
+                         Vec3{0.0f, minimumDimension * 0.025f, minimumDimension * 0.02f},
+                         Vec3{0.18f, 0.0f, 0.0f},
+                         0.10f);
+    pushRoleFieldSurface(RoleDistrict::Melody,
+                         role.melody,
+                         Object3DKind::WaveSurface,
+                         colors[2],
+                         Vec3{0.20f, 0.080f, 0.026f},
+                         Vec3{0.0f, minimumDimension * -0.08f, minimumDimension * 0.06f},
+                         Vec3{0.36f, 0.18f, 0.52f},
+                         0.12f);
+    pushRoleFieldSurface(RoleDistrict::Harmony,
+                         role.harmony,
+                         Object3DKind::DepthPlane,
+                         colors[3],
+                         Vec3{0.24f, 0.095f, 0.024f},
+                         Vec3{0.0f, minimumDimension * -0.045f, minimumDimension * 0.10f},
+                         Vec3{0.42f, 0.12f, 0.22f},
+                         0.14f);
+    pushRoleFieldSurface(RoleDistrict::Space,
+                         role.space,
+                         Object3DKind::WaveSurface,
+                         colors[4],
+                         Vec3{0.36f, 0.16f, 0.022f},
+                         Vec3{0.0f, 0.0f, minimumDimension * 0.22f},
+                         Vec3{0.50f, 0.10f, 0.12f},
+                         0.08f);
+    pushRoleFieldSurface(RoleDistrict::Fracture,
+                         role.fracture,
+                         Object3DKind::Plate,
+                         colors[2],
+                         Vec3{0.16f, 0.13f, 0.018f},
+                         Vec3{0.0f, 0.0f, minimumDimension * -0.02f},
+                         Vec3{0.74f, 0.36f, 0.96f},
+                         0.10f);
+    pushRoleFieldSurface(RoleDistrict::Shadow,
+                         role.shadow,
+                         Object3DKind::DepthPlane,
+                         colors[4],
+                         Vec3{0.22f, 0.18f, 0.024f},
+                         Vec3{0.0f, minimumDimension * 0.08f, minimumDimension * 0.10f},
+                         Vec3{0.66f, 0.18f, 0.04f},
+                         0.08f);
 
     if (role.space > 0.08f) {
         const int planes = scaledCount(3 + static_cast<int>(std::round(role.space * 3.0f)),

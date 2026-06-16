@@ -2804,6 +2804,12 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
     require(objectKindCount(ensembleFrame, Object3DKind::Link) <
                 static_cast<int>(ensembleFrame.objects3D.size()) * 45 / 100,
             "role convergence should connect districts without turning the frame mostly into link noise");
+    require(ensembleFrame.projected3DFaceCount >= 56,
+            "multi-role music should project filled 3D role surfaces, not just skeletal lines");
+    require(ensembleFrame.projected3DFillVisualWeight > 120.0f,
+            "role districts should contribute visible material fill so the scene reads as volumetric");
+    require(ensembleFrame.projected3DMaterialContrast > 0.05f,
+            "role district surfaces should preserve material contrast against the background");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
