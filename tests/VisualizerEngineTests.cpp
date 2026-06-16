@@ -2757,6 +2757,28 @@ void sameModeSongIdentitiesAuthorDistinct3DSetPieces()
                 darkFrame.sceneShadowRole3D > ambientFrame.sceneShadowRole3D + 0.16f,
             "dark minimal should expose sparse shadow/monolith structure");
 
+    require(objectRoleCount(bassFrame, Object3DRole::Bass) >
+                objectRoleCount(melodicFrame, Object3DRole::Bass) + 6,
+            "bass identity should visibly tag more authored bass-mass objects than melodic music");
+    require(objectRoleCount(technoFrame, Object3DRole::Drums) >
+                objectRoleCount(ambientFrame, Object3DRole::Drums) + 8,
+            "techno identity should visibly tag sequencer/drum architecture instead of sharing ambient roles");
+    require(objectRoleCount(ambientFrame, Object3DRole::Space) >
+                objectRoleCount(bassFrame, Object3DRole::Space) + 5,
+            "ambient identity should visibly tag spatial depth bodies instead of bass pressure structures");
+    require(objectRoleCount(melodicFrame, Object3DRole::Melody) >
+                objectRoleCount(technoFrame, Object3DRole::Melody) + 6,
+            "melodic identity should visibly tag melody crystal bodies instead of techno machinery");
+    require(objectRoleCount(breakFrame, Object3DRole::Fracture) >
+                objectRoleCount(ambientFrame, Object3DRole::Fracture) + 8,
+            "breakbeat identity should visibly tag fractured cut-plane objects instead of ambient orbiters");
+    const int darkShadowObjects = objectRoleCount(darkFrame, Object3DRole::Shadow);
+    const int darkDrumObjects = objectRoleCount(darkFrame, Object3DRole::Drums);
+    require(darkShadowObjects >= 24 && darkShadowObjects > darkDrumObjects + 3,
+            "dark minimal identity should be internally dominated by shadow/monolith objects instead of sequencer machinery; shadow=" +
+                std::to_string(darkShadowObjects) +
+                " drums=" + std::to_string(darkDrumObjects));
+
     require(objectFamilyCount(bassFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) >
                 objectFamilyCount(melodicFrame, {Object3DKind::TunnelRib, Object3DKind::Column}) + 4,
             "bass identity should author extra pressure ribs and massive columns");
@@ -4522,12 +4544,9 @@ void sectionNarrativeAuthorsDistinct3DStructures()
                 releaseFrame.sectionMaterialShift3D > 0.05f,
             "section choreography should change material/glow presence, not only object positions");
 
-    require(buildFrame.objects3D.size() > neutralFrame.objects3D.size() + 10U,
-            "build narrative should add rising 3D structure objects");
-    require(dropFrame.objects3D.size() > neutralFrame.objects3D.size() + 8U,
-            "drop narrative should add pressure 3D structure objects");
-    require(grooveFrame.objects3D.size() > neutralFrame.objects3D.size() + 16U,
-            "groove narrative should add sequencer 3D structure objects");
+    require(objectFamilyCount(buildFrame, {Object3DKind::Column, Object3DKind::Cage, Object3DKind::Link}) >
+                objectFamilyCount(neutralFrame, {Object3DKind::Column, Object3DKind::Cage, Object3DKind::Link}) + 8,
+            "build narrative should add a rising authored 3D spine, not just raise the total object baseline");
     require(objectFamilyCount(breakdownFrame, {Object3DKind::DepthPlane, Object3DKind::Orbiter}) >
                 objectFamilyCount(neutralFrame, {Object3DKind::DepthPlane, Object3DKind::Orbiter}) + 12,
             "breakdown narrative should add spacious depth-field objects without requiring total clutter");
@@ -4633,9 +4652,12 @@ void songArcMemoryShapesBuildDropRecovery()
             "drop impact should dolly the camera inward after build anticipation");
     require(releaseFrame.cameraDepth > dropFrame.cameraDepth + 18.0f,
             "recovery should open camera depth back up after impact");
-    require(dropFrame.objects3D.size() > baseFrame.objects3D.size() + 8U &&
-                releaseFrame.objects3D.size() > baseFrame.objects3D.size() + 8U,
-            "song arc memory should author extra 3D structures instead of only changing scalar metrics");
+    require(objectFamilyCount(dropFrame, {Object3DKind::TunnelRib, Object3DKind::Plate}) >
+                objectFamilyCount(baseFrame, {Object3DKind::TunnelRib, Object3DKind::Plate}) + 5,
+            "song arc memory should author impact pressure ribs and plates, not only change scalar metrics");
+    require(objectFamilyCount(releaseFrame, {Object3DKind::WaveSurface, Object3DKind::Ribbon}) >
+                objectFamilyCount(baseFrame, {Object3DKind::WaveSurface, Object3DKind::Ribbon}) + 5,
+            "song arc memory should author recovery wave/ribbon forms after impact");
     require(dropFrame.retained2DPrimitiveCount == 0 &&
                 releaseFrame.retained2DPrimitiveCount == 0,
             "song arc structures must remain 3D-first without retained flat overlays");

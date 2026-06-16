@@ -4812,6 +4812,70 @@ void applyPatternReadability3D(std::vector<Object3D>& objects,
     }
 }
 
+Object3DRole songIdentityRoleForObject3D(SongSceneIdentity identity, Object3DKind kind, std::size_t ordinal)
+{
+    switch (identity) {
+    case SongSceneIdentity::CalmSpace:
+        if (kind == Object3DKind::DepthPlane || kind == Object3DKind::WaveSurface || kind == Object3DKind::Orbiter) {
+            return Object3DRole::Space;
+        }
+        if (kind == Object3DKind::Link) {
+            return Object3DRole::Harmony;
+        }
+        return ordinal % 3U == 0U ? Object3DRole::Harmony : Object3DRole::Space;
+    case SongSceneIdentity::BassPressure:
+        if (kind == Object3DKind::Link) {
+            return Object3DRole::Convergence;
+        }
+        if (kind == Object3DKind::Anchor || kind == Object3DKind::DepthPlane) {
+            return Object3DRole::Bass;
+        }
+        return kind == Object3DKind::Plate || kind == Object3DKind::Shard ? Object3DRole::Fracture : Object3DRole::Bass;
+    case SongSceneIdentity::TechnoArchitecture:
+        if (kind == Object3DKind::TunnelRib) {
+            return Object3DRole::Bass;
+        }
+        if (kind == Object3DKind::Link || kind == Object3DKind::Column || kind == Object3DKind::Cage ||
+            kind == Object3DKind::Plate) {
+            return Object3DRole::Drums;
+        }
+        return ordinal % 4U == 0U ? Object3DRole::Harmony : Object3DRole::Drums;
+    case SongSceneIdentity::AmbientOrbit:
+        if (kind == Object3DKind::Link) {
+            return Object3DRole::Harmony;
+        }
+        if (kind == Object3DKind::Cage || kind == Object3DKind::Node) {
+            return Object3DRole::Harmony;
+        }
+        return Object3DRole::Space;
+    case SongSceneIdentity::MelodicCrystal:
+        if (kind == Object3DKind::Link || kind == Object3DKind::Cage || kind == Object3DKind::WaveSurface) {
+            return Object3DRole::Harmony;
+        }
+        if (kind == Object3DKind::DepthPlane || kind == Object3DKind::Orbiter) {
+            return ordinal % 2U == 0U ? Object3DRole::Space : Object3DRole::Harmony;
+        }
+        return Object3DRole::Melody;
+    case SongSceneIdentity::BreakbeatFracture:
+        if (kind == Object3DKind::Column || kind == Object3DKind::Cage) {
+            return Object3DRole::Drums;
+        }
+        if (kind == Object3DKind::Link) {
+            return Object3DRole::Fracture;
+        }
+        return kind == Object3DKind::TunnelRib ? Object3DRole::Bass : Object3DRole::Fracture;
+    case SongSceneIdentity::DarkMonolith:
+        if (kind == Object3DKind::TunnelRib || (kind == Object3DKind::Column && ordinal % 5U == 0U)) {
+            return Object3DRole::Bass;
+        }
+        if (kind == Object3DKind::Link) {
+            return Object3DRole::Bridge;
+        }
+        return Object3DRole::Shadow;
+    }
+    return Object3DRole::Unassigned;
+}
+
 void addSongIdentitySetPieces3D(std::vector<Object3D>& objects,
                                 SongSceneIdentity identity,
                                 const SceneInterpretation& intent,
@@ -5158,6 +5222,419 @@ void addSongIdentitySetPieces3D(std::vector<Object3D>& objects,
 
     for (std::size_t i = firstIdentityObject; i < objects.size(); ++i) {
         objects[i].scale = scale(objects[i].scale, scaleBoost);
+        objects[i].musicRole = songIdentityRoleForObject3D(identity, objects[i].kind, i - firstIdentityObject);
+    }
+}
+
+void addSongIdentityHeroArchitecture3D(std::vector<Object3D>& objects,
+                                       SongSceneIdentity identity,
+                                       const SceneInterpretation& intent,
+                                       const AudioMetrics& metrics,
+                                       const std::array<ColorRGBA, 5>& colors,
+                                       float minimumDimension,
+                                       float density,
+                                       float personality,
+                                       float response,
+                                       double time)
+{
+    const float phase = static_cast<float>(time);
+    const float transient = transientEnergy3D(metrics);
+    const float beat = metrics.beat ? std::max(metrics.beatConfidence, 0.24f) : metrics.beatConfidence * 0.42f;
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.62f +
+                                   metrics.keyConfidence * 0.26f +
+                                   averageChromaEnergy(metrics) * 0.20f);
+    const float stereo = clamp01(metrics.stereoWidth);
+    const float stereoSpread = 0.76f + stereo * 0.72f;
+    const float phrase = clamp01(metrics.phraseIntensity * 0.58f + metrics.phraseConfidence * 0.28f);
+    const float heroGain = std::clamp(0.78f + personality * 0.18f + std::min(response, 1.8f) * 0.06f,
+                                      0.74f,
+                                      1.08f);
+
+    const auto roleVelocity = [&](Object3DRole role, float strength, float seed) {
+        switch (role) {
+        case Object3DRole::Bass:
+            return Vec3{0.0f,
+                        minimumDimension * (0.006f + metrics.bass * 0.020f) * strength,
+                        -minimumDimension * (0.018f + metrics.dropIntensity * 0.040f) * strength};
+        case Object3DRole::Drums:
+            return Vec3{std::sin(seed + metrics.beatPhase * kPi) * minimumDimension * beat * 0.018f * strength,
+                        0.0f,
+                        minimumDimension * beat * 0.026f * strength};
+        case Object3DRole::Melody:
+            return Vec3{std::cos(seed + metrics.phrasePhase * kPi) * minimumDimension * harmonic * 0.018f * strength,
+                        -minimumDimension * harmonic * 0.020f * strength,
+                        std::sin(seed * 0.7f) * minimumDimension * harmonic * 0.016f * strength};
+        case Object3DRole::Harmony:
+            return Vec3{std::sin(seed * 0.6f) * minimumDimension * harmonic * 0.012f * strength,
+                        0.0f,
+                        minimumDimension * phrase * 0.016f * strength};
+        case Object3DRole::Space:
+            return Vec3{std::sin(seed + phase * 0.014f) * minimumDimension * stereo * 0.012f * strength,
+                        std::cos(seed * 0.5f + phase * 0.010f) * minimumDimension * 0.010f * strength,
+                        minimumDimension * (0.014f + stereo * 0.018f) * strength};
+        case Object3DRole::Fracture:
+            return Vec3{std::sin(seed * 3.0f) * minimumDimension * transient * 0.038f * strength,
+                        0.0f,
+                        std::cos(seed * 2.0f) * minimumDimension * transient * 0.030f * strength};
+        case Object3DRole::Shadow:
+            return Vec3{0.0f,
+                        minimumDimension * (0.006f + intent.shadow * 0.018f) * strength,
+                        minimumDimension * (0.010f + intent.dark * 0.018f) * strength};
+        case Object3DRole::Bridge:
+        case Object3DRole::Convergence:
+        case Object3DRole::Unassigned:
+            break;
+        }
+        return Vec3{};
+    };
+
+    const auto pushHeroObject = [&](Object3DKind kind,
+                                    Object3DRole role,
+                                    Vec3 position,
+                                    Vec3 scaleValue,
+                                    Vec3 rotation,
+                                    ColorRGBA color,
+                                    float glow,
+                                    float strength) -> Vec3 {
+        Object3D object = makeObject3D(kind,
+                                       position,
+                                       scale(scaleValue, heroGain),
+                                       rotation,
+                                       color,
+                                       glow);
+        object.musicRole = role;
+        object.velocity = roleVelocity(role, strength, position.x * 0.007f + position.z * 0.005f + phase);
+        objects.push_back(object);
+        return position;
+    };
+    const auto pushHeroLink = [&](Vec3 from, Vec3 to, Object3DRole role, ColorRGBA color, float glow) {
+        Object3D link = makeObject3D(Object3DKind::Link,
+                                     from,
+                                     Vec3{1.0f, 1.0f, 1.0f},
+                                     Vec3{},
+                                     color,
+                                     glow);
+        link.target = to;
+        link.musicRole = role;
+        link.velocity = roleVelocity(role, 0.5f, from.x * 0.004f + to.z * 0.004f + phase);
+        objects.push_back(link);
+    };
+
+    switch (identity) {
+    case SongSceneIdentity::CalmSpace: {
+        const int rooms = scaledCount(4, density * 0.46f);
+        std::vector<Vec3> roomAnchors;
+        roomAnchors.reserve(static_cast<std::size_t>(rooms));
+        for (int i = 0; i < rooms; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, rooms - 1));
+            Vec3 center{std::sin(unit * kPi + phase * 0.010f) * minimumDimension * 0.045f,
+                        (unit - 0.5f) * minimumDimension * 0.060f,
+                        minimumDimension * (0.02f + unit * (0.92f + intent.calm * 0.18f))};
+            roomAnchors.push_back(pushHeroObject(Object3DKind::DepthPlane,
+                                                 Object3DRole::Space,
+                                                 center,
+                                                 Vec3{minimumDimension * (0.30f + unit * 0.10f),
+                                                      minimumDimension * (0.18f + intent.calm * 0.08f),
+                                                      minimumDimension * 0.018f},
+                                                 Vec3{0.48f + unit * 0.08f,
+                                                      phase * 0.004f,
+                                                      phase * 0.006f + unit * 0.3f},
+                                                 withAlpha(mix(colors[4], colors[2], unit * 0.42f),
+                                                           0.10f + intent.calm * 0.18f),
+                                                 0.10f + intent.calm * 0.25f,
+                                                 0.62f + intent.calm * 0.20f));
+        }
+        for (std::size_t i = 1; i < roomAnchors.size(); ++i) {
+            pushHeroLink(roomAnchors[i - 1U],
+                         roomAnchors[i],
+                         Object3DRole::Harmony,
+                         withAlpha(colors[3], 0.060f + intent.calm * 0.060f),
+                         0.06f + intent.calm * 0.12f);
+        }
+        break;
+    }
+    case SongSceneIdentity::BassPressure: {
+        const int ribs = scaledCount(8, density * (0.70f + metrics.bass * 0.34f + metrics.dropIntensity * 0.18f));
+        std::vector<Vec3> spine;
+        spine.reserve(static_cast<std::size_t>(ribs));
+        for (int i = 0; i < ribs; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, ribs - 1));
+            const float compression = std::pow(1.0f - unit, 1.55f) *
+                                      (0.16f + metrics.bass * 0.18f + metrics.dropIntensity * 0.26f);
+            const float radius = minimumDimension *
+                                 (0.24f + unit * 0.24f + metrics.bass * 0.08f - compression * 0.05f);
+            Vec3 center{0.0f,
+                        minimumDimension * (0.060f + metrics.bass * 0.045f),
+                        minimumDimension * (-0.62f + unit * (1.46f + metrics.dropIntensity * 0.34f) - compression)};
+            spine.push_back(pushHeroObject(Object3DKind::TunnelRib,
+                                           Object3DRole::Bass,
+                                           center,
+                                           Vec3{radius,
+                                                radius * (0.42f + metrics.lowMid * 0.18f),
+                                                0.74f + metrics.bass * 0.80f + metrics.dropIntensity * 0.34f},
+                                           Vec3{compression * 0.22f,
+                                                phase * 0.012f,
+                                                metrics.beatPhase * kPi * 0.18f + unit * 0.36f},
+                                           withAlpha(mix(colors[1], colors[0], unit * 0.25f),
+                                                     0.27f + metrics.bass * 0.24f),
+                                           0.34f + metrics.bass * 0.82f + metrics.dropIntensity * 0.44f,
+                                           0.80f + metrics.bass * 0.34f));
+        }
+        const int weights = scaledCount(6, density * (0.56f + metrics.bass * 0.28f));
+        for (int i = 0; i < weights; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, weights - 1));
+            const float side = i % 2 == 0 ? -1.0f : 1.0f;
+            pushHeroObject(Object3DKind::Column,
+                           Object3DRole::Bass,
+                           Vec3{side * minimumDimension * (0.21f + unit * 0.10f) * stereoSpread,
+                                minimumDimension * (0.16f + metrics.bass * 0.08f),
+                                minimumDimension * (-0.34f + unit * 0.68f - metrics.dropIntensity * 0.16f)},
+                           Vec3{minimumDimension * (0.040f + metrics.bass * 0.020f),
+                                minimumDimension * (0.34f + metrics.bass * 0.30f + metrics.dropIntensity * 0.14f),
+                                minimumDimension * (0.048f + metrics.bass * 0.020f)},
+                           Vec3{0.04f,
+                                side * (0.12f + metrics.bass * 0.08f),
+                                phase * 0.010f + side * metrics.beatPhase * 0.16f},
+                           withAlpha(mix(colors[1], colors[3], 0.36f), 0.25f + metrics.bass * 0.26f),
+                           0.30f + metrics.bass * response * 0.58f,
+                           0.72f + metrics.bass * 0.28f);
+        }
+        for (std::size_t i = 1; i < spine.size(); i += 2) {
+            pushHeroLink(spine[i - 1U],
+                         spine[i],
+                         Object3DRole::Convergence,
+                         withAlpha(colors[1], 0.10f + metrics.dropIntensity * 0.11f),
+                         0.12f + metrics.dropIntensity * 0.28f);
+        }
+        break;
+    }
+    case SongSceneIdentity::TechnoArchitecture: {
+        const int lanes = scaledCount(5, density * (0.64f + intent.architecture * 0.30f));
+        const int steps = scaledCount(6, density * (0.58f + beat * 0.20f));
+        std::vector<Vec3> gateAnchors;
+        gateAnchors.reserve(static_cast<std::size_t>(lanes * steps));
+        const float currentStep = std::floor(clamp01(metrics.barPhase) * static_cast<float>(std::max(1, steps)));
+        for (int lane = 0; lane < lanes; ++lane) {
+            const float u = static_cast<float>(lane) / static_cast<float>(std::max(1, lanes - 1));
+            const float x = (u - 0.5f) * minimumDimension * 0.70f * stereoSpread;
+            for (int step = 0; step < steps; ++step) {
+                const float v = static_cast<float>(step) / static_cast<float>(std::max(1, steps - 1));
+                const float active = (step == static_cast<int>(currentStep)) ? beat : beat * 0.24f;
+                Vec3 position{x,
+                              minimumDimension * (-0.12f + (lane % 2) * 0.055f),
+                              minimumDimension * (-0.24f + v * 0.92f + active * 0.08f)};
+                gateAnchors.push_back(pushHeroObject((step + lane) % 3 == 0 ? Object3DKind::Cage : Object3DKind::Column,
+                                                     Object3DRole::Drums,
+                                                     position,
+                                                     Vec3{minimumDimension * (0.014f + active * 0.014f),
+                                                          minimumDimension * (0.13f + active * 0.12f +
+                                                                              intent.architecture * 0.05f),
+                                                          minimumDimension * (0.016f + active * 0.012f)},
+                                                     Vec3{0.0f,
+                                                          (lane - lanes / 2) * 0.025f,
+                                                          currentStep * 0.20f + active * 0.12f},
+                                                     withAlpha(colors[(lane + step) % 5], 0.18f + active * 0.24f),
+                                                     0.16f + active * 0.52f + intent.architecture * 0.20f,
+                                                     0.70f + beat * 0.24f));
+            }
+        }
+        for (std::size_t i = 1; i < gateAnchors.size(); ++i) {
+            if (i % static_cast<std::size_t>(std::max(1, steps)) == 0U) {
+                continue;
+            }
+            pushHeroLink(gateAnchors[i - 1U],
+                         gateAnchors[i],
+                         Object3DRole::Drums,
+                         withAlpha(colors[i % 5U], 0.08f + beat * 0.10f),
+                         0.10f + beat * 0.18f);
+        }
+        pushHeroObject(Object3DKind::Plate,
+                       Object3DRole::Drums,
+                       Vec3{0.0f, minimumDimension * 0.015f, minimumDimension * (0.22f + beat * 0.05f)},
+                       Vec3{minimumDimension * (0.34f + intent.architecture * 0.10f),
+                            minimumDimension * (0.030f + beat * 0.030f),
+                            minimumDimension * (0.028f + beat * 0.020f)},
+                       Vec3{0.18f, 0.0f, currentStep * kPi * 0.25f},
+                       withAlpha(colors[0], 0.14f + beat * 0.20f),
+                       0.16f + beat * 0.34f,
+                       0.68f + beat * 0.26f);
+        break;
+    }
+    case SongSceneIdentity::AmbientOrbit: {
+        const int bodies = scaledCount(10, density * (0.54f + intent.spacious * 0.36f));
+        std::vector<Vec3> orbitAnchors;
+        orbitAnchors.reserve(static_cast<std::size_t>(bodies));
+        for (int i = 0; i < bodies; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, bodies));
+            const float layer = static_cast<float>(i % 4) / 3.0f;
+            const float angle = unit * 2.0f * kPi +
+                                phase * (0.012f + stereo * 0.016f) +
+                                metrics.phrasePhase * kPi * 0.32f;
+            const float radius = minimumDimension * (0.22f + layer * 0.12f + stereo * 0.10f);
+            Vec3 position{std::cos(angle) * radius * stereoSpread,
+                          std::sin(angle * 0.68f) * radius * 0.44f,
+                          minimumDimension * (0.02f + layer * 0.52f + intent.spacious * 0.16f)};
+            orbitAnchors.push_back(pushHeroObject(i % 4 == 0 ? Object3DKind::WaveSurface : Object3DKind::Orbiter,
+                                                  Object3DRole::Space,
+                                                  position,
+                                                  Vec3{minimumDimension * (0.018f + layer * 0.022f + stereo * 0.010f),
+                                                       minimumDimension * (0.018f + layer * 0.018f),
+                                                       minimumDimension * (0.012f + layer * 0.010f)},
+                                                  Vec3{0.34f + layer * 0.16f,
+                                                       angle * 0.16f,
+                                                       phase * 0.012f + unit},
+                                                  withAlpha(colors[(i + 4) % 5],
+                                                            0.17f + stereo * 0.18f + intent.spacious * 0.10f),
+                                                  0.16f + intent.spacious * 0.34f + stereo * 0.16f,
+                                                  0.66f + intent.spacious * 0.28f));
+        }
+        for (std::size_t i = 0; i < orbitAnchors.size(); i += 2) {
+            pushHeroLink(orbitAnchors[i],
+                         orbitAnchors[(i + 3U) % orbitAnchors.size()],
+                         Object3DRole::Harmony,
+                         withAlpha(colors[(i + 1U) % 5U], 0.065f + intent.spacious * 0.080f),
+                         0.07f + intent.spacious * 0.15f);
+        }
+        break;
+    }
+    case SongSceneIdentity::MelodicCrystal: {
+        const int notes = scaledCount(14 + static_cast<int>(std::round(harmonic * 5.0f)),
+                                      density * (0.62f + harmonic * 0.28f + intent.crystal * 0.20f));
+        std::vector<Vec3> melodyPath;
+        melodyPath.reserve(static_cast<std::size_t>(notes));
+        for (int i = 0; i < notes; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, notes - 1));
+            const float chroma = chromaAt(metrics, i);
+            const float angle = unit * 1.45f * kPi + metrics.phrasePhase * kPi * 0.58f;
+            Vec3 position{(unit - 0.5f) * minimumDimension * 0.74f * stereoSpread,
+                          -minimumDimension * (0.10f + chroma * 0.22f + harmonic * 0.08f) +
+                              std::sin(angle) * minimumDimension * 0.045f,
+                          minimumDimension * (0.00f + chroma * 0.58f + std::sin(angle * 0.6f) * 0.10f +
+                                              harmonic * 0.10f)};
+            const Object3DRole role = i % 4 == 0 ? Object3DRole::Harmony : Object3DRole::Melody;
+            melodyPath.push_back(pushHeroObject(i % 5 == 0 ? Object3DKind::Cage :
+                                                (i % 2 == 0 ? Object3DKind::Shard : Object3DKind::Node),
+                                                role,
+                                                position,
+                                                Vec3{minimumDimension * (0.018f + chroma * 0.030f),
+                                                     minimumDimension * (0.034f + harmonic * 0.045f),
+                                                     minimumDimension * (0.014f + chroma * 0.020f)},
+                                                Vec3{angle * 0.14f,
+                                                     phase * 0.038f + chroma * kPi,
+                                                     harmonic * kPi + metrics.keyConfidence * 0.25f},
+                                                withAlpha(colors[(i + 2) % 5],
+                                                          0.24f + chroma * 0.26f + harmonic * 0.12f),
+                                                0.22f + chroma * response * 0.44f + harmonic * 0.38f,
+                                                0.68f + harmonic * 0.32f));
+        }
+        for (std::size_t i = 1; i < melodyPath.size(); ++i) {
+            pushHeroLink(melodyPath[i - 1U],
+                         melodyPath[i],
+                         i % 3U == 0U ? Object3DRole::Harmony : Object3DRole::Melody,
+                         withAlpha(colors[(i + 3U) % 5U], 0.09f + harmonic * 0.15f),
+                         0.10f + harmonic * 0.24f);
+        }
+        break;
+    }
+    case SongSceneIdentity::BreakbeatFracture: {
+        const int cuts = scaledCount(16, density * (0.68f + transient * 0.44f + metrics.onset * 0.18f));
+        std::vector<Vec3> cutAnchors;
+        cutAnchors.reserve(static_cast<std::size_t>(cuts));
+        const float quant = std::floor(clamp01(metrics.beatPhase) * 8.0f) / 8.0f;
+        for (int i = 0; i < cuts; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, cuts - 1));
+            const float stagger = static_cast<float>((i * 5 + 3) % 11) / 10.0f;
+            const float side = i % 2 == 0 ? -1.0f : 1.0f;
+            Vec3 position{(unit - 0.5f) * minimumDimension * 0.88f * stereoSpread +
+                              side * transient * minimumDimension * 0.035f,
+                          (stagger - 0.5f) * minimumDimension * (0.34f + transient * 0.12f),
+                          minimumDimension * (-0.20f + stagger * 0.78f + quant * 0.16f)};
+            cutAnchors.push_back(pushHeroObject(i % 3 == 0 ? Object3DKind::Plate : Object3DKind::Shard,
+                                                Object3DRole::Fracture,
+                                                position,
+                                                Vec3{minimumDimension * (0.025f + transient * 0.038f),
+                                                     minimumDimension * (0.070f + metrics.onset * 0.090f),
+                                                     minimumDimension * (0.014f + transient * 0.024f)},
+                                                Vec3{0.40f + stagger * 0.36f,
+                                                     quant * kPi + side * transient * 0.22f,
+                                                     std::floor((unit + quant) * 8.0f) * kPi * 0.16f},
+                                                withAlpha(colors[(i + 3) % 5], 0.22f + transient * 0.32f),
+                                                0.23f + transient * 0.70f + metrics.onset * 0.24f,
+                                                0.68f + transient * 0.34f));
+        }
+        for (std::size_t i = 2; i < cutAnchors.size(); i += 3) {
+            pushHeroLink(cutAnchors[i - 2U],
+                         cutAnchors[i],
+                         Object3DRole::Fracture,
+                         withAlpha(colors[(i + 2U) % 5U], 0.075f + transient * 0.12f),
+                         0.08f + transient * 0.22f);
+        }
+        pushHeroObject(Object3DKind::Cage,
+                       Object3DRole::Drums,
+                       Vec3{-minimumDimension * 0.22f, -minimumDimension * 0.02f, minimumDimension * (0.18f + quant * 0.22f)},
+                       Vec3{minimumDimension * 0.050f,
+                            minimumDimension * (0.18f + beat * 0.10f),
+                            minimumDimension * 0.050f},
+                       Vec3{0.0f, quant * kPi, phase * 0.020f},
+                       withAlpha(colors[0], 0.16f + beat * 0.16f),
+                       0.14f + beat * 0.30f,
+                       0.58f + beat * 0.24f);
+        break;
+    }
+    case SongSceneIdentity::DarkMonolith: {
+        const int monoliths = scaledCount(12, density * (0.50f + intent.shadow * 0.28f + intent.minimal * 0.12f));
+        std::vector<Vec3> crowns;
+        crowns.reserve(static_cast<std::size_t>(monoliths));
+        for (int i = 0; i < monoliths; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, monoliths - 1));
+            const float x = (unit - 0.5f) * minimumDimension * (0.52f + stereo * 0.08f);
+            const float height = 0.34f + intent.shadow * 0.24f + metrics.bass * 0.08f + (i % 2 == 0 ? 0.08f : 0.0f);
+            Vec3 base{x,
+                      minimumDimension * (0.13f + intent.dark * 0.05f),
+                      minimumDimension * (-0.08f + unit * 0.44f + intent.minimal * 0.10f)};
+            crowns.push_back(add(base, Vec3{0.0f, minimumDimension * height, 0.0f}));
+            pushHeroObject(Object3DKind::Column,
+                           Object3DRole::Shadow,
+                           base,
+                           Vec3{minimumDimension * (0.028f + intent.minimal * 0.012f),
+                                minimumDimension * height,
+                                minimumDimension * (0.040f + intent.shadow * 0.024f)},
+                           Vec3{0.03f + intent.tension * 0.06f,
+                                (unit - 0.5f) * 0.08f,
+                                phase * 0.004f},
+                           withAlpha(mix(colors[4], colors[3], 0.24f), 0.20f + intent.shadow * 0.24f),
+                           0.15f + intent.shadow * 0.48f + metrics.bass * 0.10f,
+                           0.72f + intent.shadow * 0.28f);
+        }
+        for (std::size_t i = 1; i < crowns.size(); ++i) {
+            pushHeroLink(crowns[i - 1U],
+                         crowns[i],
+                         Object3DRole::Bridge,
+                         withAlpha(colors[4], 0.055f + intent.shadow * 0.070f),
+                         0.07f + intent.shadow * 0.16f);
+        }
+        pushHeroObject(Object3DKind::DepthPlane,
+                       Object3DRole::Shadow,
+                       Vec3{0.0f, minimumDimension * 0.11f, minimumDimension * 0.38f},
+                       Vec3{minimumDimension * (0.38f + intent.minimal * 0.10f),
+                            minimumDimension * (0.22f + intent.dark * 0.08f),
+                            minimumDimension * 0.024f},
+                       Vec3{0.64f, phase * 0.003f, phase * 0.004f},
+                       withAlpha(colors[4], 0.08f + intent.shadow * 0.15f),
+                       0.10f + intent.shadow * 0.24f,
+                       0.62f + intent.shadow * 0.20f);
+        pushHeroObject(Object3DKind::Anchor,
+                       Object3DRole::Shadow,
+                       Vec3{0.0f, minimumDimension * 0.02f, minimumDimension * (0.12f + intent.dark * 0.18f)},
+                       Vec3{minimumDimension * (0.025f + intent.minimal * 0.012f),
+                            minimumDimension * (0.025f + intent.minimal * 0.012f),
+                            minimumDimension * 0.025f},
+                       Vec3{0.0f, phase * 0.008f, phase * 0.012f},
+                       withAlpha(colors[4], 0.22f + intent.shadow * 0.22f),
+                       0.16f + intent.shadow * 0.38f,
+                       0.74f + intent.shadow * 0.24f);
+        break;
+    }
     }
 }
 
@@ -5246,6 +5723,306 @@ void applySongIdentityComposition3D(std::vector<Object3D>& objects,
             object.rotation.y *= 0.78f;
             object.glow += intent.shadow * 0.035f;
             break;
+        }
+    }
+}
+
+void applySongIdentityMaterialDirection3D(std::vector<Object3D>& objects,
+                                          SongSceneIdentity identity,
+                                          const AudioMetrics& metrics,
+                                          const VisualSettings& settings,
+                                          float minimumDimension,
+                                          double time)
+{
+    if (objects.empty()) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float colorGain = std::clamp(0.42f + colorImpactOf(settings) * 0.46f + scenePersonalityOf(settings) * 0.12f,
+                                       0.38f,
+                                       0.92f);
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.58f +
+                                   metrics.keyConfidence * 0.26f +
+                                   averageChromaEnergy(metrics) * 0.20f);
+    const float transient = transientEnergy3D(metrics);
+    const float beat = metrics.beat ? std::max(metrics.beatConfidence, 0.18f) : metrics.beatConfidence * 0.42f;
+    const float analyzerRoleSum = metrics.bassRole +
+                                  metrics.drumRole +
+                                  metrics.melodyRole +
+                                  metrics.harmonyRole +
+                                  metrics.spaceRole +
+                                  metrics.fractureRole +
+                                  metrics.shadowRole;
+    const bool layeredRoleScene = metrics.roleSeparation > 0.72f &&
+                                  analyzerRoleSum > 3.20f &&
+                                  metrics.convergenceRole < 0.22f &&
+                                  metrics.dropIntensity < 0.36f;
+    if (layeredRoleScene) {
+        return;
+    }
+    const float identityFocus = layeredRoleScene ? 0.58f : 1.0f;
+    const float dimFloor = layeredRoleScene ? 0.74f : 0.18f;
+
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        Object3D& object = objects[i];
+        const float unit = objects.size() > 1U ? static_cast<float>(i) / static_cast<float>(objects.size() - 1U) : 0.0f;
+        const float sign = std::sin(static_cast<float>(i + 1U) * 2.137f) >= 0.0f ? 1.0f : -1.0f;
+        const auto tint = [&](ColorRGBA target, float amount) {
+            target.a = object.color.a;
+            object.color = mix(object.color, target, clamp01(amount * colorGain * identityFocus));
+            object.color.a = clamp01(object.color.a);
+        };
+        const auto dim = [&](float amount) {
+            const float keep = std::clamp(std::max(amount, dimFloor), 0.18f, 1.0f);
+            object.color.a *= keep;
+            object.glow *= std::clamp(keep + 0.08f, 0.22f, 1.0f);
+            object.scale = scale(object.scale, 0.84f + keep * 0.16f);
+        };
+        const bool materialSurface = object.kind == Object3DKind::DepthPlane ||
+                                     object.kind == Object3DKind::WaveSurface ||
+                                     object.kind == Object3DKind::Plate ||
+                                     object.kind == Object3DKind::TunnelRib ||
+                                     object.kind == Object3DKind::Column ||
+                                     object.kind == Object3DKind::Cage;
+
+        switch (identity) {
+        case SongSceneIdentity::CalmSpace: {
+            const bool spaceForm = object.musicRole == Object3DRole::Space ||
+                                   object.musicRole == Object3DRole::Harmony ||
+                                   object.kind == Object3DKind::DepthPlane ||
+                                   object.kind == Object3DKind::Orbiter ||
+                                   object.kind == Object3DKind::WaveSurface;
+            if (spaceForm) {
+                tint(i % 2U == 0U ? ColorRGBA{0.30f, 0.74f, 1.0f, object.color.a}
+                                   : ColorRGBA{0.70f, 0.86f, 1.0f, object.color.a},
+                     0.58f);
+                object.color.a = clamp01(object.color.a * 1.10f + (materialSurface ? 0.040f : 0.018f));
+                object.glow += 0.055f + metrics.stereoWidth * 0.075f;
+                if (object.kind == Object3DKind::DepthPlane || object.kind == Object3DKind::WaveSurface) {
+                    object.scale.x *= 1.18f;
+                    object.scale.z *= 0.82f;
+                    object.position.z += minimumDimension * (0.050f + unit * 0.035f);
+                }
+            } else {
+                dim(0.50f);
+                object.position.z += minimumDimension * 0.16f;
+            }
+            break;
+        }
+        case SongSceneIdentity::BassPressure: {
+            const bool bassForm = object.musicRole == Object3DRole::Bass ||
+                                  object.musicRole == Object3DRole::Convergence ||
+                                  object.kind == Object3DKind::TunnelRib;
+            if (bassForm) {
+                tint(i % 3U == 0U ? ColorRGBA{1.0f, 0.20f, 0.08f, object.color.a}
+                                   : ColorRGBA{1.0f, 0.08f, 0.44f, object.color.a},
+                     0.62f);
+                object.scale.y *= 1.04f + metrics.bass * 0.10f;
+                object.scale.z *= 1.06f + metrics.dropIntensity * 0.14f;
+                object.position.z -= minimumDimension * metrics.bass * 0.040f;
+                object.color.a = clamp01(object.color.a * 1.08f + 0.035f);
+                object.glow += metrics.bass * 0.16f + metrics.dropIntensity * 0.12f;
+            } else {
+                dim(0.62f);
+            }
+            break;
+        }
+        case SongSceneIdentity::TechnoArchitecture: {
+            const bool drumForm = object.musicRole == Object3DRole::Drums ||
+                                  object.kind == Object3DKind::Column ||
+                                  object.kind == Object3DKind::Cage ||
+                                  object.kind == Object3DKind::Link;
+            if (drumForm) {
+                tint(i % 2U == 0U ? ColorRGBA{0.05f, 0.92f, 1.0f, object.color.a}
+                                   : ColorRGBA{1.0f, 0.10f, 0.68f, object.color.a},
+                     0.60f);
+                object.rotation.z = std::round(object.rotation.z * 10.0f) / 10.0f;
+                object.scale.y *= 1.08f + beat * 0.09f;
+                object.color.a = clamp01(object.color.a * 1.06f + 0.020f);
+                object.glow += beat * 0.12f;
+            } else {
+                dim(0.58f);
+            }
+            break;
+        }
+        case SongSceneIdentity::AmbientOrbit: {
+            const bool orbitForm = object.musicRole == Object3DRole::Space ||
+                                   object.musicRole == Object3DRole::Harmony ||
+                                   object.kind == Object3DKind::Orbiter ||
+                                   object.kind == Object3DKind::WaveSurface ||
+                                   object.kind == Object3DKind::DepthPlane;
+            if (orbitForm) {
+                tint(i % 3U == 0U ? ColorRGBA{0.12f, 0.48f, 1.0f, object.color.a}
+                                   : ColorRGBA{0.55f, 0.95f, 1.0f, object.color.a},
+                     0.64f);
+                object.position.x *= 1.08f + metrics.stereoWidth * 0.08f;
+                object.position.z += minimumDimension * (0.055f + metrics.stereoWidth * 0.080f);
+                object.color.a = clamp01(object.color.a * 1.10f + 0.025f);
+                object.glow += metrics.stereoWidth * 0.11f + 0.035f;
+            } else {
+                dim(0.45f);
+                object.position.z += minimumDimension * 0.20f;
+            }
+            break;
+        }
+        case SongSceneIdentity::MelodicCrystal: {
+            const bool crystalForm = object.musicRole == Object3DRole::Melody ||
+                                     object.kind == Object3DKind::Shard ||
+                                     object.kind == Object3DKind::Node ||
+                                     object.kind == Object3DKind::Cage ||
+                                     object.kind == Object3DKind::Ribbon ||
+                                     (object.kind == Object3DKind::Link &&
+                                      (object.musicRole == Object3DRole::Harmony ||
+                                       object.musicRole == Object3DRole::Melody));
+            if (crystalForm) {
+                const ColorRGBA crystal = i % 3U == 0U ? ColorRGBA{1.0f, 0.18f, 0.92f, object.color.a}
+                                        : (i % 3U == 1U ? ColorRGBA{0.12f, 0.96f, 1.0f, object.color.a}
+                                                        : ColorRGBA{1.0f, 0.92f, 0.20f, object.color.a});
+                tint(crystal, 0.76f);
+                object.position.x = object.position.x * 0.28f +
+                                    std::sin(unit * kPi * 2.0f + phase * 0.012f) * minimumDimension * 0.13f;
+                object.position.y -= minimumDimension * (0.052f + harmonic * 0.050f);
+                object.position.z = object.position.z * 0.78f +
+                                    minimumDimension * (0.08f +
+                                                        std::sin(unit * kPi + phase * 0.018f) * harmonic * 0.045f);
+                object.scale = scale(object.scale, 1.34f + harmonic * 0.22f);
+                if (object.kind == Object3DKind::Shard || object.kind == Object3DKind::Cage) {
+                    object.scale.y *= 1.46f;
+                    object.scale.z *= 0.82f;
+                }
+                object.color.a = clamp01(object.color.a * 1.20f + 0.060f);
+                object.glow += 0.12f + harmonic * 0.22f;
+            } else {
+                dim(0.14f);
+                object.position.z += minimumDimension * 0.24f;
+            }
+            break;
+        }
+        case SongSceneIdentity::BreakbeatFracture: {
+            const bool fractureForm = object.musicRole == Object3DRole::Fracture ||
+                                      object.kind == Object3DKind::Plate ||
+                                      object.kind == Object3DKind::Shard;
+            if (fractureForm) {
+                const ColorRGBA cutColor = i % 3U == 0U ? ColorRGBA{1.0f, 0.38f, 0.12f, object.color.a}
+                                          : (i % 3U == 1U ? ColorRGBA{0.92f, 1.0f, 0.14f, object.color.a}
+                                                          : ColorRGBA{0.08f, 0.90f, 1.0f, object.color.a});
+                tint(cutColor, 0.76f);
+                object.position.x = object.position.x * 0.64f + sign * minimumDimension * (0.120f + transient * 0.080f);
+                object.position.z = object.position.z * 0.78f - minimumDimension * (0.050f + transient * 0.055f);
+                object.rotation.z = std::round((object.rotation.z + metrics.beatPhase * kPi) / (kPi / 6.0f)) * (kPi / 6.0f);
+                object.scale.x *= 1.34f + transient * 0.22f;
+                object.scale.y *= 1.18f + transient * 0.26f;
+                object.color.a = clamp01(object.color.a * 1.14f + 0.040f);
+                object.glow += 0.08f + transient * 0.20f;
+            } else {
+                dim(0.20f);
+                object.position.z += minimumDimension * 0.18f;
+            }
+            break;
+        }
+        case SongSceneIdentity::DarkMonolith: {
+            const bool shadowForm = object.musicRole == Object3DRole::Shadow ||
+                                    object.musicRole == Object3DRole::Bass ||
+                                    object.kind == Object3DKind::Column ||
+                                    object.kind == Object3DKind::Anchor ||
+                                    object.kind == Object3DKind::DepthPlane;
+            if (shadowForm) {
+                tint(i % 2U == 0U ? ColorRGBA{0.92f, 0.86f, 0.78f, object.color.a}
+                                   : ColorRGBA{0.78f, 0.70f, 0.86f, object.color.a},
+                     0.58f);
+                object.scale.y *= 1.08f + metrics.bass * 0.08f;
+                object.scale.x *= 0.94f;
+                object.position.y += minimumDimension * 0.022f;
+                object.position.z += minimumDimension * 0.035f;
+                object.color.a = clamp01(object.color.a * 1.10f + 0.028f);
+                object.glow += 0.045f + metrics.bass * 0.08f;
+            } else {
+                dim(0.30f);
+                object.position.z += minimumDimension * 0.26f;
+            }
+            break;
+        }
+        }
+    }
+
+    const auto pushFinalObject = [&](Object3DKind kind,
+                                     Object3DRole role,
+                                     Vec3 position,
+                                     Vec3 scaleValue,
+                                     Vec3 rotation,
+                                     ColorRGBA color,
+                                     float glow) -> Vec3 {
+        Object3D object = makeObject3D(kind, position, scaleValue, rotation, color, glow);
+        object.musicRole = role;
+        objects.push_back(object);
+        return position;
+    };
+    const auto pushFinalLink = [&](Vec3 from, Vec3 to, Object3DRole role, ColorRGBA color, float glow) {
+        Object3D link = makeObject3D(Object3DKind::Link,
+                                     from,
+                                     Vec3{1.0f, 1.0f, 1.0f},
+                                     Vec3{},
+                                     color,
+                                     glow);
+        link.target = to;
+        link.musicRole = role;
+        objects.push_back(link);
+    };
+
+    if (identity == SongSceneIdentity::MelodicCrystal) {
+        std::array<Vec3, 5> crystalAnchors{};
+        for (int i = 0; i < 5; ++i) {
+            const float unit = static_cast<float>(i) / 4.0f;
+            const float lane = unit * 2.0f - 1.0f;
+            const float chroma = chromaAt(metrics, i);
+            const ColorRGBA crystal = i % 3 == 0 ? ColorRGBA{1.0f, 0.18f, 0.92f, 0.64f}
+                                    : (i % 3 == 1 ? ColorRGBA{0.10f, 0.96f, 1.0f, 0.62f}
+                                                   : ColorRGBA{1.0f, 0.92f, 0.16f, 0.60f});
+            crystalAnchors[static_cast<std::size_t>(i)] =
+                pushFinalObject(i % 2 == 0 ? Object3DKind::Shard : Object3DKind::Cage,
+                                i % 3 == 0 ? Object3DRole::Harmony : Object3DRole::Melody,
+                                Vec3{lane * minimumDimension * (0.13f + harmonic * 0.035f),
+                                     -minimumDimension * (0.16f + harmonic * 0.055f) +
+                                         std::sin(unit * kPi + phase * 0.018f) * minimumDimension * 0.028f,
+                                     minimumDimension * (0.06f + chroma * 0.20f + unit * 0.12f)},
+                                Vec3{minimumDimension * (0.034f + chroma * 0.020f),
+                                     minimumDimension * (0.090f + harmonic * 0.050f),
+                                     minimumDimension * (0.018f + chroma * 0.014f)},
+                                Vec3{unit * 0.52f,
+                                     phase * 0.026f + chroma * kPi,
+                                     metrics.phrasePhase * kPi + lane * 0.28f},
+                                crystal,
+                                0.42f + harmonic * 0.48f + chroma * 0.16f);
+        }
+        for (std::size_t i = 1; i < crystalAnchors.size(); ++i) {
+            pushFinalLink(crystalAnchors[i - 1U],
+                          crystalAnchors[i],
+                          Object3DRole::Harmony,
+                          ColorRGBA{0.52f, 0.98f, 1.0f, 0.20f + harmonic * 0.16f},
+                          0.16f + harmonic * 0.26f);
+        }
+    } else if (identity == SongSceneIdentity::BreakbeatFracture) {
+        const float quant = std::floor(clamp01(metrics.beatPhase) * 8.0f) / 8.0f;
+        for (int i = 0; i < 6; ++i) {
+            const float unit = static_cast<float>(i) / 5.0f;
+            const float side = i % 2 == 0 ? -1.0f : 1.0f;
+            const ColorRGBA cutColor = i % 3 == 0 ? ColorRGBA{1.0f, 0.38f, 0.12f, 0.58f}
+                                      : (i % 3 == 1 ? ColorRGBA{0.92f, 1.0f, 0.12f, 0.56f}
+                                                     : ColorRGBA{0.08f, 0.90f, 1.0f, 0.54f});
+            pushFinalObject(i % 2 == 0 ? Object3DKind::Plate : Object3DKind::Shard,
+                            Object3DRole::Fracture,
+                            Vec3{side * minimumDimension * (0.12f + unit * 0.16f),
+                                 (unit - 0.5f) * minimumDimension * 0.16f,
+                                 minimumDimension * (-0.10f + quant * 0.18f + unit * 0.10f)},
+                            Vec3{minimumDimension * (0.038f + transient * 0.030f),
+                                 minimumDimension * (0.14f + metrics.onset * 0.080f),
+                                 minimumDimension * (0.016f + transient * 0.018f)},
+                            Vec3{0.42f + unit * 0.24f,
+                                 quant * kPi + side * 0.28f,
+                                 std::floor((unit + quant) * 8.0f) * kPi * 0.16f},
+                            cutColor,
+                            0.32f + transient * 0.54f + metrics.onset * 0.16f);
         }
     }
 }
@@ -8929,6 +9706,16 @@ void addObject3DScene(GeometryFrame& frame,
                                personality,
                                response,
                                time);
+    addSongIdentityHeroArchitecture3D(objects,
+                                      songIdentity,
+                                      intent,
+                                      metrics,
+                                      colors,
+                                      minimumDimension,
+                                      objectDensity,
+                                      personality,
+                                      response,
+                                      time);
     addChoreographyDepthObjects3D(objects, settings.mode, choreography, colors, minimumDimension, objectDensity, response, time);
     addSectionNarrativeObjects3D(objects,
                                  settings.mode,
@@ -8999,6 +9786,7 @@ void addObject3DScene(GeometryFrame& frame,
     applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
     applyPatternReadability3D(objects, settings, metrics, roleScene, minimumDimension);
     applyCinematicFrameStaging3D(objects, settings, metrics, intent, roleScene, songIdentity, minimumDimension);
+    applySongIdentityMaterialDirection3D(objects, songIdentity, metrics, settings, minimumDimension, time);
 
     for (Object3D& object : objects) {
         const Projected3D projected = projectPoint3D(object.position, camera);
