@@ -331,6 +331,16 @@ float objectMotionSignature(const GeometryFrame& frame)
            frame.cameraDepth * 0.002f;
 }
 
+float cameraPoseSignature(const GeometryFrame& frame)
+{
+    return frame.cameraDepth * 0.006f +
+           std::fabs(frame.cameraYaw) * 140.0f +
+           std::fabs(frame.cameraPitch) * 130.0f +
+           std::fabs(frame.cameraRoll) * 120.0f +
+           std::fabs(frame.cameraCenterOffset.x) * 0.045f +
+           std::fabs(frame.cameraCenterOffset.y) * 0.050f;
+}
+
 bool objectDepthsAreSorted(const GeometryFrame& frame)
 {
     for (std::size_t i = 1; i < frame.objects3D.size(); ++i) {
@@ -2426,6 +2436,186 @@ void sameModeSongIdentitiesAuthorDistinct3DSetPieces()
             "same visual mode should still produce distinct 3D object grammars for different song identities");
 }
 
+void songIdentitiesDriveDistinctCameraLanguage()
+{
+    struct Profile {
+        const char* name;
+        VisualMode mode;
+        AudioMetrics metrics;
+    };
+
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.88f;
+    settings.lightingGlow = 0.88f;
+    settings.scenePersonality = 0.88f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.86f;
+    settings.patternClarity = 0.90f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.18f;
+    ambient.peak = 0.28f;
+    ambient.bass = 0.08f;
+    ambient.lowMid = 0.18f;
+    ambient.mid = 0.24f;
+    ambient.highMid = 0.04f;
+    ambient.treble = 0.05f;
+    ambient.stereoWidth = 0.90f;
+    ambient.spectralFlux = 0.06f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.04f;
+    ambient.phraseIntensity = 0.56f;
+    ambient.phraseConfidence = 0.80f;
+    ambient.harmonicEnergy = 0.58f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.92f;
+    ambient.section = ArrangementSection::Breakdown;
+    ambient.sectionConfidence = 0.78f;
+
+    AudioMetrics techno = syntheticMetrics();
+    techno.rms = 0.48f;
+    techno.peak = 0.72f;
+    techno.bass = 0.56f;
+    techno.lowMid = 0.44f;
+    techno.mid = 0.14f;
+    techno.highMid = 0.06f;
+    techno.treble = 0.08f;
+    techno.stereoWidth = 0.34f;
+    techno.spectralFlux = 0.18f;
+    techno.beat = true;
+    techno.beatConfidence = 0.94f;
+    techno.barConfidence = 0.84f;
+    techno.downbeatConfidence = 0.72f;
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.92f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.86f;
+
+    AudioMetrics bass = syntheticMetrics();
+    bass.rms = 0.84f;
+    bass.peak = 1.0f;
+    bass.bass = 0.98f;
+    bass.lowMid = 0.78f;
+    bass.highMid = 0.04f;
+    bass.treble = 0.04f;
+    bass.stereoWidth = 0.42f;
+    bass.spectralFlux = 0.34f;
+    bass.onset = 0.82f;
+    bass.beat = true;
+    bass.beatConfidence = 0.94f;
+    bass.dropIntensity = 0.94f;
+    bass.style = AudioStyle::BassHeavy;
+    bass.styleConfidence = 0.94f;
+    bass.section = ArrangementSection::Drop;
+    bass.sectionConfidence = 0.92f;
+
+    AudioMetrics melodic = syntheticMetrics();
+    melodic.rms = 0.34f;
+    melodic.peak = 0.52f;
+    melodic.bass = 0.16f;
+    melodic.mid = 0.54f;
+    melodic.highMid = 0.58f;
+    melodic.treble = 0.50f;
+    melodic.stereoWidth = 0.58f;
+    melodic.spectralFlux = 0.20f;
+    melodic.keyIndex = 7;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.94f;
+    melodic.harmonicEnergy = 0.90f;
+    melodic.phraseIntensity = 0.48f;
+    melodic.phraseConfidence = 0.82f;
+    melodic.style = AudioStyle::Bright;
+    melodic.styleConfidence = 0.72f;
+
+    AudioMetrics breakbeat = syntheticMetrics();
+    breakbeat.rms = 0.56f;
+    breakbeat.peak = 0.76f;
+    breakbeat.bass = 0.32f;
+    breakbeat.lowMid = 0.22f;
+    breakbeat.mid = 0.34f;
+    breakbeat.highMid = 0.82f;
+    breakbeat.treble = 0.86f;
+    breakbeat.stereoWidth = 0.62f;
+    breakbeat.spectralFlux = 0.88f;
+    breakbeat.onset = 0.84f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.54f;
+    breakbeat.beatPhase = 0.37f;
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.86f;
+
+    AudioMetrics dark = syntheticMetrics();
+    dark.rms = 0.30f;
+    dark.peak = 0.48f;
+    dark.bass = 0.58f;
+    dark.lowMid = 0.50f;
+    dark.mid = 0.14f;
+    dark.highMid = 0.01f;
+    dark.treble = 0.01f;
+    dark.stereoWidth = 0.16f;
+    dark.spectralFlux = 0.05f;
+    dark.beatConfidence = 0.56f;
+    dark.dropIntensity = 0.10f;
+    dark.keyIndex = 10;
+    dark.keyMode = MusicalMode::Minor;
+    dark.keyConfidence = 0.72f;
+    dark.harmonicEnergy = 0.44f;
+    dark.style = AudioStyle::BassHeavy;
+    dark.styleConfidence = 0.64f;
+    dark.section = ArrangementSection::Breakdown;
+    dark.sectionConfidence = 0.76f;
+
+    const Profile profiles[] = {
+        {"ambient", VisualMode::PhaseWeave, ambient},
+        {"techno", VisualMode::TechnoMandala, techno},
+        {"bass", VisualMode::QuantumTunnel, bass},
+        {"melodic", VisualMode::ChromaKaleidoscope, melodic},
+        {"breakbeat", VisualMode::SpectralOrigami, breakbeat},
+        {"dark", VisualMode::ResonanceTessellation, dark}
+    };
+
+    std::vector<int> signatureBuckets;
+    std::vector<GeometryFrame> frames;
+    for (const Profile& profile : profiles) {
+        settings.mode = profile.mode;
+        GeometryFrame frame = engine.buildFrame(profile.metrics, settings, 1280.0f, 720.0f, 3.0);
+        require(frame.cameraDepth > 500.0f, std::string(profile.name) + " should use a real camera distance");
+        require(std::fabs(frame.cameraYaw) > 0.001f ||
+                    std::fabs(frame.cameraPitch) > 0.001f ||
+                    std::fabs(frame.cameraRoll) > 0.001f ||
+                    std::fabs(frame.cameraCenterOffset.x) > 0.001f ||
+                    std::fabs(frame.cameraCenterOffset.y) > 0.001f,
+                std::string(profile.name) + " should report non-static camera language");
+        signatureBuckets.push_back(static_cast<int>(std::round(cameraPoseSignature(frame) * 2.0f)));
+        frames.push_back(frame);
+    }
+
+    std::sort(signatureBuckets.begin(), signatureBuckets.end());
+    const auto uniqueEnd = std::unique(signatureBuckets.begin(), signatureBuckets.end());
+    require(std::distance(signatureBuckets.begin(), uniqueEnd) >= 5,
+            "song identities should produce distinct camera pose signatures");
+
+    const GeometryFrame& ambientFrame = frames[0];
+    const GeometryFrame& technoFrame = frames[1];
+    const GeometryFrame& bassFrame = frames[2];
+    const GeometryFrame& melodicFrame = frames[3];
+    const GeometryFrame& breakFrame = frames[4];
+    const GeometryFrame& darkFrame = frames[5];
+    require(bassFrame.cameraDepth < ambientFrame.cameraDepth,
+            "bass pressure should dolly closer than ambient space");
+    require(std::fabs(technoFrame.cameraRoll) < std::fabs(breakFrame.cameraRoll),
+            "techno architecture should keep a more locked roll than breakbeat cuts");
+    require(melodicFrame.cameraPitch > technoFrame.cameraPitch,
+            "melodic crystal scenes should get elevated harmonic framing");
+    require(std::fabs(darkFrame.cameraRoll) < std::fabs(breakFrame.cameraRoll),
+            "dark minimal scenes should keep roll restrained compared with breakbeat cuts");
+}
+
 void autoSceneContinuityResistsAmbiguousFrameFlips()
 {
     VisualSettings base;
@@ -2860,6 +3050,46 @@ void mouseDepthInteractionMoves3DObjects()
                 return object.velocity.z < -0.01f;
             }),
             "mouse click should leave a depth-aware z velocity impulse on affected objects");
+}
+
+void mouseDepthInteractionAddsCameraParallax()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.86f;
+    settings.interactionDepth = 1.0f;
+    settings.interactiveField = true;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.stereoWidth = 0.74f;
+    metrics.phraseIntensity = 0.55f;
+    metrics.style = AudioStyle::Ambient;
+    metrics.styleConfidence = 0.86f;
+
+    InteractionState interaction;
+    interaction.enabled = true;
+    interaction.active = true;
+    interaction.pressed = true;
+    interaction.normalizedX = 0.86f;
+    interaction.normalizedY = 0.22f;
+    interaction.velocity = 0.62f;
+    interaction.strength = 1.0f;
+
+    const GeometryFrame neutral = engine.buildFrame(metrics, settings, InteractionState{}, 1280.0f, 720.0f, 2.75);
+    const GeometryFrame interactive = engine.buildFrame(metrics, settings, interaction, 1280.0f, 720.0f, 2.75);
+
+    require(std::fabs(interactive.cameraCenterOffset.x - neutral.cameraCenterOffset.x) > 8.0f,
+            "mouse depth should pan the 3D camera center for parallax inspection");
+    require(std::fabs(interactive.cameraYaw - neutral.cameraYaw) > 0.015f,
+            "mouse depth should orbit the 3D camera yaw");
+    require(std::fabs(interactive.cameraPitch - neutral.cameraPitch) > 0.010f,
+            "mouse depth should tilt the 3D camera pitch");
+    require(interactive.cameraDepth < neutral.cameraDepth,
+            "pressed mouse depth should dolly slightly into the scene");
 }
 
 void objectDensity3DControlsObjectCount()
@@ -4511,6 +4741,7 @@ int main()
         {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
         {"autoSceneProfilesProduceDistinct3DSignatures", viz::tests::autoSceneProfilesProduceDistinct3DSignatures},
         {"sameModeSongIdentitiesAuthorDistinct3DSetPieces", viz::tests::sameModeSongIdentitiesAuthorDistinct3DSetPieces},
+        {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
@@ -4518,6 +4749,7 @@ int main()
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
+        {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
         {"objectDensity3DControlsObjectCount", viz::tests::objectDensity3DControlsObjectCount},
         {"colorImpactStrengthensPalettePersonality", viz::tests::colorImpactStrengthensPalettePersonality},
         {"chromaKaleidoscopeRespondsToHarmony", viz::tests::chromaKaleidoscopeRespondsToHarmony},

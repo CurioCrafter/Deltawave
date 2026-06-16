@@ -117,6 +117,10 @@ struct GeometryFrame {
     float projected3DVisualWeight = 0.0f;
     float threeDDominance = 0.0f;
     float cameraDepth = 0.0f;
+    float cameraYaw = 0.0f;
+    float cameraPitch = 0.0f;
+    float cameraRoll = 0.0f;
+    Vec2 cameraCenterOffset{};
     float objectDepthRange = 0.0f;
     float flash = 0.0f;
 };

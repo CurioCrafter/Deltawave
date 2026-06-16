@@ -1429,6 +1429,7 @@ SongSceneIdentity songSceneIdentityFor(const SceneInterpretation& intent,
 Camera3D makeCamera3D(const VisualSettings& settings,
                       const AudioMetrics& metrics,
                       const SceneInterpretation& intent,
+                      SongSceneIdentity identity,
                       float width,
                       float height,
                       float speed,
@@ -1448,7 +1449,20 @@ Camera3D makeCamera3D(const VisualSettings& settings,
     const float massDolly = intent.mass * 0.12f + intent.drop * 0.09f;
     const float orbitBias = intent.orbital * 0.10f + intent.architecture * 0.035f - intent.minimal * 0.035f;
     const float pitchBias = intent.tension * 0.045f - intent.calm * 0.022f + intent.spacious * 0.035f;
-    return Camera3D{
+    const float sectionConfidence = clamp01(metrics.sectionConfidence);
+    const float buildReveal = metrics.section == ArrangementSection::Build
+                                  ? sectionConfidence * clamp01(metrics.sectionProgress)
+                                  : 0.0f;
+    const float dropPunch = metrics.section == ArrangementSection::Drop
+                                ? sectionConfidence * (0.58f + metrics.dropIntensity * 0.42f)
+                                : 0.0f;
+    const float breakdownHold = metrics.section == ArrangementSection::Breakdown ? sectionConfidence : 0.0f;
+    const float grooveLock = metrics.section == ArrangementSection::Groove
+                                 ? sectionConfidence * clamp01(metrics.beatConfidence + metrics.barConfidence * 0.35f)
+                                 : 0.0f;
+    const float cutStep = std::floor(clamp01(metrics.beatPhase) * 8.0f) / 8.0f;
+
+    Camera3D camera{
         Vec2{width * 0.5f, height * 0.5f},
         minimumDimension * (0.78f + depth * 0.94f + envelope.stereo * 0.12f +
                             choreography.phraseLift * 0.035f + reveal),
@@ -1470,6 +1484,123 @@ Camera3D makeCamera3D(const VisualSettings& settings,
             (envelope.stereo * 0.034f + choreography.dropImpact * 0.020f + choreography.snap * 0.010f +
              response * 0.004f + intent.chaotic * 0.006f - intent.minimal * 0.004f)
     };
+
+    camera.focalLength *= 1.0f + buildReveal * 0.035f + dropPunch * 0.050f - breakdownHold * 0.030f;
+    camera.cameraDistance += minimumDimension * (buildReveal * 0.12f - dropPunch * 0.16f + breakdownHold * 0.10f);
+    camera.yaw += buildReveal * 0.035f - breakdownHold * 0.030f;
+    camera.pitch += buildReveal * 0.030f + breakdownHold * 0.022f - dropPunch * 0.018f;
+    camera.roll *= 1.0f - breakdownHold * 0.45f;
+
+    switch (identity) {
+    case SongSceneIdentity::CalmSpace:
+        camera.cameraDistance += minimumDimension * 0.16f;
+        camera.focalLength *= 0.96f;
+        camera.yaw *= 0.58f;
+        camera.pitch *= 0.64f;
+        camera.roll *= 0.38f;
+        break;
+    case SongSceneIdentity::BassPressure:
+        camera.cameraDistance -= minimumDimension * (0.12f + intent.mass * 0.10f + dropPunch * 0.05f);
+        camera.focalLength *= 1.05f + intent.mass * 0.035f;
+        camera.pitch -= 0.026f + intent.mass * 0.020f;
+        camera.yaw *= 0.76f;
+        camera.roll *= 0.55f;
+        camera.center.y -= minimumDimension * (0.018f + intent.mass * 0.018f);
+        break;
+    case SongSceneIdentity::TechnoArchitecture: {
+        const float lockedYaw = std::round(std::sin(metrics.barPhase * 2.0f * kPi) * 4.0f) / 4.0f;
+        camera.cameraDistance += minimumDimension * 0.02f;
+        camera.focalLength *= 1.08f;
+        camera.yaw = camera.yaw * 0.42f + lockedYaw * (0.040f + grooveLock * 0.030f);
+        camera.pitch = std::clamp(camera.pitch * 0.42f - 0.026f, -0.070f, 0.040f);
+        camera.roll *= 0.28f;
+        camera.center.x += lockedYaw * minimumDimension * 0.024f;
+        break;
+    }
+    case SongSceneIdentity::AmbientOrbit:
+        camera.cameraDistance += minimumDimension * (0.20f + intent.spacious * 0.12f);
+        camera.focalLength *= 0.94f;
+        camera.yaw += std::sin(phase * 0.055f + metrics.phrasePhase * kPi) * (0.055f + metrics.stereoWidth * 0.035f);
+        camera.pitch += std::cos(phase * 0.045f) * (0.035f + intent.orbital * 0.030f);
+        camera.roll += std::sin(phase * 0.036f) * metrics.stereoWidth * 0.018f;
+        camera.center.x += std::sin(phase * 0.030f) * minimumDimension * metrics.stereoWidth * 0.026f;
+        break;
+    case SongSceneIdentity::MelodicCrystal:
+        camera.cameraDistance += minimumDimension * (0.04f + intent.melodic * 0.045f);
+        camera.focalLength *= 1.02f + intent.crystal * 0.050f;
+        camera.yaw += std::sin(choreography.melodicOrbit * 2.0f * kPi) * (0.040f + intent.crystal * 0.030f);
+        camera.pitch += 0.052f + intent.melodic * 0.034f + intent.crystal * 0.012f;
+        camera.pitch = std::max(camera.pitch, 0.078f + intent.melodic * 0.020f + intent.crystal * 0.010f);
+        camera.roll += std::sin(choreography.melodicOrbit * kPi) * 0.020f;
+        camera.center.y -= minimumDimension * (0.015f + intent.melodic * 0.014f);
+        break;
+    case SongSceneIdentity::BreakbeatFracture:
+        camera.cameraDistance -= minimumDimension * transientEnergy3D(metrics) * 0.055f;
+        camera.focalLength *= 1.03f;
+        camera.yaw += (cutStep - 0.5f) * (0.090f + intent.fracture * 0.030f);
+        camera.pitch += ((static_cast<int>(cutStep * 8.0f) % 2) == 0 ? -1.0f : 1.0f) *
+                        transientEnergy3D(metrics) * 0.030f;
+        camera.roll += (cutStep - 0.5f) * 0.050f;
+        camera.center.x += (cutStep - 0.5f) * minimumDimension * 0.035f;
+        break;
+    case SongSceneIdentity::DarkMonolith:
+        camera.cameraDistance += minimumDimension * (0.10f + intent.shadow * 0.10f);
+        camera.focalLength *= 1.08f;
+        camera.yaw *= 0.34f;
+        camera.pitch = std::min(camera.pitch * 0.42f + 0.055f + intent.dark * 0.018f, 0.14f);
+        camera.roll *= 0.12f;
+        camera.center.y += minimumDimension * (0.018f + intent.minimal * 0.020f);
+        break;
+    }
+
+    camera.cameraDistance = std::max(minimumDimension * 0.68f,
+                                     std::min(camera.cameraDistance, minimumDimension * 3.45f));
+    camera.focalLength = std::clamp(camera.focalLength, minimumDimension * 0.62f, minimumDimension * 2.05f);
+    camera.yaw = std::clamp(camera.yaw, -0.34f, 0.34f);
+    camera.pitch = std::clamp(camera.pitch, -0.22f, 0.22f);
+    camera.roll = std::clamp(camera.roll, -0.16f, 0.16f);
+    camera.center.x = std::clamp(camera.center.x, width * 0.40f, width * 0.60f);
+    camera.center.y = std::clamp(camera.center.y, height * 0.40f, height * 0.60f);
+    return camera;
+}
+
+void applyCameraInteraction3D(Camera3D& camera,
+                              const InteractionState& interaction,
+                              const VisualSettings& settings,
+                              float width,
+                              float height)
+{
+    if (!interaction.enabled || !interaction.active || interactionDepthOf(settings) <= 0.001f) {
+        return;
+    }
+
+    const float depthStrength = interactionDepthOf(settings);
+    const float stability = motionStabilityOf(settings);
+    const float clarity = patternClarityOf(settings);
+    const float normalizedX = std::clamp(interaction.normalizedX, 0.0f, 1.0f) - 0.5f;
+    const float normalizedY = std::clamp(interaction.normalizedY, 0.0f, 1.0f) - 0.5f;
+    const float pointerReach = std::min(width, height) *
+                               (0.030f + depthStrength * 0.040f) *
+                               (0.80f + (1.0f - clarity) * 0.20f);
+    const float orbitReach = (0.028f + depthStrength * 0.060f) *
+                             (0.72f + (1.0f - stability) * 0.28f);
+    const float clickDolly = interaction.pressed
+                                 ? std::min(width, height) * depthStrength * 0.040f *
+                                       (0.80f + (1.0f - clarity) * 0.20f)
+                                 : 0.0f;
+
+    camera.center.x += normalizedX * pointerReach;
+    camera.center.y += normalizedY * pointerReach * 0.72f;
+    camera.yaw += normalizedX * orbitReach;
+    camera.pitch -= normalizedY * orbitReach * 0.72f;
+    camera.roll += normalizedX * normalizedY * orbitReach * 0.34f;
+    camera.cameraDistance = std::max(std::min(width, height) * 0.64f, camera.cameraDistance - clickDolly);
+
+    camera.center.x = std::clamp(camera.center.x, width * 0.38f, width * 0.62f);
+    camera.center.y = std::clamp(camera.center.y, height * 0.38f, height * 0.62f);
+    camera.yaw = std::clamp(camera.yaw, -0.38f, 0.38f);
+    camera.pitch = std::clamp(camera.pitch, -0.26f, 0.26f);
+    camera.roll = std::clamp(camera.roll, -0.18f, 0.18f);
 }
 
 Projected3D projectPoint3D(Vec3 world, const Camera3D& camera)
@@ -4172,9 +4303,10 @@ void addObject3DScene(GeometryFrame& frame,
                                            1.8f);
     const float personality = scenePersonalityOf(settings);
     const float response = musicResponse3D(metrics, settings);
-    const Camera3D camera = makeCamera3D(settings, metrics, intent, width, height, speed, time);
-    const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
     const SongSceneIdentity songIdentity = songSceneIdentityFor(intent, metrics, settings.mode);
+    Camera3D camera = makeCamera3D(settings, metrics, intent, songIdentity, width, height, speed, time);
+    applyCameraInteraction3D(camera, interaction, settings, width, height);
+    const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
     if (songIdentity == SongSceneIdentity::DarkMonolith) {
         for (Ring& ring : frame.rings) {
             ring.color.a *= 0.10f;
@@ -4268,6 +4400,10 @@ void addObject3DScene(GeometryFrame& frame,
     frame.sceneIntent = intent.primary;
     frame.sceneIntentName = toString(intent.primary);
     frame.cameraDepth = camera.cameraDistance;
+    frame.cameraYaw = camera.yaw;
+    frame.cameraPitch = camera.pitch;
+    frame.cameraRoll = camera.roll;
+    frame.cameraCenterOffset = Vec2{camera.center.x - width * 0.5f, camera.center.y - height * 0.5f};
     frame.objectDepthRange = range;
 }
 
