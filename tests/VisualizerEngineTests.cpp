@@ -2846,6 +2846,8 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
             "multi-role music should project filled 3D role surfaces, not just skeletal lines");
     require(ensembleFrame.projected3DFillVisualWeight > 120.0f,
             "role districts should contribute visible material fill so the scene reads as volumetric");
+    require(ensembleFrame.projected3DMaterialShare > 0.35f,
+            "role districts should be led by material surfaces instead of wire-only scaffolding");
     require(ensembleFrame.projected3DMaterialContrast > 0.05f,
             "role district surfaces should preserve material contrast against the background");
 
@@ -2971,6 +2973,9 @@ void musicalRoleDistrictsConvergeOnlyWhenEarned()
     require(separatedFrame.projected3DFillVisualWeight > 180.0f &&
                 convergedFrame.projected3DFillVisualWeight > 180.0f,
             "both separated and converged role scenes should be solid volumetric geometry");
+    require(separatedFrame.projected3DMaterialShare > 0.35f &&
+                convergedFrame.projected3DMaterialShare > 0.35f,
+            "separate and converged role scenes should not be dominated by outline noise");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -3725,6 +3730,8 @@ void threeDScenesRenderMaterialFacesAndDepthHaze()
             "projected material faces should be represented by filled polylines");
     require(frame.projected3DFillVisualWeight > 35.0f,
             "filled 3D faces should contribute visible material weight");
+    require(frame.projected3DMaterialShare > 0.30f,
+            "filled material pass should reduce wire outline dominance");
     require(frame.projected3DMaterialContrast > 0.05f,
             "3D material shading should create contrast against the background");
     require(frame.depthFogStrength > 0.08f,
@@ -3820,6 +3827,8 @@ void wireHeavy3DFamiliesRenderSolidMaterialFaces()
                 "wire-heavy facets should render as filled projected polygons");
         require(frame.projected3DFillVisualWeight > 90.0f,
                 "wire-heavy families should carry visible solid material weight");
+        require(frame.projected3DMaterialShare > 0.30f,
+                "wire-heavy families should not visually rely on outline weight");
         require(frame.projected3DMaterialContrast > 0.045f,
                 "solid 3D facets should preserve material contrast");
     }
@@ -5308,8 +5317,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include bar and downbeat columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "timeline should include phrase structure columns");
-        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance") != std::string::npos,
-                "timeline should include scene intent and 3D dominance columns");
+        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
+                "timeline should include scene intent, material share, and 3D dominance columns");
         require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
                 "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
@@ -5640,8 +5649,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain 3D object, glow, color, personality, response, stability, and clarity columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "batch timeline should contain phrase structure columns");
-        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance") != std::string::npos,
-                "batch timeline should contain scene intent and 3D dominance columns");
+        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
+                "batch timeline should contain scene intent, material share, and 3D dominance columns");
         require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
                 "batch timeline should contain separated musical role columns");
     }

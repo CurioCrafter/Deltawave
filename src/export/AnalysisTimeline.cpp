@@ -56,7 +56,8 @@ bool AnalysisTimelineWriter::open(const std::filesystem::path& path, std::string
             << "audioBassRole,audioDrumRole,audioMelodyRole,audioHarmonyRole,audioSpaceRole,audioFractureRole,"
             << "audioShadowRole,audioConvergenceRole,audioRoleSeparation,"
             << "scene3DName,sceneIntent,"
-            << "authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,threeDDominance,"
+            << "authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,"
+            << "projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance,"
             << "bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,"
             << "primitiveCount\n";
     if (!output_) {
@@ -146,6 +147,9 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << entry.authored2DPrimitiveCount << ","
             << entry.retained2DPrimitiveCount << ","
             << entry.projected3DPrimitiveCount << ","
+            << std::setprecision(3) << entry.projected3DFillVisualWeight << ","
+            << std::setprecision(3) << entry.projected3DOutlineVisualWeight << ","
+            << std::setprecision(3) << entry.projected3DMaterialShare << ","
             << std::setprecision(3) << entry.threeDDominance << ","
             << std::setprecision(3) << entry.sceneBassRole3D << ","
             << std::setprecision(3) << entry.sceneDrumRole3D << ","

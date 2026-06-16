@@ -20,6 +20,9 @@ struct AnalysisTimelineEntry {
     int authored2DPrimitiveCount = 0;
     int retained2DPrimitiveCount = 0;
     int projected3DPrimitiveCount = 0;
+    float projected3DFillVisualWeight = 0.0f;
+    float projected3DOutlineVisualWeight = 0.0f;
+    float projected3DMaterialShare = 0.0f;
     float threeDDominance = 0.0f;
     float sceneBassRole3D = 0.0f;
     float sceneDrumRole3D = 0.0f;

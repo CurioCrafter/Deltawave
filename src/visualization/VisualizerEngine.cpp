@@ -966,6 +966,13 @@ float primitiveVisualWeight(const GeometryFrame& frame)
     return weight;
 }
 
+float projectedLineWeight(ColorRGBA color, float strokeWidth, std::size_t pointCount)
+{
+    return color.a *
+           std::max(0.2f, strokeWidth) *
+           static_cast<float>(std::max<std::size_t>(1U, pointCount));
+}
+
 template <typename T>
 void retainEvenlySpaced(std::vector<T>& items, std::size_t maximum)
 {
@@ -1977,10 +1984,11 @@ void addProjectedLine(GeometryFrame& frame,
     frame.polylines.push_back(Polyline{
         {add(pa.point, shadowOffset), add(pb.point, shadowOffset)},
         width * 1.35f,
-        ColorRGBA{0.0f, 0.0f, 0.0f, color.a * 0.18f},
+        ColorRGBA{0.0f, 0.0f, 0.0f, color.a * 0.06f},
         closed
     });
     frame.polylines.push_back(Polyline{{pa.point, pb.point}, width, color, closed});
+    frame.projected3DOutlineVisualWeight += projectedLineWeight(color, width, 2U);
 }
 
 void addProjectedPolyline(GeometryFrame& frame,
@@ -2015,7 +2023,7 @@ void addProjectedPolyline(GeometryFrame& frame,
     frame.polylines.push_back(Polyline{
         std::move(shadow),
         width * 1.25f,
-        ColorRGBA{0.0f, 0.0f, 0.0f, color.a * 0.16f},
+        ColorRGBA{0.0f, 0.0f, 0.0f, color.a * 0.05f},
         closed
     });
     frame.polylines.push_back(Polyline{
@@ -2024,6 +2032,7 @@ void addProjectedPolyline(GeometryFrame& frame,
         color,
         closed
     });
+    frame.projected3DOutlineVisualWeight += projectedLineWeight(color, width, projected.size());
 }
 
 float polygonArea(const std::vector<Vec2>& points)
@@ -2093,6 +2102,14 @@ void renderWireObject3D(GeometryFrame& frame,
     const float light = 0.5f + 0.5f * std::cos(object.rotation.x + object.rotation.y + depthUnit * kPi);
     const ColorRGBA color = shade3DColor(object.color, depthUnit, object.glow, light, lightingGlow);
     const float stroke = 1.0f + object.glow * 1.8f;
+    const float silhouetteAlpha = std::clamp(0.24f + depthUnit * 0.11f + object.glow * 0.022f,
+                                             0.14f,
+                                             0.48f);
+    const float detailAlpha = std::clamp(silhouetteAlpha * 0.42f, 0.08f, 0.24f);
+    const ColorRGBA silhouetteColor = withAlpha(color, color.a * silhouetteAlpha);
+    const ColorRGBA detailColor = withAlpha(color, color.a * detailAlpha);
+    const float silhouetteStroke = stroke * 0.54f;
+    const float detailStroke = stroke * 0.32f;
     const auto world = [&](Vec3 local) { return objectLocalToWorld(object, local); };
     const float largestScale = std::max({object.scale.x, object.scale.y, object.scale.z});
     const Vec3 keyLight = normalize(Vec3{-0.34f, -0.58f, -0.74f});
@@ -2115,9 +2132,9 @@ void renderWireObject3D(GeometryFrame& frame,
         ColorRGBA faceColor = shade3DColor(object.color, depthUnit, object.glow, faceLight, lightingGlow);
         faceColor = withAlpha(faceColor,
                               faceColor.a *
-                                  std::clamp(alphaBias * (0.96f + lightingGlow * 0.42f + object.glow * 0.055f),
-                                             0.06f,
-                                             0.86f));
+                                  std::clamp(alphaBias * (1.22f + lightingGlow * 0.54f + object.glow * 0.080f),
+                                             0.08f,
+                                             0.96f));
         addProjectedFace(frame, camera, facePoints, faceColor, stroke * 0.28f);
     };
 
@@ -2141,7 +2158,7 @@ void renderWireObject3D(GeometryFrame& frame,
             const float angle = unit * 2.0f * kPi;
             points.push_back(world(Vec3{std::cos(angle), std::sin(angle), 0.0f}));
         }
-        addProjectedPolyline(frame, camera, points, color, stroke, true);
+        addProjectedPolyline(frame, camera, points, silhouetteColor, silhouetteStroke, true);
         return;
     }
 
@@ -2159,8 +2176,8 @@ void renderWireObject3D(GeometryFrame& frame,
             world(Vec3{-0.42f, 0.1f, -0.34f}),
             world(Vec3{0.0f, -1.0f, 0.0f})
         };
-        addProjectedPolyline(frame, camera, points, color, stroke, false);
-        addProjectedLine(frame, camera, points[1], points[3], withAlpha(color, color.a * 0.72f), stroke * 0.72f);
+        addProjectedPolyline(frame, camera, points, silhouetteColor, silhouetteStroke, false);
+        addProjectedLine(frame, camera, points[1], points[3], detailColor, detailStroke);
         return;
     }
 
@@ -2179,8 +2196,8 @@ void renderWireObject3D(GeometryFrame& frame,
                              camera,
                              world(Vec3{-1.0f, u, ridge}),
                              world(Vec3{1.0f, u, -ridge}),
-                             withAlpha(color, color.a * (0.55f + std::fabs(u) * 0.2f)),
-                             stroke * 0.55f);
+                             withAlpha(detailColor, detailColor.a * (0.74f + std::fabs(u) * 0.18f)),
+                             detailStroke);
         }
         addProjectedPolyline(frame,
                              camera,
@@ -2188,8 +2205,8 @@ void renderWireObject3D(GeometryFrame& frame,
                               world(Vec3{1.0f, -1.0f, 0.0f}),
                               world(Vec3{1.0f, 1.0f, 0.0f}),
                               world(Vec3{-1.0f, 1.0f, 0.0f})},
-                             color,
-                             stroke,
+                             silhouetteColor,
+                             silhouetteStroke,
                              true);
         return;
     }
@@ -2208,14 +2225,14 @@ void renderWireObject3D(GeometryFrame& frame,
                              camera,
                              world(Vec3{-1.0f, u, 0.0f}),
                              world(Vec3{1.0f, u, 0.0f}),
-                             withAlpha(color, color.a * 0.34f),
-                             stroke * 0.42f);
+                             withAlpha(detailColor, detailColor.a * 0.82f),
+                             detailStroke * 0.74f);
             addProjectedLine(frame,
                              camera,
                              world(Vec3{u, -1.0f, 0.0f}),
                              world(Vec3{u, 1.0f, 0.0f}),
-                             withAlpha(color, color.a * 0.28f),
-                             stroke * 0.38f);
+                             withAlpha(detailColor, detailColor.a * 0.68f),
+                             detailStroke * 0.68f);
         }
         addProjectedPolyline(frame,
                              camera,
@@ -2223,8 +2240,8 @@ void renderWireObject3D(GeometryFrame& frame,
                               world(Vec3{1.0f, -1.0f, 0.0f}),
                               world(Vec3{1.0f, 1.0f, 0.0f}),
                               world(Vec3{-1.0f, 1.0f, 0.0f})},
-                             withAlpha(color, color.a * 0.74f),
-                             stroke * 0.82f,
+                             silhouetteColor,
+                             silhouetteStroke,
                              true);
         return;
     }
@@ -2250,10 +2267,10 @@ void renderWireObject3D(GeometryFrame& frame,
                             0.38f,
                             0.02f);
         }
-        addProjectedPolyline(frame, camera, top, color, stroke * 0.72f, true);
-        addProjectedPolyline(frame, camera, bottom, withAlpha(color, color.a * 0.72f), stroke * 0.6f, true);
+        addProjectedPolyline(frame, camera, top, silhouetteColor, silhouetteStroke, true);
+        addProjectedPolyline(frame, camera, bottom, withAlpha(silhouetteColor, silhouetteColor.a * 0.74f), silhouetteStroke * 0.82f, true);
         for (int i = 0; i < sides; ++i) {
-            addProjectedLine(frame, camera, top[static_cast<std::size_t>(i)], bottom[static_cast<std::size_t>(i)], color, stroke * 0.7f);
+            addProjectedLine(frame, camera, top[static_cast<std::size_t>(i)], bottom[static_cast<std::size_t>(i)], detailColor, detailStroke);
         }
         return;
     }
@@ -2286,7 +2303,7 @@ void renderWireObject3D(GeometryFrame& frame,
                         0.40f,
                         0.06f);
         for (const auto& edge : cageEdges) {
-            addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], color, stroke * 0.86f);
+            addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], silhouetteColor, silhouetteStroke * 0.86f);
         }
         return;
     }
@@ -2309,7 +2326,7 @@ void renderWireObject3D(GeometryFrame& frame,
                 const float wave = std::sin((u * 2.6f + v * 1.8f + object.rotation.z) * kPi) * 0.18f;
                 line.push_back(world(Vec3{u, v, wave}));
             }
-            addProjectedPolyline(frame, camera, line, withAlpha(color, color.a * 0.68f), stroke * 0.52f, false);
+            addProjectedPolyline(frame, camera, line, withAlpha(detailColor, detailColor.a * 0.82f), detailStroke, false);
         }
         for (int x = -columns; x <= columns; x += 4) {
             std::vector<Vec3> line;
@@ -2320,7 +2337,7 @@ void renderWireObject3D(GeometryFrame& frame,
                 const float wave = std::cos((u * 1.7f - v * 2.2f + object.rotation.y) * kPi) * 0.14f;
                 line.push_back(world(Vec3{u, v, wave}));
             }
-            addProjectedPolyline(frame, camera, line, withAlpha(color, color.a * 0.48f), stroke * 0.42f, false);
+            addProjectedPolyline(frame, camera, line, withAlpha(detailColor, detailColor.a * 0.62f), detailStroke * 0.86f, false);
         }
         return;
     }
@@ -2356,34 +2373,41 @@ void renderWireObject3D(GeometryFrame& frame,
         if (!projected.visible) {
             return;
         }
+        const float particleRadius = std::max(1.0f,
+                                              object.scale.x * projected.perspective *
+                                                  (object.kind == Object3DKind::Anchor ? 2.1f :
+                                                   object.kind == Object3DKind::Node ? 1.55f :
+                                                   object.kind == Object3DKind::Orbiter ? 1.25f : 0.88f));
+        const ColorRGBA particleColor = withAlpha(color, color.a * 0.60f);
         frame.particles.push_back(Particle{
             projected.point,
-            std::max(1.0f,
-                     object.scale.x * projected.perspective *
-                         (object.kind == Object3DKind::Anchor ? 2.4f :
-                          object.kind == Object3DKind::Node ? 1.8f :
-                          object.kind == Object3DKind::Orbiter ? 1.45f : 1.0f)),
-            color
+            particleRadius,
+            particleColor
         });
+        frame.projected3DOutlineVisualWeight += particleColor.a * std::max(0.6f, particleRadius) * 1.6f;
         if (object.kind == Object3DKind::Node || object.kind == Object3DKind::Orbiter || object.kind == Object3DKind::Anchor) {
+            const float ringRadius = std::max(2.0f,
+                                              object.scale.x * projected.perspective *
+                                                  (object.kind == Object3DKind::Anchor ? 4.7f :
+                                                   object.kind == Object3DKind::Orbiter ? 3.0f : 2.0f));
+            const float ringStroke = silhouetteStroke * 0.58f;
+            const ColorRGBA ringColor = withAlpha(silhouetteColor, silhouetteColor.a * 0.46f);
             frame.rings.push_back(Ring{
                 projected.point,
-                std::max(2.0f,
-                         object.scale.x * projected.perspective *
-                             (object.kind == Object3DKind::Anchor ? 5.4f :
-                              object.kind == Object3DKind::Orbiter ? 3.6f : 2.4f)),
+                ringRadius,
                 object.kind == Object3DKind::Anchor ? 4 : 18,
                 object.rotation.z,
-                stroke * 0.7f,
-                withAlpha(color, color.a * 0.48f)
+                ringStroke,
+                ringColor
             });
+            frame.projected3DOutlineVisualWeight += ringColor.a * std::max(0.2f, ringStroke) * 6.0f;
             if (object.kind == Object3DKind::Anchor) {
                 addProjectedLine(frame,
                                  camera,
                                  object.position,
                                  add(object.position, Vec3{object.scale.x * 2.2f, 0.0f, 0.0f}),
-                                 withAlpha(color, color.a * 0.42f),
-                                 stroke * 0.5f);
+                                 detailColor,
+                                 detailStroke);
             }
         }
         return;
@@ -2404,14 +2428,14 @@ void renderWireObject3D(GeometryFrame& frame,
                           add(object.target, offset),
                           subtract(object.target, offset),
                           subtract(object.position, offset)},
-                         withAlpha(color, color.a * 0.58f),
+                         withAlpha(color, color.a * 0.64f),
                          0.25f + object.glow * 0.30f);
         addProjectedLine(frame,
                          camera,
                          object.position,
                          object.target,
-                         withAlpha(color, color.a * 0.34f),
-                         0.45f + object.glow * 0.82f);
+                         withAlpha(detailColor, detailColor.a * 0.68f),
+                         0.32f + object.glow * 0.44f);
         return;
     }
 
@@ -2456,7 +2480,7 @@ void renderWireObject3D(GeometryFrame& frame,
                              withAlpha(color, color.a * (0.38f + depthUnit * 0.16f)),
                              stroke * 0.22f);
         }
-        addProjectedPolyline(frame, camera, points, color, stroke, false);
+        addProjectedPolyline(frame, camera, points, silhouetteColor, silhouetteStroke, false);
         return;
     }
 
@@ -2494,7 +2518,7 @@ void renderWireObject3D(GeometryFrame& frame,
                     0.28f,
                     0.02f);
     for (const auto& edge : edges) {
-        addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], color, stroke);
+        addProjectedLine(frame, camera, vertices[edge[0]], vertices[edge[1]], silhouetteColor, silhouetteStroke);
     }
 }
 
@@ -6329,6 +6353,10 @@ void addObject3DScene(GeometryFrame& frame,
 
     frame.projected3DPrimitiveCount = std::max(0, primitiveFootprint(frame) - primitiveFootprintBefore3D);
     frame.projected3DVisualWeight = std::max(0.0f, primitiveVisualWeight(frame) - visualWeightBefore3D);
+    frame.projected3DMaterialShare = frame.projected3DFillVisualWeight /
+                                     std::max(1.0f,
+                                              frame.projected3DFillVisualWeight +
+                                                  frame.projected3DOutlineVisualWeight);
     frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
     frame.depthFogStrength = std::clamp(depth * lightingGlow * (range / std::max(1.0f, minimumDimension * 1.45f)),
                                         0.0f,

@@ -120,6 +120,8 @@ struct GeometryFrame {
     float retained2DVisualRatio = 0.0f;
     float projected3DVisualWeight = 0.0f;
     float projected3DFillVisualWeight = 0.0f;
+    float projected3DOutlineVisualWeight = 0.0f;
+    float projected3DMaterialShare = 0.0f;
     float projected3DMaterialContrast = 0.0f;
     float depthFogStrength = 0.0f;
     float threeDDominance = 0.0f;
