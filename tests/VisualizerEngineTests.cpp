@@ -335,6 +335,65 @@ float objectRoleVisualSignature(const GeometryFrame& frame, Object3DRole role)
            kindMix * invCount;
 }
 
+float objectRoleVisualMass(const GeometryFrame& frame, Object3DRole role)
+{
+    float mass = 0.0f;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role) {
+            continue;
+        }
+
+        const float scaleAverage = (std::fabs(object.scale.x) +
+                                    std::fabs(object.scale.y) +
+                                    std::fabs(object.scale.z)) /
+                                   3.0f;
+        const float silhouette = std::sqrt(std::max(1.0f, scaleAverage));
+        mass += std::max(0.02f, object.color.a) *
+                (0.76f + std::clamp(object.glow, 0.0f, 2.4f) * 0.34f) *
+                silhouette;
+    }
+    return mass;
+}
+
+float objectRoleMotionEnergy(const GeometryFrame& frame, Object3DRole role)
+{
+    float total = 0.0f;
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role) {
+            continue;
+        }
+
+        total += std::sqrt(object.velocity.x * object.velocity.x +
+                           object.velocity.y * object.velocity.y +
+                           object.velocity.z * object.velocity.z) *
+                 (0.72f + std::clamp(object.glow, 0.0f, 2.2f) * 0.22f);
+        ++count;
+    }
+    return count > 0 ? total / static_cast<float>(count) : 0.0f;
+}
+
+float objectRoleDepthSpan(const GeometryFrame& frame, Object3DRole role)
+{
+    bool haveObject = false;
+    float minimumZ = 0.0f;
+    float maximumZ = 0.0f;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role) {
+            continue;
+        }
+        if (!haveObject) {
+            minimumZ = object.position.z;
+            maximumZ = object.position.z;
+            haveObject = true;
+            continue;
+        }
+        minimumZ = std::min(minimumZ, object.position.z);
+        maximumZ = std::max(maximumZ, object.position.z);
+    }
+    return haveObject ? maximumZ - minimumZ : 0.0f;
+}
+
 std::array<int, 5> objectSpatialSignature(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -3823,6 +3882,190 @@ void musicalRolesOwnDifferent3DScoreParts()
     require(converged.sceneRoleLegibility3D > 0.28f &&
                 converged.sceneMusicalStructure3D > 0.30f,
             "earned convergence should still preserve readable role geometry instead of collapsing into noise");
+}
+
+void musicalRoleInstrumentScoreFollowsSeparateAudioCues()
+{
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.96f;
+    settings.lightingGlow = 0.94f;
+    settings.colorImpact = 0.96f;
+    settings.scenePersonality = 0.96f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.96f;
+    settings.complexity = 1.28f;
+    settings.intensity = 1.12f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.94f;
+
+    auto base = [] {
+        AudioMetrics metrics = syntheticMetrics();
+        metrics.rms = 0.38f;
+        metrics.peak = 0.60f;
+        metrics.bass = 0.24f;
+        metrics.lowMid = 0.22f;
+        metrics.mid = 0.30f;
+        metrics.highMid = 0.24f;
+        metrics.treble = 0.20f;
+        metrics.stereoWidth = 0.46f;
+        metrics.spectralFlux = 0.14f;
+        metrics.onset = 0.12f;
+        metrics.beat = true;
+        metrics.beatConfidence = 0.38f;
+        metrics.beatPhase = 0.32f;
+        metrics.barConfidence = 0.36f;
+        metrics.barPhase = 0.42f;
+        metrics.downbeatConfidence = 0.24f;
+        metrics.phraseIntensity = 0.28f;
+        metrics.phraseConfidence = 0.54f;
+        metrics.harmonicEnergy = 0.36f;
+        metrics.keyIndex = 4;
+        metrics.keyMode = MusicalMode::Minor;
+        metrics.keyConfidence = 0.40f;
+        metrics.section = ArrangementSection::Groove;
+        metrics.sectionConfidence = 0.70f;
+        metrics.bassRole = 0.08f;
+        metrics.drumRole = 0.08f;
+        metrics.melodyRole = 0.08f;
+        metrics.harmonyRole = 0.08f;
+        metrics.spaceRole = 0.08f;
+        metrics.fractureRole = 0.08f;
+        metrics.shadowRole = 0.08f;
+        metrics.convergenceRole = 0.02f;
+        metrics.roleSeparation = 0.90f;
+        return metrics;
+    };
+
+    auto frameFor = [&](const AudioMetrics& metrics, double time) {
+        VisualizerEngine engine;
+        return engine.buildFrame(metrics, settings, 1280.0f, 720.0f, time);
+    };
+
+    AudioMetrics bassSoft = base();
+    bassSoft.bassRole = 0.88f;
+    bassSoft.shadowRole = 0.20f;
+    bassSoft.bass = 0.18f;
+    bassSoft.lowMid = 0.16f;
+    bassSoft.dropIntensity = 0.04f;
+    bassSoft.style = AudioStyle::BassHeavy;
+    bassSoft.styleConfidence = 0.72f;
+    AudioMetrics bassDriven = bassSoft;
+    bassDriven.bass = 0.94f;
+    bassDriven.lowMid = 0.74f;
+    bassDriven.dropIntensity = 0.54f;
+    bassDriven.downbeat = true;
+    bassDriven.downbeatConfidence = 0.82f;
+
+    AudioMetrics drumsLoose = base();
+    drumsLoose.drumRole = 0.90f;
+    drumsLoose.bassRole = 0.18f;
+    drumsLoose.beatConfidence = 0.18f;
+    drumsLoose.barConfidence = 0.16f;
+    drumsLoose.downbeatConfidence = 0.10f;
+    drumsLoose.style = AudioStyle::Techno;
+    drumsLoose.styleConfidence = 0.82f;
+    AudioMetrics drumsLocked = drumsLoose;
+    drumsLocked.beatConfidence = 0.96f;
+    drumsLocked.barConfidence = 0.88f;
+    drumsLocked.downbeat = true;
+    drumsLocked.downbeatConfidence = 0.86f;
+
+    AudioMetrics melodyFlat = base();
+    melodyFlat.melodyRole = 0.88f;
+    melodyFlat.harmonyRole = 0.26f;
+    melodyFlat.harmonicEnergy = 0.18f;
+    melodyFlat.keyConfidence = 0.14f;
+    melodyFlat.style = AudioStyle::Bright;
+    melodyFlat.styleConfidence = 0.70f;
+    AudioMetrics melodySinging = melodyFlat;
+    melodySinging.harmonicEnergy = 0.90f;
+    melodySinging.keyConfidence = 0.92f;
+    melodySinging.phraseIntensity = 0.72f;
+    melodySinging.phraseConfidence = 0.84f;
+
+    AudioMetrics spaceNarrow = base();
+    spaceNarrow.spaceRole = 0.90f;
+    spaceNarrow.harmonyRole = 0.20f;
+    spaceNarrow.beat = false;
+    spaceNarrow.beatConfidence = 0.04f;
+    spaceNarrow.stereoWidth = 0.18f;
+    spaceNarrow.style = AudioStyle::Ambient;
+    spaceNarrow.styleConfidence = 0.84f;
+    AudioMetrics spaceWide = spaceNarrow;
+    spaceWide.stereoWidth = 0.96f;
+    spaceWide.harmonicEnergy = 0.62f;
+    spaceWide.phraseConfidence = 0.78f;
+
+    AudioMetrics fractureSmooth = base();
+    fractureSmooth.fractureRole = 0.90f;
+    fractureSmooth.drumRole = 0.22f;
+    fractureSmooth.spectralFlux = 0.12f;
+    fractureSmooth.onset = 0.10f;
+    fractureSmooth.style = AudioStyle::Bright;
+    fractureSmooth.styleConfidence = 0.76f;
+    AudioMetrics fractureCut = fractureSmooth;
+    fractureCut.spectralFlux = 0.92f;
+    fractureCut.onset = 0.88f;
+    fractureCut.highMid = 0.84f;
+    fractureCut.treble = 0.78f;
+
+    const GeometryFrame bassSoftFrame = frameFor(bassSoft, 4.0);
+    const GeometryFrame bassDrivenFrame = frameFor(bassDriven, 4.0);
+    const GeometryFrame drumsLooseFrame = frameFor(drumsLoose, 4.2);
+    const GeometryFrame drumsLockedFrame = frameFor(drumsLocked, 4.2);
+    const GeometryFrame melodyFlatFrame = frameFor(melodyFlat, 4.4);
+    const GeometryFrame melodySingingFrame = frameFor(melodySinging, 4.4);
+    const GeometryFrame spaceNarrowFrame = frameFor(spaceNarrow, 4.6);
+    const GeometryFrame spaceWideFrame = frameFor(spaceWide, 4.6);
+    const GeometryFrame fractureSmoothFrame = frameFor(fractureSmooth, 4.8);
+    const GeometryFrame fractureCutFrame = frameFor(fractureCut, 4.8);
+
+    require(objectRoleVisualMass(bassDrivenFrame, Object3DRole::Bass) >
+                objectRoleVisualMass(bassSoftFrame, Object3DRole::Bass) * 1.06f,
+            "bass objects should gain visual mass from bass/drop energy, not only from a generic role scalar");
+    require(objectRoleMotionEnergy(bassDrivenFrame, Object3DRole::Bass) >
+                objectRoleMotionEnergy(bassSoftFrame, Object3DRole::Bass) * 1.08f,
+            "bass role should move with pressure/depth when low end intensifies");
+
+    require(objectRoleMotionEnergy(drumsLockedFrame, Object3DRole::Drums) >
+                objectRoleMotionEnergy(drumsLooseFrame, Object3DRole::Drums) * 1.16f,
+            "drum role should lock to beat/bar energy instead of moving like every other role; loose=" +
+                std::to_string(objectRoleMotionEnergy(drumsLooseFrame, Object3DRole::Drums)) +
+                " locked=" + std::to_string(objectRoleMotionEnergy(drumsLockedFrame, Object3DRole::Drums)));
+    require(objectRoleVisualMass(drumsLockedFrame, Object3DRole::Drums) >
+                objectRoleVisualMass(drumsLooseFrame, Object3DRole::Drums) * 1.04f,
+            "drum machinery should become visually stronger on confident rhythm");
+
+    require(objectRoleVisualSignature(melodySingingFrame, Object3DRole::Melody) >
+                objectRoleVisualSignature(melodyFlatFrame, Object3DRole::Melody) + 1.0f,
+            "melody role should reshape around harmonic/key confidence instead of generic pulse");
+    require(objectRoleMotionEnergy(melodySingingFrame, Object3DRole::Melody) >
+                objectRoleMotionEnergy(melodyFlatFrame, Object3DRole::Melody) * 1.08f,
+            "melody role should receive separate harmonic motion");
+
+    require(objectRoleDepthSpan(spaceWideFrame, Object3DRole::Space) >
+                objectRoleDepthSpan(spaceNarrowFrame, Object3DRole::Space) + 28.0f,
+            "space role should open a wider depth volume from stereo width; narrowSpan=" +
+                std::to_string(objectRoleDepthSpan(spaceNarrowFrame, Object3DRole::Space)) +
+                " wideSpan=" + std::to_string(objectRoleDepthSpan(spaceWideFrame, Object3DRole::Space)));
+    require(objectRoleCentroid(spaceWideFrame, Object3DRole::Space).z >
+                objectRoleCentroid(spaceNarrowFrame, Object3DRole::Space).z + 24.0f,
+            "wide ambient space should push spatial geometry deeper, not just brighten the same mesh; narrowZ=" +
+                std::to_string(objectRoleCentroid(spaceNarrowFrame, Object3DRole::Space).z) +
+                " wideZ=" + std::to_string(objectRoleCentroid(spaceWideFrame, Object3DRole::Space).z));
+
+    require(objectRoleMotionEnergy(fractureCutFrame, Object3DRole::Fracture) >
+                objectRoleMotionEnergy(fractureSmoothFrame, Object3DRole::Fracture) * 1.18f,
+            "fracture role should cut harder on onset/spectral flux");
+    require(objectRoleVisualMass(fractureCutFrame, Object3DRole::Fracture) >
+                objectRoleVisualMass(fractureSmoothFrame, Object3DRole::Fracture) * 1.05f,
+            "fracture geometry should visibly sharpen when transient energy rises");
 }
 
 void songSectionsMoveRolesWithDistinctEmotionalDirection()
@@ -7680,6 +7923,7 @@ int main()
         {"layeredMusicalPartsStayReadableBeforeConvergence", viz::tests::layeredMusicalPartsStayReadableBeforeConvergence},
         {"musicalPartsAuthorSeparateMotifFamilies", viz::tests::musicalPartsAuthorSeparateMotifFamilies},
         {"musicalRolesOwnDifferent3DScoreParts", viz::tests::musicalRolesOwnDifferent3DScoreParts},
+        {"musicalRoleInstrumentScoreFollowsSeparateAudioCues", viz::tests::musicalRoleInstrumentScoreFollowsSeparateAudioCues},
         {"songSectionsMoveRolesWithDistinctEmotionalDirection", viz::tests::songSectionsMoveRolesWithDistinctEmotionalDirection},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
