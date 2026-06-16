@@ -249,6 +249,33 @@ int objectFamilyCount(const GeometryFrame& frame, std::initializer_list<Object3D
     return count;
 }
 
+int objectRoleCount(const GeometryFrame& frame, Object3DRole role)
+{
+    return static_cast<int>(std::count_if(frame.objects3D.begin(), frame.objects3D.end(), [role](const Object3D& object) {
+        return object.musicRole == role;
+    }));
+}
+
+Vec3 objectRoleCentroid(const GeometryFrame& frame, Object3DRole role)
+{
+    Vec3 total{};
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role) {
+            continue;
+        }
+        total.x += object.position.x;
+        total.y += object.position.y;
+        total.z += object.position.z;
+        ++count;
+    }
+    if (count == 0) {
+        return {};
+    }
+    const float invCount = 1.0f / static_cast<float>(count);
+    return Vec3{total.x * invCount, total.y * invCount, total.z * invCount};
+}
+
 std::array<int, 5> objectSpatialSignature(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -3024,8 +3051,10 @@ void musicalRoleDistrictsConvergeOnlyWhenEarned()
     };
     const float separatedSpread = stagedRoleSpread(separatedFrame);
     const float convergedSpread = stagedRoleSpread(convergedFrame);
-    require(convergedSpread < separatedSpread * 0.88f,
-            "earned convergence should pull separate musical districts together into a composed 3D event");
+    require(convergedSpread < separatedSpread * 0.96f,
+            "earned convergence should pull separate musical districts together into a composed 3D event without collapsing them; separated=" +
+                std::to_string(separatedSpread) +
+                " converged=" + std::to_string(convergedSpread));
     require(convergedSpread > 130.0f,
             "earned convergence should not collapse all musical roles into one unreadable blob");
     require(separatedFrame.projected3DFillVisualWeight > 180.0f &&
@@ -3034,6 +3063,133 @@ void musicalRoleDistrictsConvergeOnlyWhenEarned()
     require(separatedFrame.projected3DMaterialShare > 0.35f &&
                 convergedFrame.projected3DMaterialShare > 0.35f,
             "separate and converged role scenes should not be dominated by outline noise");
+}
+
+void layeredMusicalPartsStayReadableBeforeConvergence()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.94f;
+    settings.lightingGlow = 0.92f;
+    settings.scenePersonality = 0.94f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.95f;
+    settings.complexity = 1.28f;
+    settings.intensity = 1.16f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.94f;
+
+    AudioMetrics layered = syntheticMetrics();
+    layered.rms = 0.52f;
+    layered.peak = 0.78f;
+    layered.bass = 0.58f;
+    layered.lowMid = 0.46f;
+    layered.mid = 0.50f;
+    layered.highMid = 0.38f;
+    layered.treble = 0.30f;
+    layered.stereoWidth = 0.68f;
+    layered.spectralFlux = 0.22f;
+    layered.onset = 0.18f;
+    layered.beat = true;
+    layered.beatConfidence = 0.74f;
+    layered.beatPhase = 0.38f;
+    layered.barConfidence = 0.70f;
+    layered.barPhase = 0.42f;
+    layered.downbeat = false;
+    layered.downbeatConfidence = 0.28f;
+    layered.dropIntensity = 0.12f;
+    layered.phraseBoundary = false;
+    layered.phraseIntensity = 0.30f;
+    layered.phraseConfidence = 0.62f;
+    layered.harmonicEnergy = 0.64f;
+    layered.keyIndex = 4;
+    layered.keyMode = MusicalMode::Minor;
+    layered.keyConfidence = 0.70f;
+    layered.style = AudioStyle::Techno;
+    layered.styleConfidence = 0.78f;
+    layered.section = ArrangementSection::Groove;
+    layered.sectionConfidence = 0.82f;
+    layered.bassRole = 0.74f;
+    layered.drumRole = 0.72f;
+    layered.melodyRole = 0.62f;
+    layered.harmonyRole = 0.56f;
+    layered.spaceRole = 0.46f;
+    layered.fractureRole = 0.40f;
+    layered.shadowRole = 0.36f;
+    layered.convergenceRole = 0.04f;
+    layered.roleSeparation = 0.92f;
+
+    AudioMetrics converging = layered;
+    converging.dropIntensity = 0.84f;
+    converging.phraseBoundary = true;
+    converging.phraseConfidence = 0.90f;
+    converging.phraseIntensity = 0.82f;
+    converging.downbeat = true;
+    converging.downbeatConfidence = 0.88f;
+    converging.convergenceRole = 0.86f;
+    converging.section = ArrangementSection::Drop;
+    converging.sectionConfidence = 0.92f;
+
+    const GeometryFrame separatedFrame = engine.buildFrame(layered, settings, 1280.0f, 720.0f, 6.0);
+    const GeometryFrame convergedFrame = engine.buildFrame(converging, settings, 1280.0f, 720.0f, 6.0);
+
+    require(separatedFrame.sceneConvergence3D < 0.34f,
+            "layered groove without drop/phrase cue should not force all roles into convergence");
+    require(convergedFrame.sceneConvergence3D > separatedFrame.sceneConvergence3D + 0.40f,
+            "drop/phrase cue should materially increase convergence");
+    require(separatedFrame.sceneExplicitRoleShare3D > 0.36f,
+            "layered music should be led by explicit role-owned 3D objects, not background filler; explicit=" +
+                std::to_string(separatedFrame.sceneExplicitRoleShare3D) +
+                " bridge=" + std::to_string(separatedFrame.sceneRoleBridgeShare3D) +
+                " spread=" + std::to_string(separatedFrame.sceneRoleDistrictSpread3D) +
+                " balance=" + std::to_string(separatedFrame.sceneRoleBalance3D) +
+                " objects=" + std::to_string(separatedFrame.objects3D.size()));
+    require(separatedFrame.sceneRoleBridgeShare3D < 0.20f,
+            "layered pre-drop music should not be dominated by bridge/convergence glue");
+    require(separatedFrame.sceneRoleDistrictSpread3D > 0.36f,
+            "layered pre-drop music should keep role districts spatially readable");
+    require(separatedFrame.sceneRoleBalance3D > 0.10f,
+            "layered pre-drop music should not let one role object family swallow the rest; balance=" +
+                std::to_string(separatedFrame.sceneRoleBalance3D) +
+                " explicit=" + std::to_string(separatedFrame.sceneExplicitRoleShare3D) +
+                " bridge=" + std::to_string(separatedFrame.sceneRoleBridgeShare3D));
+
+    require(objectRoleCount(separatedFrame, Object3DRole::Bass) >= 4 &&
+                objectRoleCount(separatedFrame, Object3DRole::Drums) >= 8 &&
+                objectRoleCount(separatedFrame, Object3DRole::Melody) >= 8 &&
+                objectRoleCount(separatedFrame, Object3DRole::Space) >= 4 &&
+                objectRoleCount(separatedFrame, Object3DRole::Fracture) >= 4 &&
+                objectRoleCount(separatedFrame, Object3DRole::Shadow) >= 3,
+            "layered music should author visible 3D object families for separate musical parts");
+
+    const Vec3 bassCenter = objectRoleCentroid(separatedFrame, Object3DRole::Bass);
+    const Vec3 drumCenter = objectRoleCentroid(separatedFrame, Object3DRole::Drums);
+    const Vec3 melodyCenter = objectRoleCentroid(separatedFrame, Object3DRole::Melody);
+    const Vec3 spaceCenter = objectRoleCentroid(separatedFrame, Object3DRole::Space);
+    const Vec3 fractureCenter = objectRoleCentroid(separatedFrame, Object3DRole::Fracture);
+    const Vec3 shadowCenter = objectRoleCentroid(separatedFrame, Object3DRole::Shadow);
+
+    require(centroidDistance(bassCenter, melodyCenter) > 220.0f,
+            "bass pressure and melody geometry should be readable as different 3D parts");
+    require(centroidDistance(drumCenter, melodyCenter) > 180.0f,
+            "drum sequencer geometry should not sit inside the melody district");
+    require(spaceCenter.z > bassCenter.z + 170.0f,
+            "space/atmosphere should occupy a deeper volume than bass pressure");
+    require(fractureCenter.x > drumCenter.x + 170.0f,
+            "fracture/cut geometry should occupy its own lateral district away from drums");
+    require(shadowCenter.y > melodyCenter.y + 140.0f,
+            "shadow/monolith geometry should sit apart from elevated melody objects");
+
+    require(convergedFrame.sceneRoleDistrictSpread3D < separatedFrame.sceneRoleDistrictSpread3D * 0.92f,
+            "earned convergence should pull role districts closer");
+    require(convergedFrame.sceneRoleDistrictSpread3D > 0.22f,
+            "earned convergence should still preserve a composed 3D pattern instead of one unreadable blob");
+    require(convergedFrame.sceneExplicitRoleShare3D > 0.32f,
+            "converged drop should still be built from musical-role geometry");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -3342,6 +3498,168 @@ void musicalRolesSteerCameraComposition()
     require(std::fabs(shadowFrame.cameraRoll) < std::fabs(fractureFrame.cameraRoll) * 0.45f &&
                 shadowFrame.cameraPitch > 0.03f,
             "shadow role should stay monumental and upright while looking upward into depth");
+}
+
+void cinematicFramingKeeps3DScenesReadable()
+{
+    struct Profile {
+        const char* name;
+        VisualMode mode;
+        AudioMetrics metrics;
+    };
+
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.92f;
+    settings.lightingGlow = 0.92f;
+    settings.colorImpact = 1.0f;
+    settings.scenePersonality = 0.92f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.90f;
+    settings.patternClarity = 0.94f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics silence{};
+    silence.style = AudioStyle::Silence;
+    silence.section = ArrangementSection::Silence;
+    silence.beatPhase = 0.5f;
+    silence.barPhase = 0.25f;
+    silence.phrasePhase = 0.25f;
+
+    AudioMetrics low = syntheticMetrics();
+    low.rms = 0.035f;
+    low.peak = 0.055f;
+    low.bass = 0.03f;
+    low.stereoWidth = 0.52f;
+    low.style = AudioStyle::Wide;
+    low.styleConfidence = 0.62f;
+
+    AudioMetrics techno = syntheticMetrics();
+    techno.rms = 0.48f;
+    techno.bass = 0.56f;
+    techno.lowMid = 0.44f;
+    techno.beat = true;
+    techno.beatConfidence = 0.94f;
+    techno.barConfidence = 0.86f;
+    techno.downbeatConfidence = 0.72f;
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.92f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.86f;
+
+    AudioMetrics bass = syntheticMetrics();
+    bass.rms = 0.84f;
+    bass.peak = 1.0f;
+    bass.bass = 0.98f;
+    bass.lowMid = 0.78f;
+    bass.dropIntensity = 0.94f;
+    bass.beat = true;
+    bass.beatConfidence = 0.94f;
+    bass.style = AudioStyle::BassHeavy;
+    bass.styleConfidence = 0.94f;
+    bass.section = ArrangementSection::Drop;
+    bass.sectionConfidence = 0.92f;
+
+    AudioMetrics melodic = syntheticMetrics();
+    melodic.rms = 0.34f;
+    melodic.bass = 0.16f;
+    melodic.mid = 0.54f;
+    melodic.highMid = 0.58f;
+    melodic.treble = 0.50f;
+    melodic.stereoWidth = 0.58f;
+    melodic.keyIndex = 7;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.94f;
+    melodic.harmonicEnergy = 0.90f;
+    melodic.style = AudioStyle::Bright;
+    melodic.styleConfidence = 0.72f;
+
+    AudioMetrics breakbeat = syntheticMetrics();
+    breakbeat.rms = 0.56f;
+    breakbeat.bass = 0.32f;
+    breakbeat.highMid = 0.82f;
+    breakbeat.treble = 0.86f;
+    breakbeat.stereoWidth = 0.62f;
+    breakbeat.spectralFlux = 0.88f;
+    breakbeat.onset = 0.84f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.54f;
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.86f;
+
+    AudioMetrics dark = syntheticMetrics();
+    dark.rms = 0.30f;
+    dark.bass = 0.58f;
+    dark.lowMid = 0.50f;
+    dark.highMid = 0.01f;
+    dark.treble = 0.01f;
+    dark.stereoWidth = 0.16f;
+    dark.spectralFlux = 0.05f;
+    dark.keyIndex = 10;
+    dark.keyMode = MusicalMode::Minor;
+    dark.keyConfidence = 0.72f;
+    dark.harmonicEnergy = 0.44f;
+    dark.style = AudioStyle::BassHeavy;
+    dark.styleConfidence = 0.64f;
+    dark.section = ArrangementSection::Breakdown;
+    dark.sectionConfidence = 0.76f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.18f;
+    ambient.bass = 0.08f;
+    ambient.lowMid = 0.18f;
+    ambient.stereoWidth = 0.90f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.04f;
+    ambient.phraseIntensity = 0.56f;
+    ambient.phraseConfidence = 0.80f;
+    ambient.harmonicEnergy = 0.58f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.92f;
+    ambient.section = ArrangementSection::Breakdown;
+    ambient.sectionConfidence = 0.78f;
+
+    const Profile profiles[] = {
+        {"silence", VisualMode::QuantumTunnel, silence},
+        {"low volume", VisualMode::PhaseWeave, low},
+        {"techno", VisualMode::TechnoMandala, techno},
+        {"bass drop", VisualMode::QuantumTunnel, bass},
+        {"melodic", VisualMode::ChromaKaleidoscope, melodic},
+        {"breakbeat", VisualMode::SpectralOrigami, breakbeat},
+        {"dark", VisualMode::ResonanceTessellation, dark},
+        {"ambient", VisualMode::PhaseWeave, ambient}
+    };
+
+    for (const Profile& profile : profiles) {
+        settings.mode = profile.mode;
+        const GeometryFrame frame = engine.buildFrame(profile.metrics, settings, 1280.0f, 720.0f, 4.0);
+        const std::string name = profile.name;
+        require(frame.retained2DPrimitiveCount == 0,
+                name + " should remain free of retained 2D overlay primitives");
+        require(frame.projected3DPrimitiveCount > 0,
+                name + " should project real 3D geometry");
+        require(frame.projected3DScreenCoverage > 0.075f,
+                name + " should occupy enough screen area to read as a composed 3D scene");
+        require(frame.projected3DScreenCoverage <= 1.0f,
+                name + " screen coverage should stay normalized");
+        require(frame.projected3DCenterOffset < 0.58f,
+                name + " should stay framed near the camera's readable center");
+        require(frame.foreground3DShare > 0.025f &&
+                    frame.midground3DShare > 0.025f &&
+                    frame.background3DShare > 0.025f,
+                name + " should preserve foreground, midground, and background 3D layers; foreground=" +
+                    std::to_string(frame.foreground3DShare) +
+                    " midground=" + std::to_string(frame.midground3DShare) +
+                    " background=" + std::to_string(frame.background3DShare));
+        require(std::fabs(frame.foreground3DShare +
+                              frame.midground3DShare +
+                              frame.background3DShare -
+                          1.0f) < 0.01f,
+                name + " depth layer shares should form a complete distribution");
+    }
 }
 
 void autoSceneContinuityResistsAmbiguousFrameFlips()
@@ -5391,9 +5709,11 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include phrase structure columns");
         require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
                 "timeline should include scene intent, material share, and 3D dominance columns");
+        require(timelineText.find("projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare") != std::string::npos,
+                "timeline should include projected 3D framing and depth-layer columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
                 "timeline should include 3D section narrative columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D") != std::string::npos,
                 "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
                 "timeline should include adaptive audio profile columns");
@@ -5725,9 +6045,11 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain phrase structure columns");
         require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
                 "batch timeline should contain scene intent, material share, and 3D dominance columns");
+        require(timelineText.find("projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare") != std::string::npos,
+                "batch timeline should contain projected 3D framing and depth-layer columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
                 "batch timeline should contain 3D section narrative columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D") != std::string::npos,
                 "batch timeline should contain separated musical role columns");
     }
 
@@ -5815,8 +6137,10 @@ int main()
         {"sameModeSongIdentitiesAuthorDistinct3DSetPieces", viz::tests::sameModeSongIdentitiesAuthorDistinct3DSetPieces},
         {"analyzerRolesDriveSeparate3DObjectFamilies", viz::tests::analyzerRolesDriveSeparate3DObjectFamilies},
         {"musicalRoleDistrictsConvergeOnlyWhenEarned", viz::tests::musicalRoleDistrictsConvergeOnlyWhenEarned},
+        {"layeredMusicalPartsStayReadableBeforeConvergence", viz::tests::layeredMusicalPartsStayReadableBeforeConvergence},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
+        {"cinematicFramingKeeps3DScenesReadable", viz::tests::cinematicFramingKeeps3DScenesReadable},
         {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},

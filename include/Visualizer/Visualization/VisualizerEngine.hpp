@@ -72,6 +72,19 @@ enum class Object3DKind {
     Anchor
 };
 
+enum class Object3DRole {
+    Unassigned,
+    Bass,
+    Drums,
+    Melody,
+    Harmony,
+    Space,
+    Fracture,
+    Shadow,
+    Bridge,
+    Convergence
+};
+
 enum class SceneIntent {
     Calm,
     Groove,
@@ -97,6 +110,7 @@ struct Object3D {
     Vec3 target{};
     float depth = 0.0f;
     float glow = 0.0f;
+    Object3DRole musicRole = Object3DRole::Unassigned;
     ColorRGBA color{};
 };
 
@@ -125,6 +139,11 @@ struct GeometryFrame {
     float projected3DMaterialContrast = 0.0f;
     float depthFogStrength = 0.0f;
     float threeDDominance = 0.0f;
+    float projected3DScreenCoverage = 0.0f;
+    float projected3DCenterOffset = 0.0f;
+    float foreground3DShare = 0.0f;
+    float midground3DShare = 0.0f;
+    float background3DShare = 0.0f;
     float sectionNarrative3D = 0.0f;
     float sectionBuild3D = 0.0f;
     float sectionDrop3D = 0.0f;
@@ -140,6 +159,10 @@ struct GeometryFrame {
     float sceneShadowRole3D = 0.0f;
     float sceneConvergence3D = 0.0f;
     float sceneRoleSeparation3D = 0.0f;
+    float sceneExplicitRoleShare3D = 0.0f;
+    float sceneRoleBridgeShare3D = 0.0f;
+    float sceneRoleDistrictSpread3D = 0.0f;
+    float sceneRoleBalance3D = 0.0f;
     float cameraDepth = 0.0f;
     float cameraYaw = 0.0f;
     float cameraPitch = 0.0f;

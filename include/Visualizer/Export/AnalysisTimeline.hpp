@@ -24,6 +24,11 @@ struct AnalysisTimelineEntry {
     float projected3DOutlineVisualWeight = 0.0f;
     float projected3DMaterialShare = 0.0f;
     float threeDDominance = 0.0f;
+    float projected3DScreenCoverage = 0.0f;
+    float projected3DCenterOffset = 0.0f;
+    float foreground3DShare = 0.0f;
+    float midground3DShare = 0.0f;
+    float background3DShare = 0.0f;
     float sectionNarrative3D = 0.0f;
     float sectionBuild3D = 0.0f;
     float sectionDrop3D = 0.0f;
@@ -39,6 +44,10 @@ struct AnalysisTimelineEntry {
     float sceneShadowRole3D = 0.0f;
     float sceneConvergence3D = 0.0f;
     float sceneRoleSeparation3D = 0.0f;
+    float sceneExplicitRoleShare3D = 0.0f;
+    float sceneRoleBridgeShare3D = 0.0f;
+    float sceneRoleDistrictSpread3D = 0.0f;
+    float sceneRoleBalance3D = 0.0f;
 };
 
 class AnalysisTimelineWriter {

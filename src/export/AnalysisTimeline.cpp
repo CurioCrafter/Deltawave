@@ -58,8 +58,10 @@ bool AnalysisTimelineWriter::open(const std::filesystem::path& path, std::string
             << "scene3DName,sceneIntent,"
             << "authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,"
             << "projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance,"
+            << "projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare,"
             << "sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D,"
             << "bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,"
+            << "explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D,"
             << "primitiveCount\n";
     if (!output_) {
         error = "Failed while writing timeline header.";
@@ -152,6 +154,11 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << std::setprecision(3) << entry.projected3DOutlineVisualWeight << ","
             << std::setprecision(3) << entry.projected3DMaterialShare << ","
             << std::setprecision(3) << entry.threeDDominance << ","
+            << std::setprecision(3) << entry.projected3DScreenCoverage << ","
+            << std::setprecision(3) << entry.projected3DCenterOffset << ","
+            << std::setprecision(3) << entry.foreground3DShare << ","
+            << std::setprecision(3) << entry.midground3DShare << ","
+            << std::setprecision(3) << entry.background3DShare << ","
             << std::setprecision(3) << entry.sectionNarrative3D << ","
             << std::setprecision(3) << entry.sectionBuild3D << ","
             << std::setprecision(3) << entry.sectionDrop3D << ","
@@ -167,6 +174,10 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << std::setprecision(3) << entry.sceneShadowRole3D << ","
             << std::setprecision(3) << entry.sceneConvergence3D << ","
             << std::setprecision(3) << entry.sceneRoleSeparation3D << ","
+            << std::setprecision(3) << entry.sceneExplicitRoleShare3D << ","
+            << std::setprecision(3) << entry.sceneRoleBridgeShare3D << ","
+            << std::setprecision(3) << entry.sceneRoleDistrictSpread3D << ","
+            << std::setprecision(3) << entry.sceneRoleBalance3D << ","
             << entry.primitiveCount << "\n";
 
     if (!output_) {
