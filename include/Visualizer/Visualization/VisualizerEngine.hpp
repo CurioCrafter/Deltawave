@@ -191,6 +191,9 @@ struct GeometryFrame {
     float objectDepthRange = 0.0f;
     float cameraMotion3D = 0.0f;
     float cameraContinuity3D = 1.0f;
+    float interactionParallax3D = 0.0f;
+    float interactionFocus3D = 0.0f;
+    float interactionDepthPeel3D = 0.0f;
     float flash = 0.0f;
 };
 

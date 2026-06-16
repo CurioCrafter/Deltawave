@@ -32,6 +32,9 @@ struct AnalysisTimelineEntry {
     float background3DShare = 0.0f;
     float cameraMotion3D = 0.0f;
     float cameraContinuity3D = 1.0f;
+    float interactionParallax3D = 0.0f;
+    float interactionFocus3D = 0.0f;
+    float interactionDepthPeel3D = 0.0f;
     float sectionNarrative3D = 0.0f;
     float sectionBuild3D = 0.0f;
     float sectionDrop3D = 0.0f;

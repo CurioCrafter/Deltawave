@@ -283,6 +283,12 @@ struct SectionTransformStats3D {
     float materialShift = 0.0f;
 };
 
+struct InteractionDepthStats3D {
+    float parallax = 0.0f;
+    float focus = 0.0f;
+    float depthPeel = 0.0f;
+};
+
 struct MusicSceneArc3D {
     float intensity = 0.0f;
     float anticipation = 0.0f;
@@ -5194,16 +5200,17 @@ void renderWireObject3D(GeometryFrame& frame,
     }
 }
 
-void applyObjectInteraction3D(std::vector<Object3D>& objects,
-                              const InteractionState& interaction,
-                              const VisualSettings& settings,
-                              const Camera3D& camera,
-                              float width,
-                              float height,
-                              float time)
+InteractionDepthStats3D applyObjectInteraction3D(std::vector<Object3D>& objects,
+                                                 const InteractionState& interaction,
+                                                 const VisualSettings& settings,
+                                                 const Camera3D& camera,
+                                                 float width,
+                                                 float height,
+                                                 float time)
 {
+    InteractionDepthStats3D stats;
     if (!interaction.enabled || !interaction.active || objects.empty()) {
-        return;
+        return stats;
     }
 
     const Vec2 cursor{
@@ -5240,7 +5247,144 @@ void applyObjectInteraction3D(std::vector<Object3D>& objects,
         object.glow = std::min(glowCap, object.glow + influence * (0.34f + clickBoost * 0.28f) * readability);
         const float scaleBoost = influence * (1.12f + (1.0f - clarity) * 2.20f + clickBoost * 0.48f);
         object.scale = add(object.scale, Vec3{scaleBoost, scaleBoost, scaleBoost});
+        stats.focus += std::fabs(lift) / std::max(1.0f, std::min(width, height));
     }
+    stats.focus = clamp01(stats.focus / std::max(1.0f, static_cast<float>(objects.size())) * 5.0f);
+    return stats;
+}
+
+InteractionDepthStats3D applyDepthInspectionLens3D(std::vector<Object3D>& objects,
+                                                   const InteractionState& interaction,
+                                                   const VisualSettings& settings,
+                                                   const Camera3D& camera,
+                                                   float width,
+                                                   float height,
+                                                   float time)
+{
+    InteractionDepthStats3D stats;
+    if (!interaction.enabled || !interaction.active || objects.empty() || interactionDepthOf(settings) <= 0.001f) {
+        return stats;
+    }
+
+    const ObjectBounds3D bounds = objectBounds3D(objects);
+    if (!bounds.valid) {
+        return stats;
+    }
+
+    const float minimumDimension = std::min(width, height);
+    const float depthStrength = interactionDepthOf(settings);
+    const float clarity = patternClarityOf(settings);
+    const float stability = motionStabilityOf(settings);
+    const float pointerStrength = clamp01(0.42f + interaction.strength * 0.38f + interaction.velocity * 0.20f);
+    const float normalizedX = std::clamp(interaction.normalizedX, 0.0f, 1.0f) - 0.5f;
+    const float normalizedY = std::clamp(interaction.normalizedY, 0.0f, 1.0f) - 0.5f;
+    const Vec2 cursor{
+        std::clamp(interaction.normalizedX, 0.0f, 1.0f) * width,
+        std::clamp(interaction.normalizedY, 0.0f, 1.0f) * height
+    };
+    const float radius = minimumDimension *
+                         (0.22f + depthStrength * 0.16f + interaction.velocity * 0.040f) *
+                         (0.90f + (1.0f - clarity) * 0.10f);
+    const float lateralLimit = minimumDimension *
+                               (0.020f + depthStrength * 0.058f) *
+                               (0.72f + stability * 0.18f);
+    const float verticalLimit = lateralLimit * 0.56f;
+    const float focusLimit = minimumDimension *
+                             (0.036f + depthStrength * 0.064f) *
+                             (interaction.pressed ? 1.0f : 0.42f) *
+                             (0.80f + stability * 0.18f);
+    float parallaxMass = 0.0f;
+    float focusMass = 0.0f;
+    float peelMass = 0.0f;
+    float influenced = 0.0f;
+
+    const auto depthUnitOf = [&](float z) {
+        return bounds.span.z > 1.0f
+                   ? clamp01((z - bounds.minimum.z) / bounds.span.z)
+                   : 0.5f;
+    };
+
+    for (Object3D& object : objects) {
+        const Projected3D projected = projectPoint3D(object.position, camera);
+        if (!projected.visible) {
+            continue;
+        }
+
+        const float screenInfluence = std::exp(-distance2(projected.point, cursor) /
+                                               std::max(1.0f, radius * radius));
+        const float depthUnit = depthUnitOf(object.position.z);
+        const float depthBand = depthUnit - 0.5f;
+        const float nearWeight = clamp01(1.0f - depthUnit);
+        const float farWeight = clamp01(depthUnit);
+        const float ripple = std::sin(time * 2.2f + depthUnit * kPi * 1.7f);
+        const float layerInfluence = (0.160f +
+                                      std::fabs(depthBand) * 0.420f +
+                                      (interaction.pressed ? 0.080f : 0.0f)) *
+                                     depthStrength *
+                                     pointerStrength;
+        const float influence = std::max(screenInfluence * depthStrength * pointerStrength,
+                                         layerInfluence);
+        if (influence <= 0.003f) {
+            continue;
+        }
+        const float parallaxSign = (depthBand >= 0.0f ? -1.0f : 1.0f) *
+                                   std::clamp(0.45f + std::fabs(depthBand) * 1.10f, 0.45f, 1.0f);
+        const Vec3 before = object.position;
+        const Vec3 parallaxShift{
+            std::clamp(normalizedX * lateralLimit * parallaxSign * influence,
+                       -lateralLimit,
+                       lateralLimit),
+            std::clamp(-normalizedY * verticalLimit * parallaxSign * influence,
+                       -verticalLimit,
+                       verticalLimit),
+            std::clamp((-nearWeight * focusLimit + farWeight * focusLimit * 0.42f) *
+                           influence *
+                           (0.88f + ripple * 0.12f),
+                       -focusLimit,
+                       focusLimit * 0.56f)
+        };
+
+        object.position = add(object.position, parallaxShift);
+        object.velocity = add(object.velocity, scale(parallaxShift, 0.72f));
+        object.rotation.y += normalizedX * influence * (0.028f + nearWeight * 0.060f);
+        object.rotation.x -= normalizedY * influence * (0.020f + farWeight * 0.045f);
+        object.glow = std::min(1.20f + (1.0f - stability) * 0.18f,
+                               object.glow + influence * (0.035f + nearWeight * 0.055f));
+        object.color.a = clamp01(object.color.a * (1.0f + influence * (0.012f + nearWeight * 0.020f)));
+
+        if (object.kind == Object3DKind::Link) {
+            const float targetDepthUnit = depthUnitOf(object.target.z);
+            const float targetDepthBand = targetDepthUnit - 0.5f;
+            const float targetParallaxSign = (targetDepthBand >= 0.0f ? -1.0f : 1.0f) *
+                                             std::clamp(0.45f + std::fabs(targetDepthBand) * 1.10f, 0.45f, 1.0f);
+            const Vec3 targetShift{
+                std::clamp(normalizedX * lateralLimit * 0.72f * targetParallaxSign * influence,
+                           -lateralLimit * 0.72f,
+                           lateralLimit * 0.72f),
+                std::clamp(-normalizedY * verticalLimit * 0.72f * targetParallaxSign * influence,
+                           -verticalLimit * 0.72f,
+                           verticalLimit * 0.72f),
+                std::clamp((-(1.0f - targetDepthUnit) * focusLimit +
+                            targetDepthUnit * focusLimit * 0.42f) *
+                               influence * 0.72f,
+                           -focusLimit * 0.72f,
+                           focusLimit * 0.42f)
+            };
+            object.target = add(object.target, targetShift);
+        }
+
+        const Vec3 delta = subtract(object.position, before);
+        parallaxMass += std::sqrt(delta.x * delta.x + delta.y * delta.y) / std::max(1.0f, minimumDimension);
+        focusMass += std::fabs(delta.z) / std::max(1.0f, minimumDimension);
+        peelMass += std::fabs(depthBand) * influence;
+        influenced += 1.0f;
+    }
+
+    const float invInfluenced = 1.0f / std::max(1.0f, influenced);
+    stats.parallax = clamp01(parallaxMass * invInfluenced * 24.0f);
+    stats.focus = clamp01(focusMass * invInfluenced * 22.0f);
+    stats.depthPeel = clamp01(peelMass * invInfluenced * 2.4f);
+    return stats;
 }
 
 float clampMagnitude(float value, float maximum)
@@ -10977,11 +11121,17 @@ void addObject3DScene(GeometryFrame& frame,
     applyMusicalPartKinetics3D(objects, roleScene, metrics, settings, minimumDimension, time);
     applyMusicalPartComposer3D(objects, roleScene, intent, metrics, settings, minimumDimension, time);
 
-    applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
+    InteractionDepthStats3D interactionStats =
+        applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
     applyPatternReadability3D(objects, settings, metrics, roleScene, minimumDimension);
     applyCinematicFrameStaging3D(objects, settings, metrics, intent, roleScene, songIdentity, minimumDimension);
     const SectionTransformStats3D sectionTransform =
         applySectionNarrativeComposition3D(objects, sectionNarrative, metrics, settings, minimumDimension, time);
+    const InteractionDepthStats3D lensStats =
+        applyDepthInspectionLens3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
+    interactionStats.parallax = std::max(interactionStats.parallax, lensStats.parallax);
+    interactionStats.focus = std::max(interactionStats.focus, lensStats.focus);
+    interactionStats.depthPeel = std::max(interactionStats.depthPeel, lensStats.depthPeel);
     applySongIdentityMaterialDirection3D(objects, songIdentity, metrics, settings, minimumDimension, time);
 
     for (Object3D& object : objects) {
@@ -11075,6 +11225,9 @@ void addObject3DScene(GeometryFrame& frame,
     frame.objectDepthRange = range;
     frame.cameraMotion3D = cameraContinuity.motion;
     frame.cameraContinuity3D = cameraContinuity.continuity;
+    frame.interactionParallax3D = interactionStats.parallax;
+    frame.interactionFocus3D = interactionStats.focus;
+    frame.interactionDepthPeel3D = interactionStats.depthPeel;
 }
 
 void addQuantumTunnel(GeometryFrame& frame,

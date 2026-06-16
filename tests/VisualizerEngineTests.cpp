@@ -334,6 +334,39 @@ float averageObjectZ(const GeometryFrame& frame)
     return total / static_cast<float>(frame.objects3D.size());
 }
 
+Vec3 depthSliceCentroid(const GeometryFrame& frame, float lowUnit, float highUnit)
+{
+    if (frame.objects3D.empty()) {
+        return {};
+    }
+
+    float minZ = frame.objects3D.front().position.z;
+    float maxZ = minZ;
+    for (const Object3D& object : frame.objects3D) {
+        minZ = std::min(minZ, object.position.z);
+        maxZ = std::max(maxZ, object.position.z);
+    }
+
+    Vec3 total{};
+    int count = 0;
+    const float span = std::max(1.0f, maxZ - minZ);
+    for (const Object3D& object : frame.objects3D) {
+        const float unit = std::clamp((object.position.z - minZ) / span, 0.0f, 1.0f);
+        if (unit < lowUnit || unit > highUnit) {
+            continue;
+        }
+        total.x += object.position.x;
+        total.y += object.position.y;
+        total.z += object.position.z;
+        ++count;
+    }
+    if (count == 0) {
+        return {};
+    }
+    const float invCount = 1.0f / static_cast<float>(count);
+    return Vec3{total.x * invCount, total.y * invCount, total.z * invCount};
+}
+
 Vec3 objectFamilyCentroid(const GeometryFrame& frame, std::initializer_list<Object3DKind> kinds)
 {
     Vec3 total{};
@@ -5444,6 +5477,8 @@ void mouseDepthInteractionMoves3DObjects()
                 return object.velocity.z < -0.01f;
             }),
             "mouse click should leave a depth-aware z velocity impulse on affected objects");
+    require(interactive.interactionFocus3D > 0.015f,
+            "mouse click should expose measurable 3D focus movement");
 }
 
 void mouseDepthInteractionAddsCameraParallax()
@@ -5484,6 +5519,87 @@ void mouseDepthInteractionAddsCameraParallax()
             "mouse depth should tilt the 3D camera pitch");
     require(interactive.cameraDepth < neutral.cameraDepth,
             "pressed mouse depth should dolly slightly into the scene");
+    require(interactive.interactionParallax3D > 0.010f &&
+                interactive.interactionDepthPeel3D > 0.010f,
+            "mouse depth should expose measurable parallax and depth-peel diagnostics");
+}
+
+void mouseDepthInteractionPeelsForegroundAndBackground()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::AmbientDrift;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.92f;
+    settings.interactionDepth = 1.0f;
+    settings.lightingGlow = 0.88f;
+    settings.scenePersonality = 0.86f;
+    settings.response3D = 0.94f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.94f;
+    settings.interactiveField = true;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.rms = 0.24f;
+    metrics.peak = 0.38f;
+    metrics.bass = 0.10f;
+    metrics.lowMid = 0.16f;
+    metrics.mid = 0.36f;
+    metrics.highMid = 0.28f;
+    metrics.treble = 0.22f;
+    metrics.stereoWidth = 0.92f;
+    metrics.spectralFlux = 0.08f;
+    metrics.beat = false;
+    metrics.beatConfidence = 0.06f;
+    metrics.harmonicEnergy = 0.70f;
+    metrics.keyConfidence = 0.76f;
+    metrics.style = AudioStyle::Wide;
+    metrics.styleConfidence = 0.84f;
+    metrics.section = ArrangementSection::Breakdown;
+    metrics.sectionConfidence = 0.72f;
+    metrics.spaceRole = 0.78f;
+    metrics.harmonyRole = 0.36f;
+    metrics.roleSeparation = 0.66f;
+
+    InteractionState interaction;
+    interaction.enabled = true;
+    interaction.active = true;
+    interaction.pressed = true;
+    interaction.normalizedX = 0.88f;
+    interaction.normalizedY = 0.30f;
+    interaction.velocity = 0.78f;
+    interaction.strength = 1.0f;
+
+    const GeometryFrame neutral = engine.buildFrame(metrics, settings, InteractionState{}, 1280.0f, 720.0f, 3.50);
+    const GeometryFrame interactive = engine.buildFrame(metrics, settings, interaction, 1280.0f, 720.0f, 3.50);
+
+    const Vec3 neutralForeground = depthSliceCentroid(neutral, 0.0f, 0.34f);
+    const Vec3 interactiveForeground = depthSliceCentroid(interactive, 0.0f, 0.34f);
+    const Vec3 neutralBackground = depthSliceCentroid(neutral, 0.66f, 1.0f);
+    const Vec3 interactiveBackground = depthSliceCentroid(interactive, 0.66f, 1.0f);
+
+    require(interactive.interactionParallax3D > 0.035f &&
+                interactive.interactionFocus3D > 0.020f &&
+                interactive.interactionDepthPeel3D > 0.050f,
+            "mouse inspection should report foreground/background parallax, focus, and depth peel");
+    require(interactiveForeground.x > neutralForeground.x + 7.0f,
+            "right-side cursor should pull foreground depth layer laterally with the inspection direction");
+    require(interactiveBackground.x < neutralBackground.x - 5.0f,
+            "right-side cursor should counter-shift background depth layer to reveal real parallax; neutralBgX=" +
+                std::to_string(neutralBackground.x) +
+                " interactiveBgX=" + std::to_string(interactiveBackground.x) +
+                " neutralFgX=" + std::to_string(neutralForeground.x) +
+                " interactiveFgX=" + std::to_string(interactiveForeground.x) +
+                " parallax=" + std::to_string(interactive.interactionParallax3D));
+    require(interactiveForeground.z < neutralForeground.z - 4.0f &&
+                interactiveBackground.z > neutralBackground.z - 2.0f,
+            "mouse inspection should pull the foreground forward without collapsing the background");
+    require(interactive.retained2DPrimitiveCount == 0,
+            "mouse depth inspection must stay 3D-first without reintroducing flat overlays");
 }
 
 void interactionAndEnvironmentRemain3DFirst()
@@ -6790,6 +6906,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include projected 3D framing and depth-layer columns");
         require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
                 "timeline should include cinematic camera continuity columns");
+        require(timelineText.find("interactionParallax3D,interactionFocus3D,interactionDepthPeel3D") != std::string::npos,
+                "timeline should include depth-inspection interaction columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D,sectionTransform3D,sectionDepthMotion3D,sectionMaterialShift3D") != std::string::npos,
                 "timeline should include 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
@@ -7132,6 +7250,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain projected 3D framing and depth-layer columns");
         require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
                 "batch timeline should contain cinematic camera continuity columns");
+        require(timelineText.find("interactionParallax3D,interactionFocus3D,interactionDepthPeel3D") != std::string::npos,
+                "batch timeline should contain depth-inspection interaction columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D,sectionTransform3D,sectionDepthMotion3D,sectionMaterialShift3D") != std::string::npos,
                 "batch timeline should contain 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
@@ -7248,6 +7368,7 @@ int main()
         {"musicRoleMemoryCarriesMotifsThroughAmbiguousPassages", viz::tests::musicRoleMemoryCarriesMotifsThroughAmbiguousPassages},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
+        {"mouseDepthInteractionPeelsForegroundAndBackground", viz::tests::mouseDepthInteractionPeelsForegroundAndBackground},
         {"interactionAndEnvironmentRemain3DFirst", viz::tests::interactionAndEnvironmentRemain3DFirst},
         {"objectDensity3DControlsObjectCount", viz::tests::objectDensity3DControlsObjectCount},
         {"colorImpactStrengthensPalettePersonality", viz::tests::colorImpactStrengthensPalettePersonality},
