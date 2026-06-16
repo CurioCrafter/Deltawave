@@ -277,6 +277,26 @@ float averageObjectZ(const GeometryFrame& frame)
     return total / static_cast<float>(frame.objects3D.size());
 }
 
+Vec3 objectFamilyCentroid(const GeometryFrame& frame, std::initializer_list<Object3DKind> kinds)
+{
+    Vec3 total{};
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (std::find(kinds.begin(), kinds.end(), object.kind) == kinds.end()) {
+            continue;
+        }
+        total.x += object.position.x;
+        total.y += object.position.y;
+        total.z += object.position.z;
+        ++count;
+    }
+    if (count == 0) {
+        return {};
+    }
+    const float invCount = 1.0f / static_cast<float>(count);
+    return Vec3{total.x * invCount, total.y * invCount, total.z * invCount};
+}
+
 float averageObjectScale(const GeometryFrame& frame)
 {
     if (frame.objects3D.empty()) {
@@ -2802,7 +2822,7 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
     require(activeFamilies >= 6,
             "multi-role music should author separate visible 3D families for different musical parts");
     require(objectKindCount(ensembleFrame, Object3DKind::Link) <
-                static_cast<int>(ensembleFrame.objects3D.size()) * 45 / 100,
+                static_cast<int>(ensembleFrame.objects3D.size()) * 35 / 100,
             "role convergence should connect districts without turning the frame mostly into link noise");
     require(ensembleFrame.projected3DFaceCount >= 56,
             "multi-role music should project filled 3D role surfaces, not just skeletal lines");
@@ -2810,6 +2830,36 @@ void analyzerRolesDriveSeparate3DObjectFamilies()
             "role districts should contribute visible material fill so the scene reads as volumetric");
     require(ensembleFrame.projected3DMaterialContrast > 0.05f,
             "role district surfaces should preserve material contrast against the background");
+
+    const Vec3 bassCenter = objectFamilyCentroid(bassFrame, {Object3DKind::TunnelRib});
+    const Vec3 spaceCenter = objectFamilyCentroid(spaceFrame,
+                                                  {Object3DKind::DepthPlane,
+                                                   Object3DKind::Orbiter,
+                                                   Object3DKind::WaveSurface});
+    const Vec3 melodyCenter = objectFamilyCentroid(melodyFrame,
+                                                   {Object3DKind::Shard,
+                                                    Object3DKind::Node,
+                                                    Object3DKind::Cage});
+    const Vec3 drumCenter = objectFamilyCentroid(drumFrame, {Object3DKind::Column});
+    const Vec3 fractureCenter = objectFamilyCentroid(fractureFrame,
+                                                     {Object3DKind::Shard,
+                                                      Object3DKind::Plate});
+    const Vec3 shadowCenter = objectFamilyCentroid(shadowFrame,
+                                                   {Object3DKind::Column,
+                                                    Object3DKind::Anchor});
+
+    require(spaceCenter.z > bassCenter.z + 120.0f,
+            "space role should occupy deeper atmospheric volume than bass pressure ribs");
+    require(melodyCenter.y < bassCenter.y - 80.0f,
+            "melody role should occupy an elevated harmonic district above the bass district");
+    require(drumCenter.x < melodyCenter.x - 120.0f,
+            "drum role should sit in a separate sequencer lane instead of sharing the melody district");
+    require(fractureCenter.x > drumCenter.x + 180.0f &&
+                fractureCenter.z < spaceCenter.z - 100.0f,
+            "fracture role should read as lateral cut planes rather than distant ambient space");
+    require(shadowCenter.y > melodyCenter.y + 180.0f &&
+                shadowCenter.z > bassCenter.z + 80.0f,
+            "shadow role should read as monumental depth separate from melody and bass");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -2990,6 +3040,134 @@ void songIdentitiesDriveDistinctCameraLanguage()
             "melodic crystal scenes should get elevated harmonic framing");
     require(std::fabs(darkFrame.cameraRoll) < std::fabs(breakFrame.cameraRoll),
             "dark minimal scenes should keep roll restrained compared with breakbeat cuts");
+}
+
+void musicalRolesSteerCameraComposition()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.88f;
+    settings.lightingGlow = 0.90f;
+    settings.scenePersonality = 0.90f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.88f;
+    settings.patternClarity = 0.92f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics base = syntheticMetrics();
+    base.rms = 0.36f;
+    base.peak = 0.58f;
+    base.bass = 0.34f;
+    base.lowMid = 0.28f;
+    base.mid = 0.26f;
+    base.highMid = 0.18f;
+    base.treble = 0.16f;
+    base.stereoWidth = 0.48f;
+    base.spectralFlux = 0.18f;
+    base.beatConfidence = 0.42f;
+    base.barConfidence = 0.36f;
+    base.phraseIntensity = 0.38f;
+    base.phraseConfidence = 0.62f;
+    base.harmonicEnergy = 0.46f;
+    base.keyConfidence = 0.42f;
+    base.style = AudioStyle::Wide;
+    base.styleConfidence = 0.48f;
+    base.section = ArrangementSection::Groove;
+    base.sectionConfidence = 0.62f;
+
+    const auto withRoles = [base](float bass,
+                                  float drums,
+                                  float melody,
+                                  float harmony,
+                                  float space,
+                                  float fracture,
+                                  float shadow,
+                                  float convergence) {
+        AudioMetrics metrics = base;
+        metrics.bassRole = bass;
+        metrics.drumRole = drums;
+        metrics.melodyRole = melody;
+        metrics.harmonyRole = harmony;
+        metrics.spaceRole = space;
+        metrics.fractureRole = fracture;
+        metrics.shadowRole = shadow;
+        metrics.convergenceRole = convergence;
+        metrics.roleSeparation = 0.88f;
+        return metrics;
+    };
+
+    AudioMetrics bass = withRoles(0.92f, 0.18f, 0.08f, 0.10f, 0.12f, 0.08f, 0.18f, 0.36f);
+    bass.bass = 0.88f;
+    bass.lowMid = 0.66f;
+    bass.dropIntensity = 0.48f;
+    bass.style = AudioStyle::BassHeavy;
+    bass.styleConfidence = 0.88f;
+
+    AudioMetrics drums = withRoles(0.18f, 0.92f, 0.08f, 0.10f, 0.12f, 0.14f, 0.08f, 0.28f);
+    drums.beat = true;
+    drums.beatConfidence = 0.94f;
+    drums.barConfidence = 0.86f;
+    drums.downbeatConfidence = 0.72f;
+    drums.bpm = 128.0f;
+    drums.style = AudioStyle::Techno;
+    drums.styleConfidence = 0.92f;
+
+    AudioMetrics melody = withRoles(0.06f, 0.10f, 0.86f, 0.78f, 0.22f, 0.08f, 0.06f, 0.16f);
+    melody.keyIndex = 7;
+    melody.keyMode = MusicalMode::Major;
+    melody.keyConfidence = 0.94f;
+    melody.harmonicEnergy = 0.90f;
+    melody.mid = 0.48f;
+    melody.highMid = 0.52f;
+
+    AudioMetrics space = withRoles(0.06f, 0.06f, 0.18f, 0.30f, 0.94f, 0.06f, 0.10f, 0.08f);
+    space.stereoWidth = 0.94f;
+    space.style = AudioStyle::Ambient;
+    space.styleConfidence = 0.90f;
+    space.section = ArrangementSection::Breakdown;
+    space.sectionConfidence = 0.82f;
+
+    AudioMetrics fracture = withRoles(0.12f, 0.22f, 0.12f, 0.10f, 0.12f, 0.94f, 0.08f, 0.34f);
+    fracture.spectralFlux = 0.82f;
+    fracture.onset = 0.74f;
+    fracture.beatPhase = 0.68f;
+    fracture.style = AudioStyle::Bright;
+    fracture.styleConfidence = 0.84f;
+
+    AudioMetrics shadow = withRoles(0.38f, 0.12f, 0.06f, 0.18f, 0.10f, 0.12f, 0.92f, 0.10f);
+    shadow.bass = 0.58f;
+    shadow.highMid = 0.01f;
+    shadow.treble = 0.01f;
+    shadow.stereoWidth = 0.14f;
+    shadow.keyMode = MusicalMode::Minor;
+    shadow.keyConfidence = 0.70f;
+    shadow.style = AudioStyle::BassHeavy;
+    shadow.styleConfidence = 0.58f;
+
+    const GeometryFrame bassFrame = engine.buildFrame(bass, settings, 1280.0f, 720.0f, 4.0);
+    const GeometryFrame drumFrame = engine.buildFrame(drums, settings, 1280.0f, 720.0f, 4.0);
+    const GeometryFrame melodyFrame = engine.buildFrame(melody, settings, 1280.0f, 720.0f, 4.0);
+    const GeometryFrame spaceFrame = engine.buildFrame(space, settings, 1280.0f, 720.0f, 4.0);
+    const GeometryFrame fractureFrame = engine.buildFrame(fracture, settings, 1280.0f, 720.0f, 4.0);
+    const GeometryFrame shadowFrame = engine.buildFrame(shadow, settings, 1280.0f, 720.0f, 4.0);
+
+    require(bassFrame.cameraDepth < spaceFrame.cameraDepth - 90.0f,
+            "bass role should dolly closer while space role opens the camera distance");
+    require(melodyFrame.cameraPitch > bassFrame.cameraPitch + 0.06f,
+            "melody/harmony role should elevate the camera above bass pressure framing");
+    require(std::fabs(drumFrame.cameraRoll) < std::fabs(fractureFrame.cameraRoll) * 0.55f,
+            "drum role should keep camera roll locked compared with fractured cuts");
+    require(std::fabs(fractureFrame.cameraYaw - drumFrame.cameraYaw) > 0.04f,
+            "fracture role should produce a visibly different cut angle from drum architecture");
+    require(std::fabs(spaceFrame.cameraCenterOffset.x - bassFrame.cameraCenterOffset.x) > 10.0f,
+            "space role should use lateral parallax framing instead of bass-centered pressure");
+    require(std::fabs(shadowFrame.cameraRoll) < std::fabs(fractureFrame.cameraRoll) * 0.45f &&
+                shadowFrame.cameraPitch > 0.03f,
+            "shadow role should stay monumental and upright while looking upward into depth");
 }
 
 void autoSceneContinuityResistsAmbiguousFrameFlips()
@@ -5344,6 +5522,7 @@ int main()
         {"sameModeSongIdentitiesAuthorDistinct3DSetPieces", viz::tests::sameModeSongIdentitiesAuthorDistinct3DSetPieces},
         {"analyzerRolesDriveSeparate3DObjectFamilies", viz::tests::analyzerRolesDriveSeparate3DObjectFamilies},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
+        {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
         {"autoSceneContinuityResistsAmbiguousFrameFlips", viz::tests::autoSceneContinuityResistsAmbiguousFrameFlips},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
