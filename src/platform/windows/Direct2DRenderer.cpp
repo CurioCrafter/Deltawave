@@ -318,6 +318,7 @@ void Direct2DRenderer::drawHud(const GeometryFrame& frame,
          << L"  Intent " << widen(frame.sceneIntentName)
          << L"  3D x" << std::setprecision(1) << frame.threeDDominance
          << L"  2D " << frame.retained2DPrimitiveCount << L"/" << frame.authored2DPrimitiveCount
+         << L" " << std::setprecision(0) << (frame.retained2DPrimitiveRatio * 100.0f) << L"%"
          << L"  Projected " << frame.projected3DPrimitiveCount
          << L"  Faces " << frame.projected3DFaceCount
          << L"  Fill " << std::setprecision(1) << frame.projected3DFillVisualWeight

@@ -116,6 +116,8 @@ struct GeometryFrame {
     int projected3DFaceCount = 0;
     float authored2DVisualWeight = 0.0f;
     float retained2DVisualWeight = 0.0f;
+    float retained2DPrimitiveRatio = 0.0f;
+    float retained2DVisualRatio = 0.0f;
     float projected3DVisualWeight = 0.0f;
     float projected3DFillVisualWeight = 0.0f;
     float projected3DMaterialContrast = 0.0f;

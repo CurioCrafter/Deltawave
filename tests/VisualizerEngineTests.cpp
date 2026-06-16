@@ -1257,9 +1257,13 @@ void depth3DProjectsGeometryIntoPerspectiveSpace()
 
     require(countPrimitives(deep) > countPrimitives(flat),
             "3D depth should add vanishing-space guide geometry");
-    require(!flat.rings.empty() && !deep.rings.empty(), "depth comparison should have rings");
-    require(std::fabs(averageRingRadius(flat) - averageRingRadius(deep)) > 0.5f,
-            "3D depth should change projected ring scale");
+    require(deep.cameraDepth > 500.0f, "3D depth should create a real perspective camera");
+    require(deep.objectDepthRange > 100.0f, "3D depth should create a visible object depth range");
+    require(!deep.objects3D.empty(), "3D depth should author 3D objects instead of relying on flat rings");
+    require(deep.projected3DPrimitiveCount > deep.retained2DPrimitiveCount,
+            "3D depth should make projected 3D primitives dominate retained 2D guides");
+    require(deep.retained2DPrimitiveRatio < 0.36f,
+            "high-depth projection should suppress most legacy 2D guide primitives");
     require(averagePolylinePointDistance(deep, Vec2{640.0f, 360.0f}) !=
                 averagePolylinePointDistance(flat, Vec2{640.0f, 360.0f}),
             "3D depth should project polyline points through perspective space");
@@ -1512,6 +1516,10 @@ void allModesStay3DFirstInStillFrames()
         require(frame.objects3D.size() >= 8U, "each visual mode should author a meaningful 3D object set");
         require(frame.retained2DPrimitiveCount < frame.authored2DPrimitiveCount,
                 "3D-first composition should suppress legacy 2D primitives in every mode");
+        require(frame.retained2DPrimitiveRatio < 0.36f,
+                "each mode should retain only a small legacy 2D guide layer");
+        require(frame.retained2DVisualRatio < 0.20f,
+                "each mode should heavily fade legacy 2D visual weight");
         require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.4f,
                 "projected 3D visual weight should dominate retained 2D guides in every mode");
         require(frame.threeDDominance > 1.25f, "each mode should report clear 3D dominance");
@@ -1870,6 +1878,10 @@ void threeDFirstCompositionSuppressesLegacy2D()
             "3D-first composition should substantially thin legacy screen-space primitive counts");
     require(frame.authored2DVisualWeight > frame.retained2DVisualWeight * 4.0f,
             "3D-first composition should strongly fade legacy 2D visual weight");
+    require(frame.retained2DPrimitiveRatio < 0.22f,
+            "high-depth 3D-first composition should keep only a small fraction of legacy 2D primitives");
+    require(frame.retained2DVisualRatio < 0.08f,
+            "high-depth 3D-first composition should leave very little legacy 2D visual weight");
     require(frame.projected3DPrimitiveCount > frame.retained2DPrimitiveCount,
             "projected 3D primitives should outnumber retained 2D composition guides");
     require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.5f,
@@ -3281,6 +3293,67 @@ void mouseDepthInteractionAddsCameraParallax()
             "mouse depth should tilt the 3D camera pitch");
     require(interactive.cameraDepth < neutral.cameraDepth,
             "pressed mouse depth should dolly slightly into the scene");
+}
+
+void interactionAndEnvironmentRemain3DFirst()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.90f;
+    settings.interactionDepth = 1.0f;
+    settings.lightingGlow = 0.92f;
+    settings.scenePersonality = 0.88f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.88f;
+    settings.patternClarity = 0.92f;
+    settings.interactiveField = true;
+    settings.environmentReactive = true;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics metrics = syntheticMetrics();
+    metrics.rms = 0.36f;
+    metrics.peak = 0.58f;
+    metrics.bass = 0.18f;
+    metrics.mid = 0.46f;
+    metrics.highMid = 0.44f;
+    metrics.treble = 0.38f;
+    metrics.stereoWidth = 0.84f;
+    metrics.harmonicEnergy = 0.74f;
+    metrics.keyConfidence = 0.80f;
+    metrics.style = AudioStyle::Ambient;
+    metrics.styleConfidence = 0.88f;
+    metrics.section = ArrangementSection::Breakdown;
+    metrics.sectionConfidence = 0.78f;
+
+    InteractionState interaction;
+    interaction.enabled = true;
+    interaction.active = true;
+    interaction.pressed = true;
+    interaction.normalizedX = 0.82f;
+    interaction.normalizedY = 0.26f;
+    interaction.velocity = 0.76f;
+    interaction.strength = 1.0f;
+
+    EnvironmentState environment;
+    environment.enabled = true;
+    environment.timeOfDay = 0.72f;
+    environment.motion = 0.72f;
+    environment.ambient = 0.64f;
+
+    const GeometryFrame frame = engine.buildFrame(metrics, settings, interaction, environment, 1280.0f, 720.0f, 3.4);
+
+    require(frame.retained2DPrimitiveRatio < 0.28f,
+            "interactive/environmental high-depth frames should not retain a large flat 2D layer");
+    require(frame.retained2DVisualRatio < 0.12f,
+            "interactive/environmental high-depth frames should heavily fade flat 2D visual weight");
+    require(frame.projected3DPrimitiveCount > frame.retained2DPrimitiveCount * 2,
+            "3D projection should remain the visible backbone under mouse/environment input");
+    require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 2.4f,
+            "3D visual weight should dominate mouse/environment guide accents");
+    require(frame.sectionBreakdown3D > 0.45f,
+            "breakdown interpretation should still create 3D depth structure under live interaction");
 }
 
 void objectDensity3DControlsObjectCount()
@@ -4943,6 +5016,7 @@ int main()
         {"sectionNarrativeAuthorsDistinct3DStructures", viz::tests::sectionNarrativeAuthorsDistinct3DStructures},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
+        {"interactionAndEnvironmentRemain3DFirst", viz::tests::interactionAndEnvironmentRemain3DFirst},
         {"objectDensity3DControlsObjectCount", viz::tests::objectDensity3DControlsObjectCount},
         {"colorImpactStrengthensPalettePersonality", viz::tests::colorImpactStrengthensPalettePersonality},
         {"chromaKaleidoscopeRespondsToHarmony", viz::tests::chromaKaleidoscopeRespondsToHarmony},

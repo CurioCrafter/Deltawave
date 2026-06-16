@@ -1160,19 +1160,21 @@ void suppressScreenSpaceLayerFor3D(GeometryFrame& frame,
 
     const float clarity = patternClarityOf(settings);
     const float stability = motionStabilityOf(settings);
-    const float transitionKeep = clamp01(settings.sceneTransition) * 0.08f;
+    const float highDepth = smootherStep(0.62f, 1.0f, depth);
+    const float transitionKeep = clamp01(settings.sceneTransition) * 0.055f;
     const float musicKeep = clamp01(metrics.dropIntensity * 0.06f +
-                                    metrics.phraseIntensity * 0.04f +
-                                    metrics.buildTension * 0.035f);
-    const float alphaScale = std::clamp(0.22f - depth * 0.16f +
-                                            (1.0f - clarity) * 0.045f +
-                                            (1.0f - stability) * 0.035f +
+                                    metrics.phraseIntensity * 0.030f +
+                                    metrics.buildTension * 0.026f);
+    const float alphaScale = std::clamp(0.16f - depth * 0.125f -
+                                            highDepth * clarity * 0.015f +
+                                            (1.0f - clarity) * 0.032f +
+                                            (1.0f - stability) * 0.024f +
                                             transitionKeep + musicKeep,
-                                        0.035f,
-                                        0.24f);
-    const float strokeScale = std::clamp(0.42f + (1.0f - clarity) * 0.10f + (1.0f - stability) * 0.06f,
-                                         0.36f,
-                                         0.64f);
+                                        0.018f,
+                                        0.18f);
+    const float strokeScale = std::clamp(0.34f + (1.0f - clarity) * 0.08f + (1.0f - stability) * 0.045f,
+                                         0.28f,
+                                         0.54f);
 
     for (Ring& ring : frame.rings) {
         ring.color.a *= alphaScale;
@@ -1184,36 +1186,36 @@ void suppressScreenSpaceLayerFor3D(GeometryFrame& frame,
     }
     for (Particle& particle : frame.particles) {
         particle.color.a *= alphaScale * 0.92f;
-        particle.radius = std::max(0.75f, particle.radius * (0.72f + (1.0f - depth) * 0.12f));
+        particle.radius = std::max(0.65f, particle.radius * (0.58f + (1.0f - depth) * 0.14f));
     }
     for (Polyline& line : frame.polylines) {
         line.color.a *= alphaScale;
         line.strokeWidth = std::max(0.28f, line.strokeWidth * strokeScale);
         const auto maximumPoints = static_cast<std::size_t>(std::clamp(
-            static_cast<int>(std::round(12.0f + (1.0f - depth) * 30.0f + (1.0f - clarity) * 12.0f)),
-            8,
-            54));
+            static_cast<int>(std::round(7.0f + (1.0f - depth) * 24.0f + (1.0f - clarity) * 9.0f)),
+            5,
+            42));
         decimatePolyline(line, maximumPoints);
     }
 
     const std::size_t maxRings = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(4.0f + (1.0f - depth) * 8.0f + settings.sceneTransition * 4.0f)),
-        3,
-        14));
+        static_cast<int>(std::round(2.0f + (1.0f - depth) * 6.0f + settings.sceneTransition * 3.0f)),
+        2,
+        10));
     const std::size_t maxBeams = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(4.0f + (1.0f - depth) * 7.0f + metrics.dropIntensity * 3.0f)),
-        3,
-        14));
+        static_cast<int>(std::round(2.0f + (1.0f - depth) * 5.0f + metrics.dropIntensity * 2.0f)),
+        2,
+        10));
     const std::size_t maxParticles = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(14.0f + (1.0f - depth) * 24.0f + metrics.spectralFlux * 8.0f)),
-        10,
-        52));
+        static_cast<int>(std::round(8.0f + (1.0f - depth) * 18.0f + metrics.spectralFlux * 5.0f)),
+        6,
+        38));
     const std::size_t maxPolylines = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(4.0f + (1.0f - depth) * 8.0f +
-                                    metrics.phraseIntensity * 3.0f +
-                                    settings.sceneTransition * 9.0f)),
-        3,
-        22));
+        static_cast<int>(std::round(2.0f + (1.0f - depth) * 6.0f +
+                                    metrics.phraseIntensity * 2.0f +
+                                    settings.sceneTransition * 7.0f)),
+        2,
+        16));
     retainEvenlySpaced(frame.rings, maxRings);
     retainEvenlySpaced(frame.beams, maxBeams);
     retainEvenlySpaced(frame.particles, maxParticles);
@@ -7009,6 +7011,13 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
     suppressScreenSpaceLayerFor3D(frame, visualMetrics, settings);
     frame.retained2DPrimitiveCount = primitiveFootprint(frame);
     frame.retained2DVisualWeight = primitiveVisualWeight(frame);
+    frame.retained2DPrimitiveRatio = frame.authored2DPrimitiveCount > 0
+                                         ? static_cast<float>(frame.retained2DPrimitiveCount) /
+                                               static_cast<float>(frame.authored2DPrimitiveCount)
+                                         : 0.0f;
+    frame.retained2DVisualRatio = frame.authored2DVisualWeight > 0.0f
+                                      ? frame.retained2DVisualWeight / frame.authored2DVisualWeight
+                                      : 0.0f;
     addObject3DScene(frame, visualMetrics, settings, interaction, colors, width, height, speed, intensity, density, timeSeconds);
     frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
 
