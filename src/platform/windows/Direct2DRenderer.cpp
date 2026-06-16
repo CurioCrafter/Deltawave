@@ -321,7 +321,8 @@ void Direct2DRenderer::drawHud(const GeometryFrame& frame,
          << L"  Projected " << frame.projected3DPrimitiveCount
          << L"  Faces " << frame.projected3DFaceCount
          << L"  Fill " << std::setprecision(1) << frame.projected3DFillVisualWeight
-         << L"  Haze " << std::setprecision(0) << (frame.depthFogStrength * 100.0f) << L"%\n";
+         << L"  Haze " << std::setprecision(0) << (frame.depthFogStrength * 100.0f) << L"%"
+         << L"  Story " << (frame.sectionNarrative3D * 100.0f) << L"%\n";
     text << L"FPS " << std::setprecision(1) << performance.fps
          << L"  Frame " << performance.averageFrameMs << L"ms"
          << L"  Core " << performance.averageCoreMs << L"ms"

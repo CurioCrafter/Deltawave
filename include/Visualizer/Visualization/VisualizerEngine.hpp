@@ -121,6 +121,11 @@ struct GeometryFrame {
     float projected3DMaterialContrast = 0.0f;
     float depthFogStrength = 0.0f;
     float threeDDominance = 0.0f;
+    float sectionNarrative3D = 0.0f;
+    float sectionBuild3D = 0.0f;
+    float sectionDrop3D = 0.0f;
+    float sectionGroove3D = 0.0f;
+    float sectionBreakdown3D = 0.0f;
     float cameraDepth = 0.0f;
     float cameraYaw = 0.0f;
     float cameraPitch = 0.0f;

@@ -252,6 +252,15 @@ struct MusicChoreography {
     MotionStyle style = MotionStyle::Liquid;
 };
 
+struct SectionNarrative3D {
+    float build = 0.0f;
+    float drop = 0.0f;
+    float groove = 0.0f;
+    float breakdown = 0.0f;
+    float release = 0.0f;
+    float intensity = 0.0f;
+};
+
 struct SceneInterpretation {
     SceneIntent primary = SceneIntent::Calm;
     float calm = 0.0f;
@@ -4214,6 +4223,217 @@ void addChoreographyDepthObjects3D(std::vector<Object3D>& objects,
     }
 }
 
+SectionNarrative3D buildSectionNarrative3D(const AudioMetrics& metrics,
+                                           const MusicChoreography& motion,
+                                           const SceneInterpretation& intent)
+{
+    const float confidence = clamp01(metrics.sectionConfidence);
+    const float progress = clamp01(metrics.sectionProgress);
+    SectionNarrative3D narrative;
+    narrative.build = metrics.section == ArrangementSection::Build
+                          ? confidence * (0.28f + progress * 0.62f + metrics.buildTension * 0.34f)
+                          : metrics.buildTension * confidence * 0.22f;
+    narrative.drop = metrics.section == ArrangementSection::Drop
+                         ? confidence * (0.45f + metrics.dropIntensity * 0.46f + (1.0f - progress) * 0.16f)
+                         : metrics.dropIntensity * 0.24f;
+    narrative.groove = metrics.section == ArrangementSection::Groove
+                           ? confidence * clamp01(metrics.beatConfidence * 0.52f +
+                                                  metrics.barConfidence * 0.30f +
+                                                  metrics.downbeatConfidence * 0.18f)
+                           : metrics.beatConfidence * metrics.barConfidence * 0.12f;
+    narrative.breakdown = metrics.section == ArrangementSection::Breakdown
+                              ? confidence * clamp01(0.30f +
+                                                     intent.spacious * 0.28f +
+                                                     metrics.stereoWidth * 0.26f +
+                                                     metrics.harmonicEnergy * 0.18f +
+                                                     (1.0f - metrics.dropIntensity) * 0.14f)
+                              : 0.0f;
+    narrative.release = metrics.section == ArrangementSection::Drop
+                            ? confidence * progress * clamp01(0.28f + motion.dropImpact * 0.34f)
+                            : (metrics.phraseBoundary ? metrics.phraseConfidence * 0.22f : 0.0f);
+    narrative.build = clamp01(narrative.build);
+    narrative.drop = clamp01(narrative.drop);
+    narrative.groove = clamp01(narrative.groove);
+    narrative.breakdown = clamp01(narrative.breakdown);
+    narrative.release = clamp01(narrative.release);
+    narrative.intensity = std::max({narrative.build, narrative.drop, narrative.groove, narrative.breakdown, narrative.release});
+    return narrative;
+}
+
+void addSectionNarrativeObjects3D(std::vector<Object3D>& objects,
+                                  VisualMode mode,
+                                  const SectionNarrative3D& narrative,
+                                  const AudioMetrics& metrics,
+                                  const MusicChoreography& motion,
+                                  const std::array<ColorRGBA, 5>& colors,
+                                  float minimumDimension,
+                                  float density,
+                                  float response,
+                                  double time)
+{
+    if (narrative.intensity <= 0.025f) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float beatPhase = metrics.beatPhase * 2.0f * kPi;
+    const float stereo = 0.72f + metrics.stereoWidth * 0.50f;
+    const auto pushLink = [&objects](Vec3 from, Vec3 to, ColorRGBA color, float glow) {
+        Object3D link = makeObject3D(Object3DKind::Link,
+                                     from,
+                                     Vec3{1.0f, 1.0f, 1.0f},
+                                     Vec3{},
+                                     color,
+                                     glow);
+        link.target = to;
+        objects.push_back(link);
+    };
+
+    if (narrative.build > 0.06f) {
+        const int spineCount = scaledCount(8 + static_cast<int>(std::round(narrative.build * 8.0f)),
+                                           density * (0.56f + narrative.build * 0.36f));
+        std::vector<Vec3> spine;
+        spine.reserve(static_cast<std::size_t>(spineCount));
+        for (int i = 0; i < spineCount; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, spineCount - 1));
+            const float angle = unit * 4.0f * kPi + beatPhase + phase * (0.10f + narrative.build * 0.08f);
+            const float radius = minimumDimension * (0.07f + unit * (0.19f + narrative.build * 0.08f)) * stereo;
+            const Vec3 position{
+                std::cos(angle) * radius,
+                -minimumDimension * (0.22f - unit * (0.46f + narrative.build * 0.16f)),
+                minimumDimension * (-0.34f + unit * (1.10f + narrative.build * 0.28f))
+            };
+            spine.push_back(position);
+            objects.push_back(makeObject3D((mode == VisualMode::TechnoMandala || mode == VisualMode::PolyrhythmLattice)
+                                               ? Object3DKind::Column
+                                               : Object3DKind::Cage,
+                                           position,
+                                           Vec3{minimumDimension * (0.012f + narrative.build * 0.018f),
+                                                minimumDimension * (0.030f + unit * 0.038f + narrative.build * 0.050f),
+                                                minimumDimension * (0.012f + metrics.buildTension * 0.025f)},
+                                           Vec3{unit * 0.32f,
+                                                angle * 0.14f,
+                                                phase * 0.038f + narrative.build},
+                                           withAlpha(colors[(i + 2) % 5], 0.17f + narrative.build * 0.28f),
+                                           0.22f + narrative.build * 0.58f + motion.shimmer * 0.18f));
+        }
+        for (std::size_t i = 1; i < spine.size(); ++i) {
+            pushLink(spine[i - 1U],
+                     spine[i],
+                     withAlpha(colors[(i + 1U) % 5U], 0.10f + narrative.build * 0.18f),
+                     0.12f + narrative.build * 0.34f);
+        }
+    }
+
+    if (narrative.drop > 0.05f) {
+        const int pressureCount = scaledCount(6 + static_cast<int>(std::round(narrative.drop * 6.0f)),
+                                              density * (0.62f + narrative.drop * 0.42f));
+        for (int i = 0; i < pressureCount; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, pressureCount - 1));
+            const float signedUnit = unit * 2.0f - 1.0f;
+            const float z = minimumDimension * (-0.62f + unit * 0.94f - narrative.drop * 0.20f);
+            const float radius = minimumDimension * (0.18f + narrative.drop * 0.20f + unit * 0.08f);
+            objects.push_back(makeObject3D(Object3DKind::TunnelRib,
+                                           Vec3{0.0f,
+                                                signedUnit * minimumDimension * 0.018f,
+                                                z},
+                                           Vec3{radius * (1.0f - narrative.release * 0.10f),
+                                                radius * (0.50f + metrics.bass * 0.14f),
+                                                0.72f + narrative.drop * 0.72f},
+                                           Vec3{narrative.drop * 0.18f,
+                                                phase * 0.035f,
+                                                beatPhase * 0.10f + unit * kPi},
+                                           withAlpha(colors[i % 5], 0.18f + narrative.drop * 0.28f),
+                                           0.30f + narrative.drop * 0.72f + metrics.bass * response * 0.20f));
+            if (i % 2 == 0) {
+                objects.push_back(makeObject3D(Object3DKind::Plate,
+                                               Vec3{signedUnit * minimumDimension * (0.18f + narrative.drop * 0.10f),
+                                                    minimumDimension * (0.05f + narrative.release * 0.05f),
+                                                    z + minimumDimension * 0.06f},
+                                               Vec3{minimumDimension * (0.030f + narrative.drop * 0.035f),
+                                                    minimumDimension * (0.13f + narrative.drop * 0.070f),
+                                                    minimumDimension * 0.012f},
+                                               Vec3{0.54f + narrative.drop * 0.20f,
+                                                    signedUnit * 0.22f,
+                                                    beatPhase * 0.16f},
+                                               withAlpha(colors[(i + 1) % 5], 0.16f + narrative.drop * 0.26f),
+                                               0.22f + narrative.drop * 0.60f));
+            }
+        }
+    }
+
+    if (narrative.groove > 0.06f) {
+        const int lanes = scaledCount(4, density * (0.86f + narrative.groove * 0.20f));
+        const int steps = scaledCount(8, density * (0.76f + narrative.groove * 0.22f));
+        std::vector<Vec3> lastLanePoints(static_cast<std::size_t>(lanes));
+        for (int lane = 0; lane < lanes; ++lane) {
+            const float laneUnit = lanes > 1 ? static_cast<float>(lane) / static_cast<float>(lanes - 1) : 0.0f;
+            const float x = (laneUnit - 0.5f) * minimumDimension * (0.68f + metrics.stereoWidth * 0.18f);
+            for (int step = 0; step < steps; ++step) {
+                const float stepUnit = static_cast<float>(step) / static_cast<float>(std::max(1, steps - 1));
+                const float pulse = std::pow(clamp01(1.0f - std::fabs(stepUnit - metrics.barPhase) * 2.0f), 2.0f);
+                const Vec3 position{
+                    x,
+                    (laneUnit - 0.5f) * minimumDimension * 0.16f,
+                    minimumDimension * (-0.30f + stepUnit * 0.86f + pulse * narrative.groove * 0.10f)
+                };
+                objects.push_back(makeObject3D(Object3DKind::Column,
+                                               position,
+                                               Vec3{minimumDimension * (0.010f + pulse * 0.008f),
+                                                    minimumDimension * (0.038f + narrative.groove * 0.050f + pulse * 0.038f),
+                                                    minimumDimension * 0.010f},
+                                               Vec3{0.0f,
+                                                    laneUnit * 0.16f,
+                                                    std::round(metrics.beatPhase * 8.0f) * (kPi / 8.0f)},
+                                               withAlpha(colors[(lane + step) % 5], 0.14f + narrative.groove * 0.18f + pulse * 0.16f),
+                                               0.16f + narrative.groove * 0.42f + pulse * 0.30f));
+                if (step > 0) {
+                    pushLink(lastLanePoints[static_cast<std::size_t>(lane)],
+                             position,
+                             withAlpha(colors[lane % 5], 0.07f + narrative.groove * 0.12f),
+                             0.08f + narrative.groove * 0.20f);
+                }
+                lastLanePoints[static_cast<std::size_t>(lane)] = position;
+            }
+        }
+    }
+
+    if (narrative.breakdown > 0.06f) {
+        const int planes = scaledCount(5 + static_cast<int>(std::round(narrative.breakdown * 6.0f)),
+                                       density * (0.54f + narrative.breakdown * 0.30f));
+        for (int i = 0; i < planes; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, planes - 1));
+            objects.push_back(makeObject3D(Object3DKind::DepthPlane,
+                                           Vec3{0.0f,
+                                                std::sin(phase * 0.018f + unit * kPi) * minimumDimension * 0.05f,
+                                                minimumDimension * (-0.42f + unit * 1.18f)},
+                                           Vec3{minimumDimension * (0.24f + metrics.stereoWidth * 0.16f + unit * 0.08f),
+                                                minimumDimension * (0.12f + metrics.harmonicEnergy * 0.08f),
+                                                minimumDimension * 0.014f},
+                                           Vec3{0.50f + unit * 0.16f,
+                                                phase * 0.008f,
+                                                phase * 0.012f + narrative.breakdown},
+                                           withAlpha(mix(colors[3], colors[0], unit), 0.08f + narrative.breakdown * 0.18f),
+                                           0.12f + narrative.breakdown * 0.28f));
+        }
+        const int orbiters = scaledCount(9, density * (0.46f + narrative.breakdown * 0.34f));
+        for (int i = 0; i < orbiters; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, orbiters));
+            const float angle = unit * 2.0f * kPi + phase * 0.018f;
+            objects.push_back(makeObject3D(Object3DKind::Orbiter,
+                                           Vec3{std::cos(angle) * minimumDimension * (0.14f + metrics.stereoWidth * 0.10f),
+                                                std::sin(angle * 1.3f) * minimumDimension * 0.10f,
+                                                minimumDimension * (0.02f + unit * 0.56f)},
+                                           Vec3{minimumDimension * (0.012f + narrative.breakdown * 0.012f),
+                                                minimumDimension * (0.012f + narrative.breakdown * 0.012f),
+                                                minimumDimension * 0.010f},
+                                           Vec3{0.0f, angle, phase * 0.014f},
+                                           withAlpha(colors[(i + 4) % 5], 0.18f + narrative.breakdown * 0.18f),
+                                           0.14f + narrative.breakdown * 0.30f));
+        }
+    }
+}
+
 void addIntentDrivenSceneObjects3D(std::vector<Object3D>& objects,
                                    const SceneInterpretation& intent,
                                    const AudioMetrics& metrics,
@@ -4485,6 +4705,7 @@ void addObject3DScene(GeometryFrame& frame,
     Camera3D camera = makeCamera3D(settings, metrics, intent, songIdentity, width, height, speed, time);
     applyCameraInteraction3D(camera, interaction, settings, width, height);
     const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
+    const SectionNarrative3D sectionNarrative = buildSectionNarrative3D(metrics, choreography, intent);
     if (songIdentity == SongSceneIdentity::DarkMonolith) {
         for (Ring& ring : frame.rings) {
             ring.color.a *= 0.10f;
@@ -4540,6 +4761,16 @@ void addObject3DScene(GeometryFrame& frame,
                                response,
                                time);
     addChoreographyDepthObjects3D(objects, settings.mode, choreography, colors, minimumDimension, objectDensity, response, time);
+    addSectionNarrativeObjects3D(objects,
+                                 settings.mode,
+                                 sectionNarrative,
+                                 metrics,
+                                 choreography,
+                                 colors,
+                                 minimumDimension,
+                                 objectDensity,
+                                 response,
+                                 time);
     applyMusicChoreography3D(objects, settings.mode, choreography, minimumDimension);
     applySongIdentityComposition3D(objects, songIdentity, intent, metrics, minimumDimension);
     applyModeComposition3D(objects, settings.mode, metrics, settings, minimumDimension, time);
@@ -4576,6 +4807,11 @@ void addObject3DScene(GeometryFrame& frame,
     frame.depthFogStrength = std::clamp(depth * lightingGlow * (range / std::max(1.0f, minimumDimension * 1.45f)),
                                         0.0f,
                                         1.0f);
+    frame.sectionNarrative3D = sectionNarrative.intensity;
+    frame.sectionBuild3D = sectionNarrative.build;
+    frame.sectionDrop3D = sectionNarrative.drop;
+    frame.sectionGroove3D = sectionNarrative.groove;
+    frame.sectionBreakdown3D = sectionNarrative.breakdown;
     frame.objects3D = std::move(objects);
     frame.scene3DName = mode3DName(settings.mode);
     frame.sceneIntent = intent.primary;

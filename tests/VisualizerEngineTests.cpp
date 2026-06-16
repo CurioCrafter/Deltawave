@@ -3096,6 +3096,114 @@ void threeDScenesRenderMaterialFacesAndDepthHaze()
             "filled material pass should keep the frame strongly 3D dominant");
 }
 
+void sectionNarrativeAuthorsDistinct3DStructures()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::TechnoMandala;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.86f;
+    settings.lightingGlow = 0.90f;
+    settings.colorImpact = 0.94f;
+    settings.scenePersonality = 0.88f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.88f;
+    settings.patternClarity = 0.90f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics neutral = syntheticMetrics();
+    neutral.rms = 0.44f;
+    neutral.peak = 0.64f;
+    neutral.bass = 0.42f;
+    neutral.lowMid = 0.32f;
+    neutral.mid = 0.28f;
+    neutral.stereoWidth = 0.46f;
+    neutral.beat = true;
+    neutral.beatConfidence = 0.74f;
+    neutral.barConfidence = 0.62f;
+    neutral.downbeatConfidence = 0.46f;
+    neutral.style = AudioStyle::Techno;
+    neutral.styleConfidence = 0.80f;
+    neutral.sectionConfidence = 0.0f;
+
+    AudioMetrics build = neutral;
+    build.section = ArrangementSection::Build;
+    build.sectionConfidence = 0.86f;
+    build.sectionProgress = 0.72f;
+    build.buildTension = 0.78f;
+    build.phraseIntensity = 0.62f;
+    build.spectralFlux = 0.28f;
+
+    AudioMetrics drop = neutral;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.92f;
+    drop.sectionProgress = 0.18f;
+    drop.dropIntensity = 0.88f;
+    drop.bass = 0.84f;
+    drop.bandOnsets[0] = 0.74f;
+
+    AudioMetrics groove = neutral;
+    groove.section = ArrangementSection::Groove;
+    groove.sectionConfidence = 0.88f;
+    groove.sectionProgress = 0.44f;
+    groove.beatConfidence = 0.94f;
+    groove.barConfidence = 0.88f;
+    groove.downbeatConfidence = 0.78f;
+
+    AudioMetrics breakdown = neutral;
+    breakdown.section = ArrangementSection::Breakdown;
+    breakdown.sectionConfidence = 0.82f;
+    breakdown.sectionProgress = 0.38f;
+    breakdown.rms = 0.22f;
+    breakdown.bass = 0.12f;
+    breakdown.stereoWidth = 0.88f;
+    breakdown.harmonicEnergy = 0.70f;
+    breakdown.beatConfidence = 0.08f;
+    breakdown.style = AudioStyle::Ambient;
+    breakdown.styleConfidence = 0.86f;
+
+    const GeometryFrame neutralFrame = engine.buildFrame(neutral, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame buildFrame = engine.buildFrame(build, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame dropFrame = engine.buildFrame(drop, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame grooveFrame = engine.buildFrame(groove, settings, 1280.0f, 720.0f, 2.0);
+    const GeometryFrame breakdownFrame = engine.buildFrame(breakdown, settings, 1280.0f, 720.0f, 2.0);
+
+    require(neutralFrame.sectionNarrative3D < 0.10f,
+            "neutral frames should not claim active 3D section narrative");
+    require(buildFrame.sectionBuild3D > 0.55f && buildFrame.sectionNarrative3D > neutralFrame.sectionNarrative3D + 0.45f,
+            "build sections should report a strong rising 3D narrative");
+    require(dropFrame.sectionDrop3D > 0.70f,
+            "drop sections should report a strong pressure 3D narrative");
+    require(grooveFrame.sectionGroove3D > 0.55f,
+            "groove sections should report a strong locked 3D narrative");
+    require(breakdownFrame.sectionBreakdown3D > 0.55f,
+            "breakdown sections should report a strong spacious 3D narrative");
+
+    require(buildFrame.objects3D.size() > neutralFrame.objects3D.size() + 10U,
+            "build narrative should add rising 3D structure objects");
+    require(dropFrame.objects3D.size() > neutralFrame.objects3D.size() + 8U,
+            "drop narrative should add pressure 3D structure objects");
+    require(grooveFrame.objects3D.size() > neutralFrame.objects3D.size() + 16U,
+            "groove narrative should add sequencer 3D structure objects");
+    require(objectFamilyCount(breakdownFrame, {Object3DKind::DepthPlane, Object3DKind::Orbiter}) >
+                objectFamilyCount(neutralFrame, {Object3DKind::DepthPlane, Object3DKind::Orbiter}) + 12,
+            "breakdown narrative should add spacious depth-field objects without requiring total clutter");
+
+    require(objectFamilyCount(dropFrame, {Object3DKind::TunnelRib, Object3DKind::Plate}) >
+                objectFamilyCount(neutralFrame, {Object3DKind::TunnelRib, Object3DKind::Plate}) + 5,
+            "drop narrative should add pressure ribs and shock plates");
+    require(objectFamilyCount(grooveFrame, {Object3DKind::Column, Object3DKind::Link}) >
+                objectFamilyCount(neutralFrame, {Object3DKind::Column, Object3DKind::Link}) + 12,
+            "groove narrative should add locked sequencer columns and rails");
+    require(buildFrame.projected3DVisualWeight > buildFrame.retained2DVisualWeight * 1.6f &&
+                dropFrame.projected3DVisualWeight > dropFrame.retained2DVisualWeight * 1.6f &&
+                grooveFrame.projected3DVisualWeight > grooveFrame.retained2DVisualWeight * 1.6f &&
+                breakdownFrame.projected3DVisualWeight > breakdownFrame.retained2DVisualWeight * 1.6f,
+            "section narrative structures should remain 3D-dominant");
+}
+
 void mouseDepthInteractionMoves3DObjects()
 {
     VisualizerEngine engine;
@@ -4832,6 +4940,7 @@ int main()
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
         {"threeDScenesRenderMaterialFacesAndDepthHaze", viz::tests::threeDScenesRenderMaterialFacesAndDepthHaze},
+        {"sectionNarrativeAuthorsDistinct3DStructures", viz::tests::sectionNarrativeAuthorsDistinct3DStructures},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
         {"objectDensity3DControlsObjectCount", viz::tests::objectDensity3DControlsObjectCount},
