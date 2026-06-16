@@ -387,7 +387,7 @@ float objectRoleMotionEnergy(const GeometryFrame& frame, Object3DRole role)
     float total = 0.0f;
     int count = 0;
     for (const Object3D& object : frame.objects3D) {
-        if (object.musicRole != role) {
+        if (object.musicRole != role || object.kind == Object3DKind::Link) {
             continue;
         }
 
@@ -4529,15 +4529,33 @@ void songSectionsMoveRolesWithDistinctEmotionalDirection()
                 " dropBassZ=" + std::to_string(dropBass.z) +
                 " grooveDepthMotion=" + std::to_string(grooveFrame.sectionDepthMotion3D) +
                 " dropDepthMotion=" + std::to_string(dropFrame.sectionDepthMotion3D));
+    require(objectRoleScaleAxisRatio(dropFrame, Object3DRole::Bass, 2) >
+                objectRoleScaleAxisRatio(grooveFrame, Object3DRole::Bass, 2) + 0.10f,
+            "drop should visibly compress and lengthen bass bodies through depth, not only move the camera; grooveBassZScale=" +
+                std::to_string(objectRoleScaleAxisRatio(grooveFrame, Object3DRole::Bass, 2)) +
+                " dropBassZScale=" + std::to_string(objectRoleScaleAxisRatio(dropFrame, Object3DRole::Bass, 2)));
     require(buildMelody.y < grooveMelody.y - 35.0f &&
                 buildMelody.z > grooveMelody.z + 30.0f,
             "build should lift the melodic braid upward and deeper before the drop");
+    require(objectRoleMotionEnergy(buildFrame, Object3DRole::Melody) >
+                objectRoleMotionEnergy(grooveFrame, Object3DRole::Melody) * 1.08f,
+            "build should choreograph melody with anticipation instead of leaving it on the groove path");
     require(breakdownSpace.z > grooveSpace.z + 150.0f,
             "breakdown should open the spatial layer backward in depth; grooveSpaceZ=" +
                 std::to_string(grooveSpace.z) +
                 " breakdownSpaceZ=" + std::to_string(breakdownSpace.z));
+    require(objectRoleScaleAxisRatio(breakdownFrame, Object3DRole::Space, 2) >
+                objectRoleScaleAxisRatio(grooveFrame, Object3DRole::Space, 2) + 0.08f,
+            "breakdown should stretch spatial bodies into depth, not just translate the whole scene; grooveSpaceZScale=" +
+                std::to_string(objectRoleScaleAxisRatio(grooveFrame, Object3DRole::Space, 2)) +
+                " breakdownSpaceZScale=" + std::to_string(objectRoleScaleAxisRatio(breakdownFrame, Object3DRole::Space, 2)) +
+                " grooveSpan=" + std::to_string(objectRoleDepthSpan(grooveFrame, Object3DRole::Space)) +
+                " breakdownSpan=" + std::to_string(objectRoleDepthSpan(breakdownFrame, Object3DRole::Space)));
     require(releaseHarmony.z > dropHarmony.z + 80.0f,
             "release should let harmonic chambers recover outward after the drop");
+    require(objectRoleVisualMass(releaseFrame, Object3DRole::Harmony) >
+                objectRoleVisualMass(dropFrame, Object3DRole::Harmony) * 0.86f,
+            "release should restore harmonic material instead of letting the drop erase it");
 
     require(std::fabs(objectMotionSignature(dropFrame) - objectMotionSignature(breakdownFrame)) > 8.0f &&
                 std::fabs(objectMotionSignature(buildFrame) - objectMotionSignature(releaseFrame)) > 5.0f,
