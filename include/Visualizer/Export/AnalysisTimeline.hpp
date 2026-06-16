@@ -57,6 +57,9 @@ struct AnalysisTimelineEntry {
     float sceneShadowRole3D = 0.0f;
     float sceneConvergence3D = 0.0f;
     float sceneRoleSeparation3D = 0.0f;
+    float sceneRoleMemory3D = 0.0f;
+    float sceneRoleTransition3D = 0.0f;
+    float sceneRoleContrast3D = 0.0f;
     float sceneExplicitRoleShare3D = 0.0f;
     float sceneRoleBridgeShare3D = 0.0f;
     float sceneRoleCrosstalk3D = 0.0f;

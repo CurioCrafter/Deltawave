@@ -5098,6 +5098,141 @@ void songIdentityMemoryHoldsAmbiguousSceneLanguage()
             "identity switch should lower continuity so exports can identify a real scene turn");
 }
 
+void musicRoleMemoryCarriesMotifsThroughAmbiguousPassages()
+{
+    VisualizerEngine primedEngine;
+    VisualizerEngine freshEngine;
+    VisualSettings settings;
+    settings.mode = VisualMode::TechnoMandala;
+    settings.palette = Palette::NeonVoltage;
+    settings.motionStyle = MotionStyle::Mechanical;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.90f;
+    settings.lightingGlow = 0.88f;
+    settings.colorImpact = 0.92f;
+    settings.scenePersonality = 0.90f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.94f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics groove = syntheticMetrics();
+    groove.rms = 0.50f;
+    groove.peak = 0.76f;
+    groove.bass = 0.58f;
+    groove.lowMid = 0.42f;
+    groove.mid = 0.22f;
+    groove.highMid = 0.18f;
+    groove.treble = 0.16f;
+    groove.stereoWidth = 0.28f;
+    groove.spectralFlux = 0.12f;
+    groove.onset = 0.18f;
+    groove.beat = true;
+    groove.beatConfidence = 0.94f;
+    groove.barConfidence = 0.88f;
+    groove.downbeatConfidence = 0.70f;
+    groove.style = AudioStyle::Techno;
+    groove.styleConfidence = 0.94f;
+    groove.section = ArrangementSection::Groove;
+    groove.sectionConfidence = 0.88f;
+    groove.bassRole = 0.58f;
+    groove.drumRole = 0.90f;
+    groove.melodyRole = 0.16f;
+    groove.harmonyRole = 0.12f;
+    groove.spaceRole = 0.10f;
+    groove.fractureRole = 0.12f;
+    groove.shadowRole = 0.28f;
+    groove.roleSeparation = 0.86f;
+
+    AudioMetrics ambiguous = groove;
+    ambiguous.rms = 0.16f;
+    ambiguous.peak = 0.24f;
+    ambiguous.bass = 0.16f;
+    ambiguous.lowMid = 0.18f;
+    ambiguous.mid = 0.22f;
+    ambiguous.stereoWidth = 0.48f;
+    ambiguous.spectralFlux = 0.04f;
+    ambiguous.onset = 0.02f;
+    ambiguous.beat = false;
+    ambiguous.beatConfidence = 0.08f;
+    ambiguous.barConfidence = 0.06f;
+    ambiguous.downbeatConfidence = 0.02f;
+    ambiguous.style = AudioStyle::Wide;
+    ambiguous.styleConfidence = 0.44f;
+    ambiguous.section = ArrangementSection::Groove;
+    ambiguous.sectionConfidence = 0.28f;
+    ambiguous.bassRole = 0.10f;
+    ambiguous.drumRole = 0.08f;
+    ambiguous.melodyRole = 0.20f;
+    ambiguous.harmonyRole = 0.24f;
+    ambiguous.spaceRole = 0.34f;
+    ambiguous.fractureRole = 0.02f;
+    ambiguous.shadowRole = 0.10f;
+    ambiguous.roleSeparation = 0.22f;
+
+    AudioMetrics melodic = ambiguous;
+    melodic.rms = 0.28f;
+    melodic.peak = 0.42f;
+    melodic.bass = 0.08f;
+    melodic.lowMid = 0.12f;
+    melodic.mid = 0.56f;
+    melodic.highMid = 0.52f;
+    melodic.treble = 0.44f;
+    melodic.stereoWidth = 0.64f;
+    melodic.keyIndex = 9;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.92f;
+    melodic.harmonicEnergy = 0.88f;
+    melodic.phraseConfidence = 0.82f;
+    melodic.phraseIntensity = 0.62f;
+    melodic.style = AudioStyle::Ambient;
+    melodic.styleConfidence = 0.70f;
+    melodic.section = ArrangementSection::Build;
+    melodic.sectionConfidence = 0.72f;
+    melodic.sectionProgress = 0.64f;
+    melodic.melodyRole = 0.82f;
+    melodic.harmonyRole = 0.74f;
+    melodic.spaceRole = 0.46f;
+    melodic.drumRole = 0.04f;
+    melodic.bassRole = 0.04f;
+    melodic.shadowRole = 0.08f;
+    melodic.roleSeparation = 0.76f;
+
+    const GeometryFrame grooveFrame = primedEngine.buildFrame(groove, settings, 1280.0f, 720.0f, 0.0);
+    const GeometryFrame primedAmbiguous = primedEngine.buildFrame(ambiguous, settings, 1280.0f, 720.0f, 0.42);
+    const GeometryFrame freshAmbiguous = freshEngine.buildFrame(ambiguous, settings, 1280.0f, 720.0f, 0.42);
+    const GeometryFrame melodicTurn = primedEngine.buildFrame(melodic, settings, 1280.0f, 720.0f, 1.12);
+    const GeometryFrame melodicSettled = primedEngine.buildFrame(melodic, settings, 1280.0f, 720.0f, 1.84);
+
+    require(grooveFrame.sceneRoleMemory3D == 0.0f,
+            "first frame should establish role memory without claiming previous motif carry");
+    require(primedAmbiguous.sceneRoleMemory3D > 0.22f,
+            "ambiguous passage should report carried musical-role memory");
+    require(primedAmbiguous.sceneDrumRole3D > freshAmbiguous.sceneDrumRole3D + 0.10f &&
+                primedAmbiguous.sceneBassRole3D > freshAmbiguous.sceneBassRole3D + 0.06f,
+            "primed ambiguous passage should retain the established drum/bass motif more than a fresh frame");
+    require(primedAmbiguous.sceneRoleContrast3D > 0.62f &&
+                primedAmbiguous.sceneRoleContrast3D > freshAmbiguous.sceneRoleContrast3D - 0.05f,
+            "role memory should preserve readable motif contrast instead of blending every part equally; primedContrast=" +
+                std::to_string(primedAmbiguous.sceneRoleContrast3D) +
+                " freshContrast=" + std::to_string(freshAmbiguous.sceneRoleContrast3D) +
+                " memory=" + std::to_string(primedAmbiguous.sceneRoleMemory3D));
+    require(centroidDistance(objectRoleCentroid(primedAmbiguous, Object3DRole::Drums),
+                             objectRoleCentroid(freshAmbiguous, Object3DRole::Drums)) > 20.0f,
+            "remembered drum role should change final 3D placement, not only expose scalar diagnostics");
+
+    require(melodicTurn.sceneRoleTransition3D > primedAmbiguous.sceneRoleTransition3D + 0.08f,
+            "melodic takeover should report a real role transition after the remembered groove");
+    require(melodicSettled.sceneMelodyRole3D > melodicSettled.sceneDrumRole3D + 0.22f &&
+                melodicSettled.sceneHarmonyRole3D > melodicSettled.sceneBassRole3D + 0.20f,
+            "role memory should hand off to sustained melodic/harmonic input instead of holding drums forever");
+    require(melodicSettled.sceneRoleMemory3D > 0.20f &&
+                melodicSettled.sceneRoleContrast3D > 0.24f,
+            "settled melodic passage should still expose musical-role memory and separated role contrast");
+}
+
 void ambientOrbitTakesOverFromCalmWhenWideAndAudible()
 {
     VisualizerEngine engine;
@@ -6661,6 +6796,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include persistent song-arc interpretation columns");
         require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D,roleMotionContrast3D,musicalStructure3D") != std::string::npos,
                 "timeline should include separated musical role columns");
+        require(timelineText.find("roleMemory3D,roleTransition3D,roleContrast3D") != std::string::npos,
+                "timeline should include persistent musical-role memory columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
                 "timeline should include adaptive audio profile columns");
     }
@@ -7108,6 +7245,7 @@ int main()
         {"sectionNarrativeAuthorsDistinct3DStructures", viz::tests::sectionNarrativeAuthorsDistinct3DStructures},
         {"songArcMemoryShapesBuildDropRecovery", viz::tests::songArcMemoryShapesBuildDropRecovery},
         {"songIdentityMemoryHoldsAmbiguousSceneLanguage", viz::tests::songIdentityMemoryHoldsAmbiguousSceneLanguage},
+        {"musicRoleMemoryCarriesMotifsThroughAmbiguousPassages", viz::tests::musicRoleMemoryCarriesMotifsThroughAmbiguousPassages},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
         {"interactionAndEnvironmentRemain3DFirst", viz::tests::interactionAndEnvironmentRemain3DFirst},

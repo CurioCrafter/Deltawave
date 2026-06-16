@@ -23,6 +23,12 @@ float clamp01(float value)
     return std::clamp(value, 0.0f, 1.0f);
 }
 
+float mix(float a, float b, float t)
+{
+    t = clamp01(t);
+    return a + ((b - a) * t);
+}
+
 ColorRGBA withAlpha(ColorRGBA color, float alpha)
 {
     color.a = clamp01(alpha);
@@ -295,6 +301,17 @@ struct MusicRoleScene3D {
     float shadow = 0.0f;
     float convergence = 0.0f;
     float separation = 0.0f;
+};
+
+struct MusicRoleMemoryStats3D {
+    float memory = 0.0f;
+    float transition = 0.0f;
+    float contrast = 0.0f;
+};
+
+struct InterpretedMusicRoleScene3D {
+    MusicRoleScene3D role;
+    MusicRoleMemoryStats3D stats;
 };
 
 enum class MusicalRoleDistrict3D {
@@ -1083,6 +1100,267 @@ MusicRoleScene3D buildMusicRoleScene3D(const SceneInterpretation& intent,
         role.convergence *= 0.58f;
     }
     return role;
+}
+
+float musicRoleContrast3D(const MusicRoleScene3D& role)
+{
+    const std::array<float, 7> values{
+        role.bass,
+        role.drums,
+        role.melody,
+        role.harmony,
+        role.space,
+        role.fracture,
+        role.shadow
+    };
+    float maximum = values.front();
+    float minimum = values.front();
+    float activeMass = 0.0f;
+    float activeCount = 0.0f;
+    for (float value : values) {
+        maximum = std::max(maximum, value);
+        minimum = std::min(minimum, value);
+        activeMass += value;
+        activeCount += value > 0.14f ? 1.0f : 0.0f;
+    }
+    const float mean = activeMass / static_cast<float>(values.size());
+    float variance = 0.0f;
+    for (float value : values) {
+        const float delta = value - mean;
+        variance += delta * delta;
+    }
+    variance = std::sqrt(variance / static_cast<float>(values.size()));
+    return clamp01((maximum - minimum) * 0.56f +
+                   variance * 0.72f +
+                   std::min(activeCount / 7.0f, 1.0f) * 0.16f -
+                   role.convergence * 0.12f);
+}
+
+void setMusicRoleMemoryFromScene(MusicRoleMemory& memory,
+                                 const MusicRoleScene3D& role,
+                                 const VisualSettings& settings,
+                                 double timeSeconds)
+{
+    memory.lastTimeSeconds = timeSeconds;
+    memory.mode = static_cast<int>(settings.mode);
+    memory.motionStyle = static_cast<int>(settings.motionStyle);
+    memory.bass = role.bass;
+    memory.drums = role.drums;
+    memory.melody = role.melody;
+    memory.harmony = role.harmony;
+    memory.space = role.space;
+    memory.fracture = role.fracture;
+    memory.shadow = role.shadow;
+    memory.convergence = role.convergence;
+    memory.separation = role.separation;
+    memory.continuity = 0.0f;
+}
+
+MusicRoleScene3D musicRoleSceneFromMemory(const MusicRoleMemory& memory)
+{
+    MusicRoleScene3D role;
+    role.bass = memory.bass;
+    role.drums = memory.drums;
+    role.melody = memory.melody;
+    role.harmony = memory.harmony;
+    role.space = memory.space;
+    role.fracture = memory.fracture;
+    role.shadow = memory.shadow;
+    role.convergence = memory.convergence;
+    role.separation = memory.separation;
+    return role;
+}
+
+MusicRoleScene3D emphasizeRememberedRoleContrast3D(MusicRoleScene3D role,
+                                                   const AudioMetrics& metrics,
+                                                   const VisualSettings& settings,
+                                                   float memoryContinuity)
+{
+    const float activeMass = role.bass + role.drums + role.melody + role.harmony +
+                             role.space + role.fracture + role.shadow;
+    if (activeMass <= 0.001f) {
+        return role;
+    }
+
+    const float mean = activeMass / 7.0f;
+    const float clarity = patternClarityOf(settings);
+    const float eventConvergence = clamp01(role.convergence * 0.52f +
+                                           metrics.dropIntensity * 0.22f +
+                                           (metrics.phraseBoundary ? metrics.phraseConfidence * 0.16f : 0.0f));
+    const float contrastGain = clamp01(0.045f +
+                                       role.separation * 0.13f +
+                                       clarity * 0.08f +
+                                       memoryContinuity * 0.12f -
+                                       eventConvergence * 0.10f);
+    const auto shape = [&](float value, float lowFloor) {
+        const float delta = value - mean;
+        if (delta >= 0.0f) {
+            return clamp01(value + delta * contrastGain);
+        }
+        return clamp01(std::max(lowFloor, value + delta * contrastGain * 0.56f));
+    };
+
+    const bool calmScaffold = metrics.style == AudioStyle::Silence ||
+                              (metrics.rms < 0.035f && metrics.peak < 0.080f);
+    const float floor = calmScaffold ? 0.035f : 0.0f;
+    role.bass = shape(role.bass, 0.0f);
+    role.drums = shape(role.drums, 0.0f);
+    role.melody = shape(role.melody, floor);
+    role.harmony = shape(role.harmony, floor);
+    role.space = shape(role.space, calmScaffold ? 0.12f : 0.0f);
+    role.fracture = shape(role.fracture, 0.0f);
+    role.shadow = shape(role.shadow, calmScaffold ? 0.10f : 0.0f);
+    role.separation = clamp01(role.separation + contrastGain * (0.24f + memoryContinuity * 0.18f));
+    return role;
+}
+
+InterpretedMusicRoleScene3D updateMusicRoleMemory3D(MusicRoleMemory& memory,
+                                                    const MusicRoleScene3D& target,
+                                                    const SceneInterpretation& intent,
+                                                    const AudioMetrics& metrics,
+                                                    const VisualSettings& settings,
+                                                    double timeSeconds)
+{
+    float dt = 1.0f / 60.0f;
+    if (memory.lastTimeSeconds >= 0.0) {
+        dt = static_cast<float>(timeSeconds - memory.lastTimeSeconds);
+    }
+    const bool changedSurface = memory.mode != static_cast<int>(settings.mode) ||
+                                memory.motionStyle != static_cast<int>(settings.motionStyle);
+    const bool trueSilence = metrics.style == AudioStyle::Silence &&
+                             metrics.rms < 0.025f &&
+                             metrics.peak < 0.055f &&
+                             metrics.beatConfidence < 0.08f;
+    if (trueSilence) {
+        setMusicRoleMemoryFromScene(memory, target, settings, timeSeconds);
+        InterpretedMusicRoleScene3D interpreted;
+        interpreted.role = target;
+        interpreted.stats.memory = 0.0f;
+        interpreted.stats.transition = 0.0f;
+        interpreted.stats.contrast = musicRoleContrast3D(target);
+        return interpreted;
+    }
+    const bool reset = memory.lastTimeSeconds < 0.0 ||
+                       dt <= 0.0001f ||
+                       dt > 3.5f ||
+                       changedSurface;
+    if (reset) {
+        setMusicRoleMemoryFromScene(memory, target, settings, timeSeconds);
+        InterpretedMusicRoleScene3D interpreted;
+        interpreted.role = target;
+        interpreted.stats.memory = 0.0f;
+        interpreted.stats.transition = 0.0f;
+        interpreted.stats.contrast = musicRoleContrast3D(interpreted.role);
+        return interpreted;
+    }
+
+    dt = std::clamp(dt, 1.0f / 120.0f, 0.75f);
+    const MusicRoleScene3D previous = musicRoleSceneFromMemory(memory);
+    const float targetShift = (std::fabs(target.bass - previous.bass) +
+                               std::fabs(target.drums - previous.drums) +
+                               std::fabs(target.melody - previous.melody) +
+                               std::fabs(target.harmony - previous.harmony) +
+                               std::fabs(target.space - previous.space) +
+                               std::fabs(target.fracture - previous.fracture) +
+                               std::fabs(target.shadow - previous.shadow)) /
+                              7.0f;
+    const float event = clamp01(metrics.dropIntensity * 0.46f +
+                                transientEnergy3D(metrics) * 0.34f +
+                                (metrics.downbeat ? metrics.downbeatConfidence * 0.18f : 0.0f) +
+                                (metrics.phraseBoundary ? metrics.phraseConfidence * 0.16f : 0.0f));
+    const float stability = motionStabilityOf(settings);
+    const float clarity = patternClarityOf(settings);
+
+    const auto followRole = [&](float current,
+                                float value,
+                                float fastAttack,
+                                float slowRelease,
+                                float eventBoost) {
+        const float attack = std::max(0.030f, fastAttack * (1.0f - event * eventBoost));
+        const float release = slowRelease * (0.82f + stability * 0.26f + clarity * 0.08f);
+        return clamp01(followArcValue(current, value, dt, attack, release));
+    };
+
+    memory.bass = followRole(memory.bass,
+                             target.bass,
+                             0.070f,
+                             0.58f,
+                             0.62f + metrics.bass * 0.20f);
+    memory.drums = followRole(memory.drums,
+                              target.drums,
+                              0.060f,
+                              0.46f,
+                              metrics.beatConfidence * 0.42f);
+    memory.melody = followRole(memory.melody,
+                               target.melody,
+                               0.150f,
+                               0.88f,
+                               metrics.keyConfidence * 0.12f);
+    memory.harmony = followRole(memory.harmony,
+                                target.harmony,
+                                0.170f,
+                                0.96f,
+                                metrics.phraseConfidence * 0.12f);
+    memory.space = followRole(memory.space,
+                              target.space,
+                              0.220f,
+                              1.12f,
+                              metrics.stereoWidth * 0.10f);
+    memory.fracture = followRole(memory.fracture,
+                                 target.fracture,
+                                 0.045f,
+                                 0.36f,
+                                 transientEnergy3D(metrics) * 0.82f);
+    memory.shadow = followRole(memory.shadow,
+                               target.shadow,
+                               0.190f,
+                               1.05f,
+                               intent.dark * 0.12f);
+    memory.convergence = followRole(memory.convergence,
+                                    target.convergence,
+                                    0.040f,
+                                    0.30f,
+                                    event);
+    memory.separation = followRole(memory.separation,
+                                   target.separation,
+                                   0.120f,
+                                   0.70f,
+                                   clarity * 0.12f);
+
+    const float memoryContinuityTarget = clamp01(0.24f +
+                                                 (1.0f - targetShift) * 0.36f +
+                                                 stability * 0.18f +
+                                                 musicRoleContrast3D(previous) * 0.16f -
+                                                 event * 0.14f);
+    memory.continuity = followArcValue(memory.continuity, memoryContinuityTarget, dt, 0.18f, 0.72f);
+    memory.lastTimeSeconds = timeSeconds;
+    memory.mode = static_cast<int>(settings.mode);
+    memory.motionStyle = static_cast<int>(settings.motionStyle);
+
+    MusicRoleScene3D remembered = musicRoleSceneFromMemory(memory);
+    const float retention = clamp01(0.16f +
+                                    memory.continuity * 0.32f +
+                                    stability * 0.16f +
+                                    target.separation * 0.10f -
+                                    event * 0.18f);
+    MusicRoleScene3D interpreted;
+    interpreted.bass = mix(target.bass, remembered.bass, retention);
+    interpreted.drums = mix(target.drums, remembered.drums, retention);
+    interpreted.melody = mix(target.melody, remembered.melody, retention);
+    interpreted.harmony = mix(target.harmony, remembered.harmony, retention);
+    interpreted.space = mix(target.space, remembered.space, retention);
+    interpreted.fracture = mix(target.fracture, remembered.fracture, retention * (1.0f - event * 0.36f));
+    interpreted.shadow = mix(target.shadow, remembered.shadow, retention);
+    interpreted.convergence = mix(target.convergence, remembered.convergence, retention * 0.36f);
+    interpreted.separation = clamp01(std::max(target.separation, remembered.separation * (0.86f + clarity * 0.08f)));
+    interpreted = emphasizeRememberedRoleContrast3D(interpreted, metrics, settings, memory.continuity);
+
+    InterpretedMusicRoleScene3D result;
+    result.role = interpreted;
+    result.stats.memory = clamp01(memory.continuity);
+    result.stats.transition = clamp01(targetShift * 1.35f + event * 0.22f);
+    result.stats.contrast = musicRoleContrast3D(interpreted);
+    return result;
 }
 
 float roleDistrictStrength(const MusicRoleScene3D& role, MusicalRoleDistrict3D district)
@@ -10503,6 +10781,7 @@ void addObject3DScene(GeometryFrame& frame,
                       const EnvironmentState& environment,
                       const MusicSceneArc3D& songArc,
                       SongIdentityMemory& songIdentityMemory,
+                      MusicRoleMemory& roleMemory,
                       CameraMotionMemory& cameraMemory,
                       const std::array<ColorRGBA, 5>& colors,
                       float width,
@@ -10549,12 +10828,15 @@ void addObject3DScene(GeometryFrame& frame,
                                            sectionNarrative.groove,
                                            sectionNarrative.breakdown,
                                            sectionNarrative.release});
-    const MusicRoleScene3D roleScene =
+    const MusicRoleScene3D rawRoleScene =
         applySongIdentityRoleBias3D(buildMusicRoleScene3D(intent, metrics, settings),
                                     songIdentity,
                                     intent,
                                     metrics,
                                     settings);
+    const InterpretedMusicRoleScene3D interpretedRoleScene =
+        updateMusicRoleMemory3D(roleMemory, rawRoleScene, intent, metrics, settings, time);
+    const MusicRoleScene3D roleScene = interpretedRoleScene.role;
     if (songIdentity == SongSceneIdentity::DarkMonolith) {
         for (Ring& ring : frame.rings) {
             ring.color.a *= 0.10f;
@@ -10768,6 +11050,9 @@ void addObject3DScene(GeometryFrame& frame,
     frame.sceneShadowRole3D = roleScene.shadow;
     frame.sceneConvergence3D = roleScene.convergence;
     frame.sceneRoleSeparation3D = roleScene.separation;
+    frame.sceneRoleMemory3D = interpretedRoleScene.stats.memory;
+    frame.sceneRoleTransition3D = interpretedRoleScene.stats.transition;
+    frame.sceneRoleContrast3D = interpretedRoleScene.stats.contrast;
     frame.sceneExplicitRoleShare3D = roleStats.explicitRoleShare;
     frame.sceneRoleBridgeShare3D = roleStats.bridgeShare;
     frame.sceneRoleCrosstalk3D = roleStats.roleCrosstalk;
@@ -12992,7 +13277,7 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
     frame.retained2DVisualRatio = frame.authored2DVisualWeight > 0.0f
                                       ? frame.retained2DVisualWeight / frame.authored2DVisualWeight
                                       : 0.0f;
-    addObject3DScene(frame, visualMetrics, settings, interaction, environment, songArc, songIdentity_, cameraMotion_, colors, width, height, speed, intensity, density, timeSeconds);
+    addObject3DScene(frame, visualMetrics, settings, interaction, environment, songArc, songIdentity_, roleMemory_, cameraMotion_, colors, width, height, speed, intensity, density, timeSeconds);
     frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
 
     return frame;

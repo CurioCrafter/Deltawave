@@ -170,6 +170,9 @@ struct GeometryFrame {
     float sceneShadowRole3D = 0.0f;
     float sceneConvergence3D = 0.0f;
     float sceneRoleSeparation3D = 0.0f;
+    float sceneRoleMemory3D = 0.0f;
+    float sceneRoleTransition3D = 0.0f;
+    float sceneRoleContrast3D = 0.0f;
     float sceneExplicitRoleShare3D = 0.0f;
     float sceneRoleBridgeShare3D = 0.0f;
     float sceneRoleCrosstalk3D = 0.0f;
@@ -286,6 +289,22 @@ struct SongIdentityMemory {
     float continuity = 0.0f;
 };
 
+struct MusicRoleMemory {
+    double lastTimeSeconds = -1.0;
+    int mode = -1;
+    int motionStyle = -1;
+    float bass = 0.0f;
+    float drums = 0.0f;
+    float melody = 0.0f;
+    float harmony = 0.0f;
+    float space = 0.0f;
+    float fracture = 0.0f;
+    float shadow = 0.0f;
+    float convergence = 0.0f;
+    float separation = 0.0f;
+    float continuity = 0.0f;
+};
+
 struct CameraMotionMemory {
     double lastTimeSeconds = -1.0;
     float centerX = 0.0f;
@@ -328,6 +347,7 @@ public:
 private:
     mutable SongArcMemory songArc_;
     mutable SongIdentityMemory songIdentity_;
+    mutable MusicRoleMemory roleMemory_;
     mutable CameraMotionMemory cameraMotion_;
 };
 
