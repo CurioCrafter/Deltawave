@@ -271,6 +271,12 @@ struct SectionNarrative3D {
     float intensity = 0.0f;
 };
 
+struct SectionTransformStats3D {
+    float transform = 0.0f;
+    float depthMotion = 0.0f;
+    float materialShift = 0.0f;
+};
+
 struct MusicSceneArc3D {
     float intensity = 0.0f;
     float anticipation = 0.0f;
@@ -1837,6 +1843,221 @@ void applyRoleVisualVocabulary3D(std::vector<Object3D>& objects,
     }
 }
 
+void applyMusicalPartKinetics3D(std::vector<Object3D>& objects,
+                                const MusicRoleScene3D& role,
+                                const AudioMetrics& metrics,
+                                const VisualSettings& settings,
+                                float minimumDimension,
+                                double time)
+{
+    if (objects.empty()) {
+        return;
+    }
+
+    const float activeCount = activeRoleCount3D(role);
+    const float activeMass = role.bass + role.drums + role.melody + role.harmony +
+                             role.space + role.fracture + role.shadow;
+    if (activeCount < 1.2f && metrics.rms < 0.04f) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float response = response3DOf(settings);
+    const float stability = motionStabilityOf(settings);
+    const float clarity = patternClarityOf(settings);
+    const float motionGain = std::clamp(0.56f + response * 0.28f + (1.0f - stability) * 0.12f,
+                                        0.52f,
+                                        1.08f);
+    const float readableGain = std::clamp(0.78f + clarity * 0.16f + stability * 0.08f, 0.74f, 1.0f);
+    const float beatPulse = metrics.beat ? std::max(0.28f, metrics.beatConfidence) : metrics.beatConfidence * 0.42f;
+    const float downbeatPulse = metrics.downbeat ? std::max(0.34f, metrics.downbeatConfidence)
+                                                 : metrics.downbeatConfidence * 0.32f;
+    const float transient = transientEnergy3D(metrics);
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.58f +
+                                   metrics.keyConfidence * 0.30f +
+                                   averageChromaEnergy(metrics) * 0.18f);
+    const float earnedConvergence = clamp01(metrics.convergenceRole * 0.50f +
+                                            metrics.dropIntensity * 0.30f +
+                                            (metrics.phraseBoundary ? metrics.phraseConfidence * 0.26f : 0.0f) +
+                                            (metrics.downbeat ? metrics.downbeatConfidence * 0.14f : 0.0f));
+    const float convergencePull = clamp01(role.convergence *
+                                          (0.08f + earnedConvergence * 0.34f + metrics.dropIntensity * 0.14f));
+    const Vec3 convergencePoint = roleConvergencePoint3D(role, minimumDimension);
+    const float harmonicPhase = (metrics.keyIndex >= 0
+                                     ? static_cast<float>((metrics.keyIndex % 12 + 12) % 12) / 12.0f
+                                     : metrics.spectralCentroid) *
+                                    2.0f * kPi +
+                                metrics.phrasePhase * kPi +
+                                phase * 0.026f;
+    const int beatStep = static_cast<int>(std::floor(clamp01(metrics.beatPhase) * 8.0f));
+
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        Object3D& object = objects[i];
+        MusicalRoleDistrict3D district = MusicalRoleDistrict3D::Bass;
+        const bool explicitRole = districtForObjectRole(object.musicRole, district);
+        const bool bridgeRole = object.musicRole == Object3DRole::Bridge;
+        const bool convergenceRole = object.musicRole == Object3DRole::Convergence;
+        if (!explicitRole && !bridgeRole && !convergenceRole) {
+            continue;
+        }
+
+        const Vec3 before = object.position;
+        const Vec3 beforeTarget = object.target;
+        const float seed = static_cast<float>(i + 1U) * 0.493f +
+                           static_cast<float>(static_cast<int>(object.kind)) * 0.311f;
+        const float sign = std::sin(seed * 3.7f) >= 0.0f ? 1.0f : -1.0f;
+
+        if (!explicitRole) {
+            const float eventPresence = clamp01(earnedConvergence * (0.28f + role.convergence * 0.72f));
+            object.color.a *= std::clamp(0.18f + eventPresence * 0.76f, 0.12f, 0.92f);
+            object.glow *= std::clamp(0.24f + eventPresence * 0.88f, 0.18f, 1.10f);
+            object.scale = scale(object.scale, 0.72f + eventPresence * 0.30f);
+            if (eventPresence > 0.02f) {
+                const float pull = eventPresence * 0.30f;
+                object.position = mix(object.position, convergencePoint, pull);
+                if (object.kind == Object3DKind::Link) {
+                    object.target = mix(object.target, convergencePoint, pull * 0.72f);
+                }
+            }
+            object.velocity = add(object.velocity, subtract(object.position, before));
+            continue;
+        }
+
+        const float roleStrength = clamp01(roleDistrictStrength(role, district));
+        if (roleStrength <= 0.025f) {
+            continue;
+        }
+
+        const float drive = clamp01((0.30f + activeMass * 0.12f) * roleStrength * motionGain);
+        switch (district) {
+        case MusicalRoleDistrict3D::Bass: {
+            const float pressure = clamp01(metrics.bass * 0.64f +
+                                           metrics.lowMid * 0.22f +
+                                           metrics.dropIntensity * 0.32f +
+                                           downbeatPulse * 0.12f);
+            object.position.z -= minimumDimension * drive * (0.045f + pressure * 0.105f + beatPulse * 0.026f);
+            object.position.y += minimumDimension * drive * (0.014f + pressure * 0.038f);
+            object.position.x *= 1.0f - drive * pressure * 0.040f;
+            object.scale.y *= 1.0f + drive * (0.080f + pressure * 0.22f);
+            object.scale.z *= 1.0f + drive * (0.100f + metrics.dropIntensity * 0.24f);
+            object.rotation.z *= 1.0f - drive * 0.32f;
+            object.glow += pressure * drive * 0.18f;
+            break;
+        }
+        case MusicalRoleDistrict3D::Drums: {
+            const float clock = clamp01(metrics.beatConfidence * 0.56f +
+                                        metrics.barConfidence * 0.30f +
+                                        metrics.downbeatConfidence * 0.18f);
+            const float cell = std::max(1.0f, minimumDimension * (0.026f + clock * 0.014f));
+            const int objectStep = (static_cast<int>(std::floor(std::fabs(seed) * 11.0f)) + beatStep) % 4;
+            const float stepPulse = (objectStep == 0 ? 1.0f : 0.28f) * beatPulse + downbeatPulse * 0.24f;
+            object.position.x = std::round(object.position.x / cell) * cell;
+            object.position.z = std::round(object.position.z / (cell * 1.36f)) * (cell * 1.36f) +
+                                minimumDimension * drive * stepPulse * 0.052f;
+            object.position.y += minimumDimension * drive * stepPulse * 0.030f;
+            object.scale.y *= 1.0f + drive * (0.080f + stepPulse * 0.28f);
+            object.scale.x *= 1.0f - drive * 0.045f;
+            object.scale.z *= 1.0f - drive * 0.030f;
+            object.rotation.x = std::round(object.rotation.x * 12.0f) / 12.0f;
+            object.rotation.y = std::round(object.rotation.y * 12.0f) / 12.0f;
+            object.rotation.z = std::round((object.rotation.z + metrics.beatPhase * kPi) / (kPi / 8.0f)) * (kPi / 8.0f);
+            object.glow += clock * drive * 0.15f + stepPulse * drive * 0.10f;
+            break;
+        }
+        case MusicalRoleDistrict3D::Melody: {
+            const float tonal = clamp01(harmonic * 0.74f + metrics.melodyRole * 0.22f);
+            const float chroma = chromaAt(metrics,
+                                          static_cast<std::size_t>(std::max(0, metrics.keyIndex) + static_cast<int>(i % 12U)));
+            object.position.y -= minimumDimension * drive * (0.036f + tonal * 0.056f + chroma * 0.018f);
+            object.position.x += std::cos(harmonicPhase * 0.70f + seed) * minimumDimension * drive * (0.020f + tonal * 0.028f);
+            object.position.z += std::sin(harmonicPhase + seed) * minimumDimension * drive * (0.034f + chroma * 0.060f);
+            object.rotation.y += std::sin(harmonicPhase + seed * 0.5f) * drive * 0.18f;
+            object.rotation.z += std::cos(harmonicPhase * 0.8f) * drive * 0.12f;
+            object.scale = scale(object.scale, 1.0f + tonal * drive * 0.070f);
+            object.glow += tonal * drive * 0.17f + chroma * drive * 0.08f;
+            break;
+        }
+        case MusicalRoleDistrict3D::Harmony: {
+            const float chord = clamp01(harmonic * 0.70f +
+                                        metrics.harmonyRole * 0.22f +
+                                        metrics.phraseConfidence * 0.16f);
+            const float mirror = object.position.x >= 0.0f ? 1.0f : -1.0f;
+            object.position.x = mirror * std::fabs(object.position.x) * (1.0f + chord * drive * 0.080f);
+            object.position.z += minimumDimension * drive * (0.030f + chord * 0.074f);
+            object.position.y -= minimumDimension * drive * chord * 0.018f;
+            object.rotation.x += chord * drive * 0.12f;
+            object.rotation.z *= 1.0f - drive * 0.18f;
+            object.scale.x *= 1.0f + chord * drive * 0.16f;
+            object.scale.z *= 1.0f + chord * drive * 0.14f;
+            object.glow += chord * drive * 0.13f;
+            break;
+        }
+        case MusicalRoleDistrict3D::Space: {
+            const float width = clamp01(metrics.stereoWidth * 0.74f + role.space * 0.26f);
+            object.position.x *= 1.0f + width * drive * 0.16f;
+            object.position.z += minimumDimension * drive * (0.110f + width * 0.170f);
+            object.position.y += std::sin(phase * 0.020f + seed) * minimumDimension * drive * 0.026f;
+            object.rotation.x *= 1.0f - drive * 0.30f;
+            object.rotation.z *= 1.0f - drive * 0.24f;
+            object.scale.x *= 1.0f + width * drive * 0.20f;
+            object.scale.z *= 1.0f + width * drive * 0.13f;
+            object.color.a *= std::clamp(0.92f + width * drive * 0.10f, 0.88f, 1.06f);
+            object.glow += width * drive * 0.08f;
+            break;
+        }
+        case MusicalRoleDistrict3D::Fracture: {
+            const float cut = clamp01(transient * 0.82f + metrics.fractureRole * 0.24f + beatPulse * 0.12f);
+            const float stepSign = ((beatStep + static_cast<int>(i % 3U)) % 2 == 0) ? -1.0f : 1.0f;
+            object.position.x += stepSign * minimumDimension * drive * (0.050f + cut * 0.080f);
+            object.position.z += sign * minimumDimension * drive * (0.034f + cut * 0.082f);
+            object.position.y += std::sin(phase * 0.14f + seed) * minimumDimension * drive * cut * 0.032f;
+            object.rotation.y += stepSign * drive * (0.20f + cut * 0.24f);
+            object.rotation.z = std::round((object.rotation.z + metrics.beatPhase * kPi) / (kPi / 6.0f)) * (kPi / 6.0f);
+            object.scale.x *= 1.0f + cut * drive * 0.16f;
+            object.scale.y *= 1.0f - cut * drive * 0.12f;
+            object.glow += cut * drive * 0.22f;
+            break;
+        }
+        case MusicalRoleDistrict3D::Shadow: {
+            const float mass = clamp01(role.shadow * 0.64f +
+                                       role.bass * 0.16f +
+                                       (1.0f - metrics.treble) * 0.18f);
+            object.position.y += minimumDimension * drive * (0.038f + mass * 0.076f);
+            object.position.z += minimumDimension * drive * (0.042f + mass * 0.088f);
+            object.position.x *= 1.0f - mass * drive * 0.036f;
+            object.rotation.x *= 1.0f - drive * 0.38f;
+            object.rotation.y *= 1.0f - drive * 0.34f;
+            object.rotation.z *= 1.0f - drive * 0.56f;
+            object.scale.y *= 1.0f + mass * drive * 0.28f;
+            object.scale.x *= 1.0f - mass * drive * 0.048f;
+            object.glow += mass * drive * 0.07f;
+            object.color.a = clamp01(object.color.a * (0.98f + mass * drive * 0.10f));
+            break;
+        }
+        }
+
+        if (convergencePull > 0.02f && earnedConvergence > 0.18f) {
+            const Vec3 roleOffset = scale(roleDistrictUnitOffset(district),
+                                          minimumDimension * (0.14f + roleStrength * 0.11f) *
+                                              (1.0f - earnedConvergence * 0.22f));
+            object.position = mix(object.position,
+                                  add(convergencePoint, roleOffset),
+                                  convergencePull * (0.18f + roleStrength * 0.16f));
+        }
+
+        object.position = mix(before, object.position, readableGain);
+        const Vec3 delta = subtract(object.position, before);
+        if (object.kind == Object3DKind::Link) {
+            object.target = add(object.target, scale(delta, 0.76f));
+        }
+        object.velocity = add(object.velocity, delta);
+
+        if (object.kind == Object3DKind::Link && length(subtract(object.target, beforeTarget)) > minimumDimension * 0.42f) {
+            object.target = mix(object.target, beforeTarget, 0.20f);
+        }
+    }
+}
+
 float environmentDrive(const VisualSettings& settings, const EnvironmentState& environment)
 {
     if (!settings.environmentReactive || !environment.enabled) {
@@ -2387,6 +2608,8 @@ struct RoleSceneStats3D {
     float roleVocabulary = 0.0f;
     float roleSilhouetteContrast = 0.0f;
     float roleLegibility = 0.0f;
+    float roleMotionContrast = 0.0f;
+    float musicalStructure = 0.0f;
 };
 
 struct CameraContinuityStats3D {
@@ -3321,6 +3544,7 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
     std::array<float, 7> roleMasses{};
     std::array<std::array<float, 14>, 7> roleKindMasses{};
     std::array<std::array<float, 5>, 7> silhouetteSums{};
+    std::array<Vec3, 7> velocitySums{};
     float totalVisualMass = 0.0f;
     float explicitRoleMass = 0.0f;
     float bridgeMass = 0.0f;
@@ -3371,6 +3595,7 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
             sums[roleSlot] = add(sums[roleSlot], object.position);
             ++counts[roleSlot];
             roleMasses[roleSlot] += mass;
+            velocitySums[roleSlot] = add(velocitySums[roleSlot], scale(object.velocity, mass));
             roleKindMasses[roleSlot][static_cast<std::size_t>(object.kind)] += mass;
             const float scaleX = std::fabs(object.scale.x);
             const float scaleY = std::fabs(object.scale.y);
@@ -3447,6 +3672,7 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
 
     float vocabularyDistance = 0.0f;
     float silhouetteDistance = 0.0f;
+    float motionDistance = 0.0f;
     int rolePairs = 0;
     for (std::size_t a = 0; a < activeRoleSlots.size(); ++a) {
         for (std::size_t b = a + 1U; b < activeRoleSlots.size(); ++b) {
@@ -3469,6 +3695,13 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
                 signatureDistance += delta * delta;
             }
             silhouetteDistance += std::clamp(std::sqrt(signatureDistance) * 0.52f, 0.0f, 1.0f);
+
+            const Vec3 leftVelocity = scale(velocitySums[left], 1.0f / leftMass);
+            const Vec3 rightVelocity = scale(velocitySums[right], 1.0f / rightMass);
+            motionDistance += std::clamp(length(subtract(leftVelocity, rightVelocity)) /
+                                             std::max(1.0f, minimumDimension * 0.045f),
+                                         0.0f,
+                                         1.0f);
             ++rolePairs;
         }
     }
@@ -3476,9 +3709,11 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
         const float invPairs = 1.0f / static_cast<float>(rolePairs);
         stats.roleVocabulary = vocabularyDistance * invPairs;
         stats.roleSilhouetteContrast = silhouetteDistance * invPairs;
+        stats.roleMotionContrast = motionDistance * invPairs;
     } else if (activeRoleSlots.size() == 1U) {
         stats.roleVocabulary = 1.0f;
         stats.roleSilhouetteContrast = 1.0f;
+        stats.roleMotionContrast = 1.0f;
     }
     stats.roleLegibility = clamp01(stats.explicitRoleShare * 0.36f +
                                    clamp01(stats.districtSpread * 0.82f) * 0.24f +
@@ -3486,6 +3721,13 @@ RoleSceneStats3D roleSceneStats3D(const std::vector<Object3D>& objects,
                                    stats.roleSilhouetteContrast * 0.14f +
                                    stats.roleBalance * 0.10f -
                                    stats.roleCrosstalk * 0.28f);
+    stats.musicalStructure = clamp01(stats.roleLegibility * 0.44f +
+                                     stats.roleMotionContrast * 0.24f +
+                                     stats.roleVocabulary * 0.12f +
+                                     stats.roleSilhouetteContrast * 0.10f +
+                                     (1.0f - stats.roleCrosstalk) * 0.08f +
+                                     stats.roleBalance * 0.06f -
+                                     stats.bridgeShare * (0.06f + role.convergence * 0.10f));
     return stats;
 }
 
@@ -6412,6 +6654,157 @@ void addSectionNarrativeObjects3D(std::vector<Object3D>& objects,
     }
 }
 
+SectionTransformStats3D applySectionNarrativeComposition3D(std::vector<Object3D>& objects,
+                                                           const SectionNarrative3D& narrative,
+                                                           const AudioMetrics& metrics,
+                                                           const VisualSettings& settings,
+                                                           float minimumDimension,
+                                                           double time)
+{
+    SectionTransformStats3D stats;
+    if (objects.empty() || narrative.intensity <= 0.025f) {
+        return stats;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float clarity = patternClarityOf(settings);
+    const float stability = motionStabilityOf(settings);
+    const float active = clamp01(narrative.intensity);
+    const float build = narrative.build * (0.78f + clarity * 0.22f);
+    const float drop = narrative.drop * (0.74f + response3DOf(settings) * 0.26f);
+    const float groove = narrative.groove * (0.70f + stability * 0.30f);
+    const float breakdown = narrative.breakdown * (0.74f + clarity * 0.18f + metrics.stereoWidth * 0.08f);
+    const float release = narrative.release * (0.78f + stability * 0.12f + clarity * 0.10f);
+    const float sectionProgress = clamp01(metrics.sectionProgress);
+    const float beatStep = std::round(clamp01(metrics.beatPhase) * 8.0f);
+    const float cell = std::max(1.0f, minimumDimension * (0.030f + groove * 0.014f));
+
+    float depthMotion = 0.0f;
+    float materialShift = 0.0f;
+    float transformMass = 0.0f;
+    const float invDimension = 1.0f / std::max(1.0f, minimumDimension);
+
+    const auto averageScale = [](Vec3 value) {
+        return (std::fabs(value.x) + std::fabs(value.y) + std::fabs(value.z)) / 3.0f;
+    };
+
+    const auto transformPoint = [&](Vec3 point, float seed, float depthUnit) {
+        const float lane = std::sin(seed * 2.1f) >= 0.0f ? 1.0f : -1.0f;
+        const float liftCurve = std::pow(depthUnit, 0.82f);
+
+        point.y -= minimumDimension * build * (0.018f + liftCurve * 0.062f + sectionProgress * 0.028f);
+        point.z += minimumDimension * build * (0.060f + depthUnit * 0.120f + metrics.buildTension * 0.035f);
+        point.x *= 1.0f + build * (0.050f + metrics.stereoWidth * 0.040f);
+
+        point.x *= 1.0f - drop * (0.090f + metrics.bass * 0.060f);
+        point.y += minimumDimension * drop * (0.020f + metrics.bass * 0.030f);
+        point.z -= minimumDimension * drop * (0.145f + metrics.bass * 0.105f + (1.0f - depthUnit) * 0.050f);
+
+        if (groove > 0.015f) {
+            const Vec3 snapped{
+                std::round(point.x / cell) * cell,
+                point.y,
+                std::round(point.z / (cell * 1.42f)) * (cell * 1.42f)
+            };
+            point = mix(point, snapped, clamp01(groove * (0.30f + metrics.barConfidence * 0.32f)));
+            point.y += std::sin(beatStep * 0.44f + seed * 0.6f) * minimumDimension * groove * 0.018f;
+            point.z += std::sin(beatStep * 0.82f + seed) * minimumDimension * groove * 0.045f;
+        }
+
+        point.x *= 1.0f + breakdown * (0.145f + metrics.stereoWidth * 0.160f);
+        point.y += std::sin(phase * 0.022f + seed) * minimumDimension * breakdown * 0.034f;
+        point.z += minimumDimension * breakdown * (0.135f + depthUnit * 0.250f + metrics.stereoWidth * 0.055f);
+
+        point.x *= 1.0f + release * (0.095f + metrics.phraseConfidence * 0.055f);
+        point.y -= minimumDimension * release * (0.024f + depthUnit * 0.050f);
+        point.z += minimumDimension * release * (0.080f + depthUnit * 0.145f);
+        point.x += lane * minimumDimension * release * (0.010f + metrics.harmonicEnergy * 0.018f);
+        return point;
+    };
+
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        Object3D& object = objects[i];
+        const Vec3 originalPosition = object.position;
+        const Vec3 originalTarget = object.target;
+        const Vec3 originalScale = object.scale;
+        const float originalGlow = object.glow;
+        const float originalAlpha = object.color.a;
+        const float seed = static_cast<float>(i + 1U) * 0.431f +
+                           static_cast<float>(static_cast<int>(object.kind)) * 0.257f;
+        const float depthUnit = wrapUnit(std::sin(seed * 1.73f) * 0.5f + 0.5f);
+        const bool explicitRole = isExplicitMusicalPartRole(object.musicRole);
+        const bool connector = object.kind == Object3DKind::Link ||
+                               object.musicRole == Object3DRole::Bridge ||
+                               object.musicRole == Object3DRole::Convergence;
+        const float rolePresence = explicitRole ? 1.10f : (connector ? 0.66f : 0.86f);
+
+        object.position = transformPoint(object.position, seed, depthUnit);
+        if (object.kind == Object3DKind::Link) {
+            object.target = transformPoint(object.target, seed + 0.31f, wrapUnit(depthUnit + 0.17f));
+        }
+
+        object.rotation.x += build * (0.035f + depthUnit * 0.030f) -
+                             drop * (0.040f + metrics.bass * 0.020f) +
+                             release * 0.026f;
+        object.rotation.y += std::sin(seed + phase * 0.015f) * (breakdown * 0.060f + release * 0.040f);
+        object.rotation.z += std::sin(seed * 0.8f) * build * 0.038f +
+                             std::round(metrics.beatPhase * 8.0f) * groove * 0.018f +
+                             drop * 0.052f;
+
+        if (groove > 0.015f) {
+            object.rotation.x = std::round(object.rotation.x * 10.0f) / 10.0f;
+            object.rotation.y = std::round(object.rotation.y * 10.0f) / 10.0f;
+            object.rotation.z = std::round(object.rotation.z * 12.0f) / 12.0f;
+        }
+
+        object.scale.x *= 1.0f + breakdown * 0.060f + release * 0.070f - drop * 0.030f;
+        object.scale.y *= 1.0f + build * 0.050f + drop * (0.105f + metrics.bass * 0.050f);
+        object.scale.z *= 1.0f + build * 0.042f + drop * 0.120f + release * 0.050f;
+        if (object.kind == Object3DKind::DepthPlane || object.kind == Object3DKind::WaveSurface) {
+            object.scale.x *= 1.0f + breakdown * 0.12f + release * 0.10f;
+            object.scale.z *= 1.0f + release * 0.08f;
+        } else if (object.kind == Object3DKind::TunnelRib || object.kind == Object3DKind::Column) {
+            object.scale.y *= 1.0f + drop * 0.12f + groove * 0.090f;
+            object.scale.z *= 1.0f + groove * 0.050f;
+        }
+
+        const float glowLift = (build * 0.082f +
+                                drop * 0.205f +
+                                groove * 0.150f +
+                                breakdown * 0.052f +
+                                release * 0.078f) *
+                               rolePresence;
+        object.glow += glowLift;
+        object.color.a = clamp01(object.color.a *
+                                 (1.0f +
+                                  explicitRole * active * 0.082f -
+                                  connector * active * (0.050f - drop * 0.024f) +
+                                  build * 0.026f +
+                                  drop * 0.052f +
+                                  release * 0.032f));
+
+        depthMotion += std::fabs(object.position.z - originalPosition.z) * invDimension;
+        materialShift += std::fabs(object.glow - originalGlow) * 0.55f +
+                         std::fabs(object.color.a - originalAlpha) +
+                         std::fabs(averageScale(object.scale) - averageScale(originalScale)) *
+                             invDimension * 2.5f;
+        transformMass += length(subtract(object.position, originalPosition)) * invDimension;
+        if (object.kind == Object3DKind::Link) {
+            depthMotion += std::fabs(object.target.z - originalTarget.z) * invDimension * 0.42f;
+            transformMass += length(subtract(object.target, originalTarget)) * invDimension * 0.32f;
+        }
+    }
+
+    const float invCount = 1.0f / static_cast<float>(objects.size());
+    stats.depthMotion = clamp01(depthMotion * invCount * 2.0f);
+    stats.materialShift = clamp01(materialShift * invCount * 2.20f);
+    stats.transform = clamp01(active * 0.47f +
+                              transformMass * invCount * 1.22f +
+                              stats.depthMotion * 0.26f +
+                              stats.materialShift * 0.18f);
+    return stats;
+}
+
 void addSongArcObjects3D(std::vector<Object3D>& objects,
                          const MusicSceneArc3D& arc,
                          const AudioMetrics& metrics,
@@ -8196,6 +8589,9 @@ void addObject3DScene(GeometryFrame& frame,
                                       settings,
                                       minimumDimension,
                                       time);
+    const SectionTransformStats3D sectionTransform =
+        applySectionNarrativeComposition3D(objects, sectionNarrative, metrics, settings, minimumDimension, time);
+    applyMusicalPartKinetics3D(objects, roleScene, metrics, settings, minimumDimension, time);
 
     applyObjectInteraction3D(objects, interaction, settings, camera, width, height, static_cast<float>(time));
     applyPatternReadability3D(objects, settings, metrics, roleScene, minimumDimension);
@@ -8247,6 +8643,9 @@ void addObject3DScene(GeometryFrame& frame,
     frame.sectionGroove3D = sectionNarrative.groove;
     frame.sectionBreakdown3D = sectionNarrative.breakdown;
     frame.sectionRelease3D = sectionNarrative.release;
+    frame.sectionTransform3D = sectionTransform.transform;
+    frame.sectionDepthMotion3D = sectionTransform.depthMotion;
+    frame.sectionMaterialShift3D = sectionTransform.materialShift;
     frame.songArc3D = songArc.intensity;
     frame.songArcAnticipation3D = songArc.anticipation;
     frame.songArcImpact3D = songArc.impact;
@@ -8269,6 +8668,8 @@ void addObject3DScene(GeometryFrame& frame,
     frame.sceneRoleVocabulary3D = roleStats.roleVocabulary;
     frame.sceneRoleSilhouetteContrast3D = roleStats.roleSilhouetteContrast;
     frame.sceneRoleLegibility3D = roleStats.roleLegibility;
+    frame.sceneRoleMotionContrast3D = roleStats.roleMotionContrast;
+    frame.sceneMusicalStructure3D = roleStats.musicalStructure;
     frame.objects3D = std::move(objects);
     frame.scene3DName = mode3DName(settings.mode);
     frame.sceneIntent = intent.primary;

@@ -150,6 +150,9 @@ struct GeometryFrame {
     float sectionGroove3D = 0.0f;
     float sectionBreakdown3D = 0.0f;
     float sectionRelease3D = 0.0f;
+    float sectionTransform3D = 0.0f;
+    float sectionDepthMotion3D = 0.0f;
+    float sectionMaterialShift3D = 0.0f;
     float songArc3D = 0.0f;
     float songArcAnticipation3D = 0.0f;
     float songArcImpact3D = 0.0f;
@@ -172,6 +175,8 @@ struct GeometryFrame {
     float sceneRoleVocabulary3D = 0.0f;
     float sceneRoleSilhouetteContrast3D = 0.0f;
     float sceneRoleLegibility3D = 0.0f;
+    float sceneRoleMotionContrast3D = 0.0f;
+    float sceneMusicalStructure3D = 0.0f;
     float cameraDepth = 0.0f;
     float cameraYaw = 0.0f;
     float cameraPitch = 0.0f;

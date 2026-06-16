@@ -3229,6 +3229,14 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
                 std::to_string(separatedFrame.sceneRoleLegibility3D) +
                 " crosstalk=" + std::to_string(separatedFrame.sceneRoleCrosstalk3D) +
                 " spread=" + std::to_string(separatedFrame.sceneRoleDistrictSpread3D));
+    require(separatedFrame.sceneRoleMotionContrast3D > 0.18f,
+            "layered pre-drop music should give different musical parts different 3D motion signatures; motionContrast=" +
+                std::to_string(separatedFrame.sceneRoleMotionContrast3D));
+    require(separatedFrame.sceneMusicalStructure3D > 0.34f,
+            "layered pre-drop music should read as structured musical architecture rather than one blended visual mass; structure=" +
+                std::to_string(separatedFrame.sceneMusicalStructure3D) +
+                " legibility=" + std::to_string(separatedFrame.sceneRoleLegibility3D) +
+                " motionContrast=" + std::to_string(separatedFrame.sceneRoleMotionContrast3D));
 
     require(objectRoleCount(separatedFrame, Object3DRole::Bass) >= 4 &&
                 objectRoleCount(separatedFrame, Object3DRole::Drums) >= 8 &&
@@ -3266,6 +3274,9 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
             "converged drop should preserve enough role vocabulary to remain interpretable");
     require(convergedFrame.sceneRoleLegibility3D > 0.24f,
             "earned convergence should still read as composed musical-role geometry, not a shapeless merge");
+    require(convergedFrame.sceneMusicalStructure3D > 0.28f,
+            "earned convergence should remain a readable musical structure, not collapse into cheap motion noise; structure=" +
+                std::to_string(convergedFrame.sceneMusicalStructure3D));
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -4497,6 +4508,19 @@ void sectionNarrativeAuthorsDistinct3DStructures()
             "groove sections should report a strong locked 3D narrative");
     require(breakdownFrame.sectionBreakdown3D > 0.55f,
             "breakdown sections should report a strong spacious 3D narrative");
+    require(buildFrame.sectionTransform3D > 0.38f &&
+                dropFrame.sectionTransform3D > 0.42f &&
+                grooveFrame.sectionTransform3D > 0.32f &&
+                breakdownFrame.sectionTransform3D > 0.38f &&
+                releaseFrame.sectionTransform3D > 0.30f,
+            "section narratives should transform the whole 3D scene, not just append section props");
+    require(dropFrame.sectionDepthMotion3D > buildFrame.sectionDepthMotion3D * 0.84f &&
+                breakdownFrame.sectionDepthMotion3D > neutralFrame.sectionDepthMotion3D + 0.16f,
+            "drops and breakdowns should create measurable depth motion through the 3D scene");
+    require(dropFrame.sectionMaterialShift3D > 0.08f &&
+                buildFrame.sectionMaterialShift3D > 0.06f &&
+                releaseFrame.sectionMaterialShift3D > 0.05f,
+            "section choreography should change material/glow presence, not only object positions");
 
     require(buildFrame.objects3D.size() > neutralFrame.objects3D.size() + 10U,
             "build narrative should add rising 3D structure objects");
@@ -4523,6 +4547,9 @@ void sectionNarrativeAuthorsDistinct3DStructures()
                 grooveFrame.projected3DVisualWeight > grooveFrame.retained2DVisualWeight * 1.6f &&
                 breakdownFrame.projected3DVisualWeight > breakdownFrame.retained2DVisualWeight * 1.6f,
             "section narrative structures should remain 3D-dominant");
+    require(objectMotionSignature(buildFrame) > objectMotionSignature(neutralFrame) + 2.0f &&
+                std::fabs(objectMotionSignature(dropFrame) - objectMotionSignature(breakdownFrame)) > 8.0f,
+            "section choreography should produce visibly different object-motion signatures across song sections");
 }
 
 void songArcMemoryShapesBuildDropRecovery()
@@ -5995,11 +6022,11 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include projected 3D framing and depth-layer columns");
         require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
                 "timeline should include cinematic camera continuity columns");
-        require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
+        require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D,sectionTransform3D,sectionDepthMotion3D,sectionMaterialShift3D") != std::string::npos,
                 "timeline should include 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
                 "timeline should include persistent song-arc interpretation columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D,roleMotionContrast3D,musicalStructure3D") != std::string::npos,
                 "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
                 "timeline should include adaptive audio profile columns");
@@ -6335,11 +6362,11 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain projected 3D framing and depth-layer columns");
         require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
                 "batch timeline should contain cinematic camera continuity columns");
-        require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
+        require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D,sectionTransform3D,sectionDepthMotion3D,sectionMaterialShift3D") != std::string::npos,
                 "batch timeline should contain 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
                 "batch timeline should contain persistent song-arc interpretation columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D,roleMotionContrast3D,musicalStructure3D") != std::string::npos,
                 "batch timeline should contain separated musical role columns");
     }
 

@@ -842,6 +842,9 @@ void WindowsApp::updateCapturePackage(const AudioMetrics& metrics,
                 geometry.sectionGroove3D,
                 geometry.sectionBreakdown3D,
                 geometry.sectionRelease3D,
+                geometry.sectionTransform3D,
+                geometry.sectionDepthMotion3D,
+                geometry.sectionMaterialShift3D,
                 geometry.songArc3D,
                 geometry.songArcAnticipation3D,
                 geometry.songArcImpact3D,
@@ -863,7 +866,9 @@ void WindowsApp::updateCapturePackage(const AudioMetrics& metrics,
                 geometry.sceneRoleBalance3D,
                 geometry.sceneRoleVocabulary3D,
                 geometry.sceneRoleSilhouetteContrast3D,
-                geometry.sceneRoleLegibility3D
+                geometry.sceneRoleLegibility3D,
+                geometry.sceneRoleMotionContrast3D,
+                geometry.sceneMusicalStructure3D
             },
             error)) {
             captureTimelineActive_ = false;

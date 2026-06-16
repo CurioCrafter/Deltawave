@@ -61,9 +61,10 @@ bool AnalysisTimelineWriter::open(const std::filesystem::path& path, std::string
             << "projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare,"
             << "cameraMotion3D,cameraContinuity3D,"
             << "sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D,"
+            << "sectionTransform3D,sectionDepthMotion3D,sectionMaterialShift3D,"
             << "songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D,"
             << "bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,"
-            << "explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D,"
+            << "explicitRoleShare3D,roleBridgeShare3D,roleCrosstalk3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,roleLegibility3D,roleMotionContrast3D,musicalStructure3D,"
             << "primitiveCount\n";
     if (!output_) {
         error = "Failed while writing timeline header.";
@@ -169,6 +170,9 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << std::setprecision(3) << entry.sectionGroove3D << ","
             << std::setprecision(3) << entry.sectionBreakdown3D << ","
             << std::setprecision(3) << entry.sectionRelease3D << ","
+            << std::setprecision(3) << entry.sectionTransform3D << ","
+            << std::setprecision(3) << entry.sectionDepthMotion3D << ","
+            << std::setprecision(3) << entry.sectionMaterialShift3D << ","
             << std::setprecision(3) << entry.songArc3D << ","
             << std::setprecision(3) << entry.songArcAnticipation3D << ","
             << std::setprecision(3) << entry.songArcImpact3D << ","
@@ -191,6 +195,8 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << std::setprecision(3) << entry.sceneRoleVocabulary3D << ","
             << std::setprecision(3) << entry.sceneRoleSilhouetteContrast3D << ","
             << std::setprecision(3) << entry.sceneRoleLegibility3D << ","
+            << std::setprecision(3) << entry.sceneRoleMotionContrast3D << ","
+            << std::setprecision(3) << entry.sceneMusicalStructure3D << ","
             << entry.primitiveCount << "\n";
 
     if (!output_) {

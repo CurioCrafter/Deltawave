@@ -258,6 +258,11 @@ foreach ($profile in $profiles) {
         roleVocabularyMax = if ($timeline[0].PSObject.Properties.Name -contains "roleVocabulary3D") { & $metric $timeline "roleVocabulary3D" "max" } else { 0.0 }
         roleSilhouetteContrastMax = if ($timeline[0].PSObject.Properties.Name -contains "roleSilhouetteContrast3D") { & $metric $timeline "roleSilhouetteContrast3D" "max" } else { 0.0 }
         roleLegibilityMax = if ($timeline[0].PSObject.Properties.Name -contains "roleLegibility3D") { & $metric $timeline "roleLegibility3D" "max" } else { 0.0 }
+        roleMotionContrastMax = if ($timeline[0].PSObject.Properties.Name -contains "roleMotionContrast3D") { & $metric $timeline "roleMotionContrast3D" "max" } else { 0.0 }
+        musicalStructureMax = if ($timeline[0].PSObject.Properties.Name -contains "musicalStructure3D") { & $metric $timeline "musicalStructure3D" "max" } else { 0.0 }
+        sectionTransformMax = if ($timeline[0].PSObject.Properties.Name -contains "sectionTransform3D") { & $metric $timeline "sectionTransform3D" "max" } else { 0.0 }
+        sectionDepthMotionMax = if ($timeline[0].PSObject.Properties.Name -contains "sectionDepthMotion3D") { & $metric $timeline "sectionDepthMotion3D" "max" } else { 0.0 }
+        sectionMaterialShiftMax = if ($timeline[0].PSObject.Properties.Name -contains "sectionMaterialShift3D") { & $metric $timeline "sectionMaterialShift3D" "max" } else { 0.0 }
         bassRoleMax = & $columnMax $timeline "bassRole3D"
         drumRoleMax = & $columnMax $timeline "drumRole3D"
         melodyRoleMax = & $columnMax $timeline "melodyRole3D"
@@ -309,6 +314,16 @@ foreach ($row in $summaryRows) {
         }
         if ([double]$row.roleLegibilityMax -lt 0.28) {
             $failures += "$($row.profile): role legibility stayed too low; separate music parts are likely meshing together"
+        }
+        if ([double]$row.roleMotionContrastMax -lt 0.12) {
+            $failures += "$($row.profile): musical parts share too much of the same 3D motion language"
+        }
+        if ([double]$row.musicalStructureMax -lt 0.30) {
+            $failures += "$($row.profile): musical structure stayed too low; visuals may read as one blended mass"
+        }
+        $sectionThreshold = if ($row.profile -in @("ambient", "melodic")) { 0.10 } else { 0.20 }
+        if ([double]$row.sectionTransformMax -lt $sectionThreshold) {
+            $failures += "$($row.profile): section-level 3D transformation stayed too low"
         }
     }
     switch ($row.profile) {
@@ -391,7 +406,7 @@ try {
         $y = [int][Math]::Floor($i / $columns) * $cellHeight
         $row = $images[$i].Row
         $graphics.DrawString($row.profile, $font, $brush, [single]($x + 8), [single]($y + 5))
-        $metrics = "$($row.finalMode) / $($row.finalMotion)  cov $([Math]::Round([double]$row.coverageMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))  read $([Math]::Round([double]$row.roleLegibilityMax, 3))"
+        $metrics = "$($row.finalMode) / $($row.finalMotion)  cov $([Math]::Round([double]$row.coverageMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))  sect $([Math]::Round([double]$row.sectionTransformMax, 3))"
         $graphics.DrawString($metrics, $font, $mutedBrush, [single]($x + 8), [single]($y + 24))
         $graphics.DrawImage($images[$i].Image, $x, $y + $labelHeight, $images[$i].Image.Width, $images[$i].Image.Height)
     }
@@ -424,7 +439,7 @@ if ($contactSheetWritten) {
 [void]$html.AppendLine("<div class='grid'>")
 foreach ($row in $summaryRows) {
     $relativePreview = "$($row.profile)/preview.bmp"
-    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle). coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3)), vocabulary max $([Math]::Round([double]$row.roleVocabularyMax, 3)), silhouette max $([Math]::Round([double]$row.roleSilhouetteContrastMax, 3)), legibility max $([Math]::Round([double]$row.roleLegibilityMax, 3)), crosstalk max $([Math]::Round([double]$row.roleCrosstalkMax, 3)), camera continuity min $([Math]::Round([double]$row.cameraContinuityMin, 3)), song arc max $([Math]::Round([double]$row.songArcMax, 3))</p></div>")
+    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle). coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3)), vocabulary max $([Math]::Round([double]$row.roleVocabularyMax, 3)), silhouette max $([Math]::Round([double]$row.roleSilhouetteContrastMax, 3)), legibility max $([Math]::Round([double]$row.roleLegibilityMax, 3)), motion max $([Math]::Round([double]$row.roleMotionContrastMax, 3)), structure max $([Math]::Round([double]$row.musicalStructureMax, 3)), crosstalk max $([Math]::Round([double]$row.roleCrosstalkMax, 3)), section transform max $([Math]::Round([double]$row.sectionTransformMax, 3)), section depth max $([Math]::Round([double]$row.sectionDepthMotionMax, 3)), camera continuity min $([Math]::Round([double]$row.cameraContinuityMin, 3)), song arc max $([Math]::Round([double]$row.songArcMax, 3))</p></div>")
 }
 [void]$html.AppendLine("</div>")
 [void]$html.AppendLine("<h2>Metrics</h2><table><tr>")
