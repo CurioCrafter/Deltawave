@@ -1995,6 +1995,221 @@ void sceneIntentProfilesProduceDistinct3DInterpretations()
             "music profiles should create meaningfully different 3D object signatures");
 }
 
+void autoSceneProfilesProduceDistinct3DSignatures()
+{
+    struct Profile {
+        const char* name;
+        AudioMetrics metrics;
+    };
+
+    AudioMetrics silence{};
+    silence.style = AudioStyle::Silence;
+    silence.styleConfidence = 1.0f;
+    silence.section = ArrangementSection::Silence;
+
+    AudioMetrics lowVolume = syntheticMetrics();
+    lowVolume.rms = 0.03f;
+    lowVolume.peak = 0.06f;
+    lowVolume.bass = 0.012f;
+    lowVolume.lowMid = 0.08f;
+    lowVolume.mid = 0.02f;
+    lowVolume.highMid = 0.01f;
+    lowVolume.treble = 0.01f;
+    lowVolume.stereoWidth = 0.74f;
+    lowVolume.beatConfidence = 0.0f;
+    lowVolume.dropIntensity = 0.02f;
+    lowVolume.style = AudioStyle::Wide;
+    lowVolume.styleConfidence = 0.64f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.18f;
+    ambient.peak = 0.30f;
+    ambient.bass = 0.10f;
+    ambient.lowMid = 0.22f;
+    ambient.mid = 0.28f;
+    ambient.highMid = 0.04f;
+    ambient.treble = 0.05f;
+    ambient.stereoWidth = 0.86f;
+    ambient.spectralFlux = 0.08f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.08f;
+    ambient.phraseIntensity = 0.48f;
+    ambient.harmonicEnergy = 0.56f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.88f;
+
+    AudioMetrics techno = syntheticMetrics();
+    techno.rms = 0.46f;
+    techno.peak = 0.70f;
+    techno.bass = 0.52f;
+    techno.lowMid = 0.42f;
+    techno.mid = 0.10f;
+    techno.highMid = 0.06f;
+    techno.treble = 0.08f;
+    techno.spectralFlux = 0.18f;
+    techno.beat = true;
+    techno.beatConfidence = 0.92f;
+    techno.bpm = 128.0f;
+    techno.barConfidence = 0.82f;
+    techno.downbeat = true;
+    techno.downbeatConfidence = 0.76f;
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.90f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.84f;
+
+    AudioMetrics bassDrop = syntheticMetrics();
+    bassDrop.rms = 0.82f;
+    bassDrop.peak = 1.0f;
+    bassDrop.bass = 0.96f;
+    bassDrop.lowMid = 0.68f;
+    bassDrop.highMid = 0.04f;
+    bassDrop.treble = 0.04f;
+    bassDrop.spectralFlux = 0.36f;
+    bassDrop.onset = 0.82f;
+    bassDrop.beat = true;
+    bassDrop.beatConfidence = 0.94f;
+    bassDrop.dropIntensity = 0.92f;
+    bassDrop.style = AudioStyle::BassHeavy;
+    bassDrop.styleConfidence = 0.92f;
+    bassDrop.section = ArrangementSection::Drop;
+    bassDrop.sectionConfidence = 0.9f;
+    bassDrop.bandOnsets = {0.88f, 0.70f, 0.34f, 0.18f, 0.12f};
+
+    AudioMetrics melodic = syntheticMetrics();
+    melodic.rms = 0.22f;
+    melodic.peak = 0.34f;
+    melodic.bass = 0.12f;
+    melodic.lowMid = 0.20f;
+    melodic.mid = 0.34f;
+    melodic.highMid = 0.28f;
+    melodic.treble = 0.22f;
+    melodic.spectralFlux = 0.14f;
+    melodic.stereoWidth = 0.44f;
+    melodic.keyIndex = 7;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.72f;
+    melodic.harmonicEnergy = 0.72f;
+    melodic.phraseIntensity = 0.34f;
+    melodic.style = AudioStyle::Ambient;
+    melodic.styleConfidence = 0.62f;
+
+    AudioMetrics breakbeat = syntheticMetrics();
+    breakbeat.rms = 0.10f;
+    breakbeat.peak = 0.40f;
+    breakbeat.bass = 0.30f;
+    breakbeat.lowMid = 0.12f;
+    breakbeat.mid = 0.08f;
+    breakbeat.highMid = 0.08f;
+    breakbeat.treble = 0.07f;
+    breakbeat.spectralFlux = 0.48f;
+    breakbeat.onset = 0.34f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.88f;
+    breakbeat.dropIntensity = 0.42f;
+    breakbeat.style = AudioStyle::Wide;
+    breakbeat.styleConfidence = 0.54f;
+    breakbeat.section = ArrangementSection::Drop;
+    breakbeat.sectionConfidence = 0.74f;
+    breakbeat.bandOnsets = {0.28f, 0.18f, 0.36f, 0.46f, 0.52f};
+
+    AudioMetrics darkMinimal = syntheticMetrics();
+    darkMinimal.rms = 0.24f;
+    darkMinimal.peak = 0.46f;
+    darkMinimal.bass = 0.48f;
+    darkMinimal.lowMid = 0.32f;
+    darkMinimal.mid = 0.06f;
+    darkMinimal.highMid = 0.01f;
+    darkMinimal.treble = 0.008f;
+    darkMinimal.spectralFlux = 0.16f;
+    darkMinimal.beat = true;
+    darkMinimal.beatConfidence = 0.46f;
+    darkMinimal.dropIntensity = 0.18f;
+    darkMinimal.keyIndex = 10;
+    darkMinimal.keyMode = MusicalMode::Minor;
+    darkMinimal.keyConfidence = 0.58f;
+    darkMinimal.harmonicEnergy = 0.42f;
+    darkMinimal.style = AudioStyle::Techno;
+    darkMinimal.styleConfidence = 0.58f;
+    darkMinimal.section = ArrangementSection::Groove;
+    darkMinimal.sectionConfidence = 0.72f;
+
+    const Profile profiles[] = {
+        {"silence", silence},
+        {"low-volume", lowVolume},
+        {"ambient", ambient},
+        {"techno", techno},
+        {"bass drop", bassDrop},
+        {"melodic", melodic},
+        {"breakbeat", breakbeat},
+        {"dark minimal", darkMinimal}
+    };
+
+    VisualizerEngine engine;
+    VisualSettings base;
+    base.autoScene = true;
+    base.mode = VisualMode::QuantumTunnel;
+    base.depth3D = 1.0f;
+    base.objectDensity3D = 0.86f;
+    base.lightingGlow = 0.88f;
+    base.colorImpact = 0.92f;
+    base.scenePersonality = 0.86f;
+    base.response3D = 1.0f;
+    base.motionStability = 0.86f;
+    base.patternClarity = 0.9f;
+    base.interactiveField = false;
+    base.environmentReactive = false;
+    base.qualityScale = 0.9f;
+
+    std::vector<VisualMode> modes;
+    std::vector<std::array<int, 14>> objectSignatures;
+    std::vector<std::array<int, 5>> spatialSignatures;
+    std::vector<float> motionScores;
+
+    for (std::size_t i = 0; i < std::size(profiles); ++i) {
+        SceneDirector director;
+        const VisualSettings directed = director.resolve(base, profiles[i].metrics, 2.0 + static_cast<double>(i) * 1.6);
+        const GeometryFrame frame = engine.buildFrame(profiles[i].metrics,
+                                                      directed,
+                                                      1280.0f,
+                                                      720.0f,
+                                                      3.0 + static_cast<double>(i) * 0.45);
+        require(frame.projected3DPrimitiveCount > frame.retained2DPrimitiveCount,
+                std::string(profiles[i].name) + " Auto Scene profile should remain 3D-dominant");
+        require(frame.objectDepthRange > 80.0f,
+                std::string(profiles[i].name) + " Auto Scene profile should occupy real depth");
+        modes.push_back(directed.mode);
+        objectSignatures.push_back(objectKindSignature(frame));
+        spatialSignatures.push_back(objectSpatialSignature(frame));
+        motionScores.push_back(objectMotionSignature(frame));
+    }
+
+    std::sort(modes.begin(), modes.end());
+    const auto uniqueModeEnd = std::unique(modes.begin(), modes.end());
+    require(std::distance(modes.begin(), uniqueModeEnd) >= 6,
+            "Auto Scene music profiles should not collapse into a few visual modes");
+
+    std::sort(objectSignatures.begin(), objectSignatures.end());
+    const auto uniqueObjectEnd = std::unique(objectSignatures.begin(), objectSignatures.end());
+    require(std::distance(objectSignatures.begin(), uniqueObjectEnd) >= 6,
+            "Auto Scene music profiles should create distinct 3D object-kind signatures");
+
+    std::sort(spatialSignatures.begin(), spatialSignatures.end());
+    const auto uniqueSpatialEnd = std::unique(spatialSignatures.begin(), spatialSignatures.end());
+    require(std::distance(spatialSignatures.begin(), uniqueSpatialEnd) >= 6,
+            "Auto Scene music profiles should create distinct 3D spatial compositions");
+
+    std::sort(motionScores.begin(), motionScores.end());
+    int distinctScores = 1;
+    for (std::size_t i = 1; i < motionScores.size(); ++i) {
+        if (std::fabs(motionScores[i] - motionScores[i - 1U]) > 6.0f) {
+            ++distinctScores;
+        }
+    }
+    require(distinctScores >= 6,
+            "Auto Scene music profiles should produce meaningfully different 3D motion signatures");
+}
+
 void autoSceneSelectsMotionStyleFromMusic()
 {
     SceneDirector director;
@@ -3974,6 +4189,7 @@ int main()
         {"musicProfilesDriveDifferent3DChoreography", viz::tests::musicProfilesDriveDifferent3DChoreography},
         {"threeDFirstCompositionSuppressesLegacy2D", viz::tests::threeDFirstCompositionSuppressesLegacy2D},
         {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
+        {"autoSceneProfilesProduceDistinct3DSignatures", viz::tests::autoSceneProfilesProduceDistinct3DSignatures},
         {"autoSceneSelectsMotionStyleFromMusic", viz::tests::autoSceneSelectsMotionStyleFromMusic},
         {"autoSceneDrives3DCompositionThroughSections", viz::tests::autoSceneDrives3DCompositionThroughSections},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},

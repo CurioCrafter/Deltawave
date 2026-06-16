@@ -2536,6 +2536,270 @@ void addModeSilhouetteAnchors3D(std::vector<Object3D>& objects,
     }
 }
 
+void addSceneHeroAnchors3D(std::vector<Object3D>& objects,
+                           VisualMode mode,
+                           const AudioMetrics& metrics,
+                           const std::array<ColorRGBA, 5>& colors,
+                           float minimumDimension,
+                           float density,
+                           float personality,
+                           float response,
+                           double time)
+{
+    const float phase = static_cast<float>(time);
+    const float beat = metrics.beat ? metrics.beatConfidence : 0.0f;
+    const float bass = metrics.bass * response;
+    const float transient = std::clamp(metrics.spectralFlux + metrics.onset * 0.6f, 0.0f, 1.0f);
+    const float harmonic = metrics.harmonicEnergy * std::max(metrics.keyConfidence, 0.18f);
+    const float glow = 0.34f + personality * 0.22f + response * 0.10f;
+    const float wide = minimumDimension * (0.52f + personality * 0.22f + density * 0.04f);
+    const auto pushLink = [&](Vec3 from, Vec3 to, ColorRGBA color, float linkGlow) {
+        Object3D link = makeObject3D(Object3DKind::Link,
+                                     from,
+                                     Vec3{1.0f, 1.0f, 1.0f},
+                                     Vec3{},
+                                     color,
+                                     linkGlow);
+        link.target = to;
+        objects.push_back(link);
+    };
+
+    switch (mode) {
+    case VisualMode::QuantumTunnel: {
+        for (int i = 0; i < 7; ++i) {
+            const float unit = static_cast<float>(i) / 6.0f;
+            const float radius = minimumDimension * (0.18f + unit * 0.18f + bass * 0.05f);
+            objects.push_back(makeObject3D(Object3DKind::TunnelRib,
+                                           Vec3{0.0f,
+                                                std::sin(phase * 0.08f + unit * kPi) * minimumDimension * 0.04f,
+                                                minimumDimension * (-0.54f + unit * (1.72f + metrics.dropIntensity * 0.35f))},
+                                           Vec3{radius,
+                                                radius * (0.48f + metrics.dropIntensity * 0.10f),
+                                                1.15f + unit * 0.55f},
+                                           Vec3{phase * 0.025f, bass * 0.08f, phase * (0.10f + unit * 0.04f)},
+                                           withAlpha(colors[(i + 1) % 4], 0.34f + unit * 0.08f),
+                                           glow + bass * 0.42f + metrics.dropIntensity * 0.52f));
+        }
+        for (int side = -1; side <= 1; side += 2) {
+            objects.push_back(makeObject3D(Object3DKind::Polyhedron,
+                                           Vec3{side * wide * (0.34f + bass * 0.06f),
+                                                minimumDimension * 0.10f,
+                                                minimumDimension * (0.02f - metrics.dropIntensity * 0.16f)},
+                                           Vec3{minimumDimension * (0.052f + bass * 0.018f),
+                                                minimumDimension * (0.24f + bass * 0.10f),
+                                                minimumDimension * (0.08f + metrics.dropIntensity * 0.06f)},
+                                           Vec3{phase * 0.04f, side * 0.22f, phase * 0.08f},
+                                           withAlpha(colors[1], 0.30f + bass * 0.20f),
+                                           glow + bass * 0.50f));
+        }
+        break;
+    }
+    case VisualMode::TechnoMandala:
+    case VisualMode::PolyrhythmLattice: {
+        const int lanes = mode == VisualMode::TechnoMandala ? 4 : 5;
+        std::vector<Vec3> nearPosts;
+        std::vector<Vec3> farPosts;
+        nearPosts.reserve(static_cast<std::size_t>(lanes * 2));
+        farPosts.reserve(static_cast<std::size_t>(lanes * 2));
+        for (int i = 0; i < lanes; ++i) {
+            const float lane = static_cast<float>(i) - static_cast<float>(lanes - 1) * 0.5f;
+            for (int side = -1; side <= 1; side += 2) {
+                Vec3 near{lane * wide * 0.16f,
+                          side * minimumDimension * 0.19f,
+                          minimumDimension * (-0.16f + beat * 0.06f)};
+                Vec3 far{lane * wide * 0.16f,
+                         side * minimumDimension * 0.19f,
+                         minimumDimension * (0.54f + bass * 0.12f)};
+                nearPosts.push_back(near);
+                farPosts.push_back(far);
+                objects.push_back(makeObject3D(Object3DKind::Column,
+                                               near,
+                                               Vec3{minimumDimension * 0.014f,
+                                                    minimumDimension * (0.24f + beat * 0.10f + bass * 0.08f),
+                                                    minimumDimension * 0.016f},
+                                               Vec3{0.0f, side * 0.12f, phase * 0.035f + lane * 0.06f},
+                                               withAlpha(colors[(i + side + 6) % 4], 0.30f + beat * 0.18f),
+                                               glow + beat * 0.36f + bass * 0.28f));
+                pushLink(near,
+                         far,
+                         withAlpha(colors[(i + 2) % 4], 0.18f + beat * 0.16f),
+                         glow * 0.55f + bass * 0.22f);
+            }
+        }
+        for (std::size_t i = 2; i < nearPosts.size(); i += 2) {
+            pushLink(nearPosts[i - 2U], nearPosts[i], withAlpha(colors[0], 0.16f + beat * 0.12f), glow * 0.45f);
+            pushLink(farPosts[i - 1U], farPosts[i + 1U < farPosts.size() ? i + 1U : i - 1U],
+                     withAlpha(colors[2], 0.12f + bass * 0.12f), glow * 0.42f);
+        }
+        break;
+    }
+    case VisualMode::LissajousMesh:
+    case VisualMode::PhaseWeave: {
+        for (int i = 0; i < 5; ++i) {
+            const float unit = static_cast<float>(i) / 4.0f;
+            const float lane = unit - 0.5f;
+            objects.push_back(makeObject3D(Object3DKind::Ribbon,
+                                           Vec3{lane * wide * 0.86f,
+                                                std::sin(phase * 0.10f + unit * kPi) * minimumDimension * 0.13f,
+                                                minimumDimension * (-0.28f + unit * 0.68f + metrics.stereoWidth * 0.16f)},
+                                           Vec3{minimumDimension * (0.42f + metrics.stereoWidth * 0.16f),
+                                                minimumDimension * (0.24f + harmonic * 0.10f),
+                                                minimumDimension * (0.18f + metrics.stereoWidth * 0.08f)},
+                                           Vec3{phase * 0.055f + unit,
+                                                phase * (0.12f + metrics.stereoWidth * 0.04f),
+                                                unit * kPi + metrics.phrasePhase * kPi * 0.4f},
+                                           withAlpha(colors[(i + 1) % 4], 0.30f + metrics.stereoWidth * 0.22f),
+                                           glow + metrics.stereoWidth * response * 0.38f + harmonic * 0.18f));
+        }
+        break;
+    }
+    case VisualMode::FrequencyBloom:
+    case VisualMode::ChromaKaleidoscope: {
+        const int points = mode == VisualMode::ChromaKaleidoscope ? 9 : 7;
+        std::vector<Vec3> anchors;
+        anchors.reserve(static_cast<std::size_t>(points));
+        for (int i = 0; i < points; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(points);
+            const float angle = unit * 2.0f * kPi + metrics.keyConfidence * kPi * 0.28f;
+            const float chroma = chromaAt(metrics, i);
+            const float radius = wide * (0.20f + chroma * 0.14f + harmonic * 0.08f);
+            Vec3 position{std::cos(angle) * radius,
+                          std::sin(angle) * radius * 0.66f,
+                          minimumDimension * (-0.18f + chroma * 0.56f + harmonic * 0.18f)};
+            anchors.push_back(position);
+            objects.push_back(makeObject3D(mode == VisualMode::ChromaKaleidoscope ? Object3DKind::Cage
+                                                                                   : Object3DKind::WaveSurface,
+                                           position,
+                                           Vec3{minimumDimension * (0.045f + chroma * 0.030f + harmonic * 0.012f),
+                                                minimumDimension * (0.070f + chroma * 0.050f + harmonic * 0.030f),
+                                                minimumDimension * (0.045f + chroma * 0.020f)},
+                                           Vec3{phase * 0.045f + unit,
+                                                angle + phase * 0.035f,
+                                                metrics.harmonicEnergy * kPi},
+                                           withAlpha(colors[(i + 2) % 4], 0.30f + chroma * 0.34f + harmonic * 0.08f),
+                                           glow + chroma * response * 0.56f + harmonic * 0.32f));
+        }
+        for (std::size_t i = 0; i < anchors.size(); ++i) {
+            pushLink(anchors[i],
+                     anchors[(i + (mode == VisualMode::ChromaKaleidoscope ? 3U : 2U)) % anchors.size()],
+                     withAlpha(colors[(i + 1U) % 4U], 0.12f + harmonic * 0.18f),
+                     glow * 0.45f + harmonic * 0.24f);
+        }
+        break;
+    }
+    case VisualMode::SpectralOrigami: {
+        for (int i = 0; i < 9; ++i) {
+            const float unit = static_cast<float>(i) / 8.0f;
+            const float zig = (i % 2 == 0 ? -1.0f : 1.0f);
+            objects.push_back(makeObject3D(i % 3 == 0 ? Object3DKind::Plate : Object3DKind::Shard,
+                                           Vec3{(unit - 0.5f) * wide * 1.04f,
+                                                zig * minimumDimension * (0.13f + transient * 0.05f),
+                                                minimumDimension * (-0.28f + unit * 0.78f + transient * 0.12f)},
+                                           Vec3{minimumDimension * (0.052f + transient * 0.026f),
+                                                minimumDimension * (0.20f + metrics.onset * 0.10f),
+                                                minimumDimension * (0.032f + transient * 0.018f)},
+                                           Vec3{0.60f + unit * 0.34f,
+                                                zig * (0.42f + transient * 0.20f),
+                                                phase * 0.075f + unit * kPi},
+                                           withAlpha(colors[i % 4], 0.32f + transient * 0.22f),
+                                           glow + transient * 0.62f + metrics.onset * 0.26f));
+        }
+        break;
+    }
+    case VisualMode::FractalCathedral: {
+        for (int i = 0; i < 5; ++i) {
+            const float unit = static_cast<float>(i) / 4.0f;
+            const float lane = unit - 0.5f;
+            objects.push_back(makeObject3D(Object3DKind::Column,
+                                           Vec3{lane * wide * 0.78f,
+                                                minimumDimension * (0.14f + std::abs(lane) * 0.04f),
+                                                minimumDimension * (-0.08f + std::abs(lane) * 0.32f)},
+                                           Vec3{minimumDimension * (0.026f + metrics.bass * 0.014f),
+                                                minimumDimension * (0.34f + metrics.bass * 0.18f + metrics.phraseIntensity * 0.10f),
+                                                minimumDimension * (0.040f + metrics.bass * 0.018f)},
+                                           Vec3{0.05f + metrics.phrasePhase * 0.08f,
+                                                lane * 0.16f,
+                                                phase * 0.012f},
+                                           withAlpha(mix(colors[3], colors[4], 0.38f), 0.28f + metrics.bass * 0.18f),
+                                           glow + metrics.bass * 0.34f));
+        }
+        objects.push_back(makeObject3D(Object3DKind::Cage,
+                                       Vec3{0.0f, -minimumDimension * 0.04f, minimumDimension * 0.30f},
+                                       Vec3{minimumDimension * 0.30f,
+                                            minimumDimension * 0.22f,
+                                            minimumDimension * 0.18f},
+                                       Vec3{0.36f + metrics.phrasePhase * 0.16f, phase * 0.018f, 0.0f},
+                                       withAlpha(colors[4], 0.22f + metrics.harmonicEnergy * 0.14f),
+                                       glow + metrics.harmonicEnergy * 0.22f));
+        break;
+    }
+    case VisualMode::HyperspacePolytope: {
+        for (int i = 0; i < 6; ++i) {
+            const float unit = static_cast<float>(i) / 5.0f;
+            objects.push_back(makeObject3D(Object3DKind::Cage,
+                                           Vec3{std::sin(unit * kPi * 2.0f + phase * 0.07f) * wide * 0.30f,
+                                                std::cos(unit * kPi * 2.0f + phase * 0.09f) * wide * 0.18f,
+                                                minimumDimension * (-0.34f + unit * 0.98f + metrics.dropIntensity * 0.12f)},
+                                           Vec3{minimumDimension * (0.090f + unit * 0.034f),
+                                                minimumDimension * (0.090f + unit * 0.034f),
+                                                minimumDimension * (0.15f + unit * 0.050f + metrics.dropIntensity * 0.030f)},
+                                           Vec3{phase * 0.12f + unit,
+                                                phase * 0.18f,
+                                                phase * 0.10f + metrics.beatPhase},
+                                           withAlpha(colors[i % 4], 0.30f + metrics.dropIntensity * 0.18f),
+                                           glow + metrics.dropIntensity * 0.50f + harmonic * 0.18f));
+        }
+        break;
+    }
+    case VisualMode::ResonanceTessellation:
+    case VisualMode::CymaticInterference: {
+        for (int i = 0; i < 6; ++i) {
+            const float unit = static_cast<float>(i) / 5.0f;
+            objects.push_back(makeObject3D(mode == VisualMode::CymaticInterference ? Object3DKind::WaveSurface
+                                                                                   : Object3DKind::DepthPlane,
+                                           Vec3{(unit - 0.5f) * wide * 0.62f,
+                                                std::sin(unit * kPi * 2.0f) * minimumDimension * 0.11f,
+                                                minimumDimension * (-0.18f + unit * 0.58f + harmonic * 0.10f)},
+                                           Vec3{minimumDimension * (0.22f + harmonic * 0.08f),
+                                                minimumDimension * (0.14f + metrics.buildTension * 0.06f),
+                                                minimumDimension * 0.040f},
+                                           Vec3{0.50f + metrics.phrasePhase * 0.22f,
+                                                (unit - 0.5f) * 0.34f,
+                                                phase * 0.045f + chromaAt(metrics, i) * kPi},
+                                           withAlpha(colors[i % 4], 0.26f + harmonic * 0.24f),
+                                           glow + harmonic * 0.46f + metrics.buildTension * 0.24f));
+        }
+        break;
+    }
+    case VisualMode::NeuralConstellation: {
+        std::vector<Vec3> anchors;
+        for (int i = 0; i < 7; ++i) {
+            const float unit = static_cast<float>(i) / 7.0f;
+            const float angle = unit * 2.0f * kPi + metrics.barPhase * kPi;
+            Vec3 position{std::cos(angle) * wide * 0.40f,
+                          std::sin(angle) * wide * 0.24f,
+                          minimumDimension * (-0.18f + unit * 0.62f + metrics.downbeatConfidence * 0.12f)};
+            anchors.push_back(position);
+            objects.push_back(makeObject3D(Object3DKind::Anchor,
+                                           position,
+                                           Vec3{minimumDimension * (0.020f + metrics.downbeatConfidence * response * 0.012f),
+                                                minimumDimension * 0.020f,
+                                                minimumDimension * 0.020f},
+                                           Vec3{0.0f, angle, phase * 0.12f},
+                                           withAlpha(colors[i % 4], 0.32f + metrics.barConfidence * 0.24f),
+                                           glow + metrics.downbeatConfidence * response * 0.54f));
+        }
+        for (std::size_t i = 0; i < anchors.size(); ++i) {
+            pushLink(anchors[i],
+                     anchors[(i + 3U) % anchors.size()],
+                     withAlpha(colors[(i + 2U) % 4U], 0.15f + metrics.barConfidence * 0.16f),
+                     glow * 0.44f + metrics.barConfidence * 0.24f);
+        }
+        break;
+    }
+    }
+}
+
 void applyModeComposition3D(std::vector<Object3D>& objects,
                             VisualMode mode,
                             const AudioMetrics& metrics,
@@ -3330,6 +3594,7 @@ void addObject3DScene(GeometryFrame& frame,
     }
     addModeSpecific3DObjects(objects, settings.mode, metrics, colors, minimumDimension, objectDensity, personality, response, time);
     addModeSilhouetteAnchors3D(objects, settings.mode, metrics, colors, minimumDimension, objectDensity, personality, response, time);
+    addSceneHeroAnchors3D(objects, settings.mode, metrics, colors, minimumDimension, objectDensity, personality, response, time);
     addIntentDrivenSceneObjects3D(objects, intent, metrics, colors, minimumDimension, objectDensity, personality, response, time);
     addChoreographyDepthObjects3D(objects, settings.mode, choreography, colors, minimumDimension, objectDensity, response, time);
     applyMusicChoreography3D(objects, settings.mode, choreography, minimumDimension);

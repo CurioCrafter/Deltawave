@@ -28,6 +28,110 @@ float bpmSpeedScale(float bpm)
     return std::clamp(bpm / 128.0f, 0.72f, 1.55f);
 }
 
+float highTexture(const AudioMetrics& metrics)
+{
+    return metrics.highMid + metrics.treble;
+}
+
+float highBandOnset(const AudioMetrics& metrics)
+{
+    return std::max(metrics.bandOnsets[3], metrics.bandOnsets[4]);
+}
+
+bool transientBreakCue(const AudioMetrics& metrics)
+{
+    const bool lockedTechno = metrics.style == AudioStyle::Techno &&
+                              metrics.bass > 0.42f &&
+                              metrics.beatConfidence > 0.62f;
+    const bool wideBuild = metrics.style == AudioStyle::Wide &&
+                           metrics.section == ArrangementSection::Build &&
+                           metrics.stereoWidth > 0.55f;
+    const bool harmonicBuild = metrics.section == ArrangementSection::Build &&
+                               metrics.keyConfidence > 0.48f &&
+                               metrics.harmonicEnergy > 0.56f;
+    const bool barLockedHarmony = metrics.section == ArrangementSection::Groove &&
+                                  metrics.downbeatConfidence > 0.70f &&
+                                  metrics.barConfidence > 0.52f &&
+                                  metrics.keyConfidence > 0.48f &&
+                                  metrics.harmonicEnergy > 0.40f;
+    return metrics.rms > 0.045f &&
+           metrics.spectralFlux > 0.24f &&
+           metrics.dropIntensity < 0.58f &&
+           metrics.bass < 0.74f &&
+           !lockedTechno &&
+           !wideBuild &&
+           !harmonicBuild &&
+           !barLockedHarmony &&
+           (metrics.onset > 0.14f || metrics.beatConfidence > 0.22f || metrics.section == ArrangementSection::Drop) &&
+           (highTexture(metrics) > 0.045f || highBandOnset(metrics) > 0.20f);
+}
+
+bool melodicCue(const AudioMetrics& metrics)
+{
+    return metrics.rms > 0.075f &&
+           metrics.dropIntensity < 0.38f &&
+           metrics.bass < 0.28f &&
+           metrics.harmonicEnergy > 0.30f &&
+           metrics.keyConfidence > 0.08f &&
+           metrics.spectralFlux < 0.30f;
+}
+
+bool spaciousCalmCue(const AudioMetrics& metrics)
+{
+    return (metrics.style == AudioStyle::Ambient || metrics.style == AudioStyle::Wide) &&
+           metrics.dropIntensity < 0.36f &&
+           metrics.bass < 0.42f &&
+           metrics.spectralFlux < 0.26f &&
+           metrics.beatConfidence < 0.56f;
+}
+
+bool softHarmonicFieldCue(const AudioMetrics& metrics)
+{
+    return metrics.rms > 0.07f &&
+           metrics.rms < 0.30f &&
+           metrics.dropIntensity < 0.32f &&
+           metrics.spectralFlux < 0.20f &&
+           metrics.beatConfidence < 0.42f &&
+           metrics.harmonicEnergy > 0.46f &&
+           (metrics.keyConfidence > 0.12f || metrics.stereoWidth > 0.48f);
+}
+
+bool structuralTechnoCue(const AudioMetrics& metrics)
+{
+    return metrics.style == AudioStyle::Techno &&
+           metrics.bass > 0.34f &&
+           metrics.dropIntensity < 0.48f &&
+           metrics.spectralFlux < 0.38f &&
+           (metrics.beatConfidence > 0.28f ||
+            metrics.downbeatConfidence > 0.20f ||
+            metrics.barConfidence > 0.40f);
+}
+
+bool darkMinimalCue(const AudioMetrics& metrics)
+{
+    const bool heavyDrop = metrics.style == AudioStyle::BassHeavy &&
+                           (metrics.dropIntensity > 0.34f ||
+                            (metrics.bass > 0.82f && metrics.beatConfidence > 0.58f));
+    const bool lockedTechnoGroove = metrics.style == AudioStyle::Techno &&
+                                    metrics.bass > 0.38f &&
+                                    (metrics.downbeatConfidence > 0.20f ||
+                                     metrics.barConfidence > 0.40f ||
+                                     (metrics.beatConfidence > 0.68f && metrics.spectralFlux > 0.14f));
+    const bool softHarmonicSpace = softHarmonicFieldCue(metrics) &&
+                                   metrics.rms > 0.18f &&
+                                   metrics.bass < 0.56f;
+    const float darkBassFloor = metrics.style == AudioStyle::Techno ? 0.45f : 0.56f;
+    return metrics.rms > 0.08f &&
+           metrics.style != AudioStyle::Ambient &&
+           metrics.bass > darkBassFloor &&
+           highTexture(metrics) < metrics.bass * 0.12f + 0.006f &&
+           metrics.spectralFlux < 0.42f &&
+           metrics.dropIntensity < 0.50f &&
+           !heavyDrop &&
+           !lockedTechnoGroove &&
+           !softHarmonicSpace;
+}
+
 struct SceneTarget {
     VisualMode mode = VisualMode::QuantumTunnel;
     Palette palette = Palette::NeonVoltage;
@@ -86,6 +190,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     target.speed = base.speed;
 
     const float bpmScale = bpmSpeedScale(metrics.bpm);
+    const bool hasBreakCue = transientBreakCue(metrics);
+    const bool hasMelodicCue = melodicCue(metrics);
+    const bool hasSpaciousCalmCue = spaciousCalmCue(metrics);
+    const bool hasSoftHarmonicFieldCue = softHarmonicFieldCue(metrics);
+    const bool hasStructuralTechnoCue = structuralTechnoCue(metrics);
+    const bool hasDarkMinimalCue = darkMinimalCue(metrics);
     const float phraseBuild = std::clamp(metrics.buildTension * metrics.phraseConfidence, 0.0f, 1.0f);
     const float energy = std::clamp(metrics.rms * 2.0f +
                                     metrics.beatConfidence * 0.45f +
@@ -110,7 +220,11 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.speed = base.speed * 0.62f;
         break;
     case AudioStyle::Ambient:
-        target.mode = VisualMode::FractalCathedral;
+        target.mode = hasMelodicCue
+                          ? VisualMode::ChromaKaleidoscope
+                          : (metrics.stereoWidth > 0.50f || metrics.harmonicEnergy > 0.42f
+                                 ? VisualMode::PhaseWeave
+                                 : VisualMode::LissajousMesh);
         target.palette = Palette::OceanicPulse;
         target.motionStyle = MotionStyle::AmbientDrift;
         target.depth3D = std::max(base.depth3D, 0.62f + metrics.stereoWidth * 0.16f);
@@ -189,7 +303,9 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     case AudioStyle::Wide:
         target.mode = metrics.spectralFlux > 0.36f && metrics.stereoWidth > 0.42f ? VisualMode::PhaseWeave :
                       (metrics.treble > 0.42f ? VisualMode::SpectralOrigami :
-                       (metrics.phraseIntensity > 0.35f ? VisualMode::FractalCathedral : VisualMode::LissajousMesh));
+                       (metrics.phraseIntensity > 0.35f || metrics.harmonicEnergy > 0.46f
+                            ? VisualMode::PhaseWeave
+                            : VisualMode::LissajousMesh));
         target.palette = Palette::OceanicPulse;
         target.motionStyle = MotionStyle::Liquid;
         target.depth3D = std::max(base.depth3D, 0.76f + metrics.stereoWidth * 0.2f);
@@ -203,6 +319,54 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.intensity = base.intensity * (0.92f + metrics.stereoWidth * 0.52f + metrics.phraseIntensity * 0.3f);
         target.speed = base.speed * (0.82f + bpmScale * 0.2f + metrics.stereoWidth * 0.26f);
         break;
+    }
+
+    if (hasMelodicCue) {
+        target.mode = metrics.harmonicEnergy > 0.46f ? VisualMode::ChromaKaleidoscope : VisualMode::FrequencyBloom;
+        target.palette = Palette::AcidAurora;
+        target.motionStyle = MotionStyle::Liquid;
+        target.depth3D = std::max(target.depth3D, 0.72f + metrics.harmonicEnergy * 0.12f);
+        target.colorImpact = std::max(target.colorImpact, 0.80f + metrics.harmonicEnergy * 0.12f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.68f + metrics.harmonicEnergy * 0.12f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.76f + metrics.harmonicEnergy * 0.14f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.76f + metrics.keyConfidence * 0.12f);
+        target.response3D = std::max(target.response3D, 0.74f + metrics.phraseIntensity * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.84f);
+        target.patternClarity = std::max(target.patternClarity, 0.88f);
+    }
+
+    if (hasSoftHarmonicFieldCue && !hasMelodicCue) {
+        target.mode = metrics.stereoWidth > 0.44f ? VisualMode::PhaseWeave : VisualMode::LissajousMesh;
+        target.palette = Palette::OceanicPulse;
+        target.motionStyle = MotionStyle::AmbientDrift;
+        target.depth3D = std::max(target.depth3D, 0.80f + metrics.stereoWidth * 0.08f);
+        target.colorImpact = std::max(target.colorImpact, 0.64f + metrics.harmonicEnergy * 0.12f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.60f + metrics.harmonicEnergy * 0.08f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.64f + metrics.harmonicEnergy * 0.12f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.72f);
+        target.response3D = std::max(target.response3D, 0.66f + metrics.phraseIntensity * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.90f);
+        target.patternClarity = std::max(target.patternClarity, 0.90f);
+        target.intensity *= 0.82f + metrics.harmonicEnergy * 0.18f;
+        target.speed *= 0.68f + metrics.stereoWidth * 0.16f;
+    }
+
+    if (hasStructuralTechnoCue && !hasBreakCue && !hasDarkMinimalCue) {
+        target.mode = metrics.downbeatConfidence > 0.54f || metrics.beatConfidence > 0.66f
+                          ? VisualMode::TechnoMandala
+                          : VisualMode::PolyrhythmLattice;
+        target.palette = metrics.treble > 0.34f ? Palette::AcidAurora : Palette::NeonVoltage;
+        target.motionStyle = MotionStyle::Mechanical;
+        target.depth3D = std::max(target.depth3D, 0.76f + metrics.bass * 0.08f);
+        target.colorImpact = std::max(target.colorImpact, 0.76f + metrics.beatConfidence * 0.08f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.76f + metrics.barConfidence * 0.10f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.70f + metrics.downbeatConfidence * 0.10f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.78f);
+        target.response3D = std::max(target.response3D, 0.82f + metrics.beatConfidence * 0.08f);
+        target.motionStability = std::max(target.motionStability, 0.84f);
+        target.patternClarity = std::max(target.patternClarity, 0.88f);
+        target.intensity *= 1.02f + metrics.barConfidence * 0.12f + metrics.beatConfidence * 0.08f;
+        target.speed *= 0.96f + bpmSpeedScale(metrics.bpm) * 0.18f;
     }
 
     if (metrics.keyConfidence > 0.2f) {
@@ -229,7 +393,9 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         break;
     case ArrangementSection::Breakdown:
         if (metrics.sectionConfidence > 0.42f) {
-            target.mode = metrics.harmonicEnergy > 0.48f ? VisualMode::ChromaKaleidoscope : VisualMode::FractalCathedral;
+            target.mode = hasDarkMinimalCue
+                              ? VisualMode::FractalCathedral
+                              : (metrics.harmonicEnergy > 0.48f ? VisualMode::ChromaKaleidoscope : VisualMode::FractalCathedral);
             target.palette = Palette::OceanicPulse;
             target.motionStyle = MotionStyle::AmbientDrift;
             target.depth3D = std::max(target.depth3D, 0.68f + metrics.stereoWidth * 0.12f);
@@ -246,7 +412,9 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         break;
     case ArrangementSection::Build:
         if (metrics.sectionConfidence > 0.42f) {
-            if (metrics.keyConfidence > 0.48f && metrics.harmonicEnergy > 0.56f &&
+            if (hasBreakCue) {
+                target.mode = VisualMode::SpectralOrigami;
+            } else if (metrics.keyConfidence > 0.48f && metrics.harmonicEnergy > 0.56f &&
                 (metrics.spectralFlux > 0.34f || metrics.bandOnsets[2] > 0.36f || metrics.bandOnsets[3] > 0.36f)) {
                 target.mode = VisualMode::ResonanceTessellation;
             } else {
@@ -348,12 +516,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.intensity *= 1.05f + metrics.harmonicEnergy * 0.12f + metrics.buildTension * 0.08f;
     }
 
-    const bool darkMinimalCue = metrics.rms > 0.08f &&
-                                metrics.bass > 0.30f &&
-                                metrics.highMid + metrics.treble < metrics.bass * 0.08f &&
-                                metrics.spectralFlux < 0.22f &&
-                                metrics.dropIntensity < 0.46f;
-    if (darkMinimalCue) {
+    if (hasDarkMinimalCue) {
         target.mode = metrics.keyConfidence > 0.24f ? VisualMode::ResonanceTessellation : VisualMode::FractalCathedral;
         target.palette = Palette::MonochromeLaser;
         target.motionStyle = MotionStyle::Smooth;
@@ -367,6 +530,20 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.patternClarity = std::max(target.patternClarity, 0.92f);
         target.intensity *= 0.74f + metrics.bass * 0.22f;
         target.speed *= 0.58f + metrics.beatConfidence * 0.14f;
+    }
+
+    if (hasBreakCue) {
+        target.mode = VisualMode::SpectralOrigami;
+        target.palette = Palette::AcidAurora;
+        target.motionStyle = MotionStyle::Breakbeat;
+        target.depth3D = std::max(target.depth3D, 0.78f + metrics.spectralFlux * 0.10f);
+        target.colorImpact = std::max(target.colorImpact, 0.86f + highTexture(metrics) * 0.10f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.78f + metrics.spectralFlux * 0.12f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.84f + highTexture(metrics) * 0.14f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.82f + metrics.onset * 0.10f);
+        target.response3D = std::max(target.response3D, 0.84f + metrics.spectralFlux * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.78f);
+        target.patternClarity = std::max(target.patternClarity, 0.86f);
     }
 
     if (metrics.dropIntensity > 0.68f) {
@@ -386,7 +563,8 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.patternClarity = std::max(target.patternClarity, 0.82f);
         target.intensity *= 1.18f;
         target.speed *= 1.08f;
-    } else if (metrics.style == AudioStyle::BassHeavy &&
+    } else if (!hasDarkMinimalCue &&
+               metrics.style == AudioStyle::BassHeavy &&
                (metrics.dropIntensity > 0.34f || metrics.bass > 0.70f) &&
                metrics.treble < metrics.bass * 0.82f) {
         target.mode = VisualMode::QuantumTunnel;
@@ -397,7 +575,7 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.lightingGlow = std::max(target.lightingGlow, 0.78f + metrics.dropIntensity * 0.10f);
         target.scenePersonality = std::max(target.scenePersonality, 0.78f + metrics.bass * 0.10f);
         target.response3D = std::max(target.response3D, 0.88f + metrics.dropIntensity * 0.10f);
-    } else if (metrics.bandOnsets[0] > 0.55f && metrics.beatConfidence > 0.5f) {
+    } else if (!hasBreakCue && metrics.bandOnsets[0] > 0.55f && metrics.beatConfidence > 0.5f) {
         target.mode = VisualMode::PolyrhythmLattice;
         target.motionStyle = MotionStyle::Mechanical;
         target.objectDensity3D = std::max(target.objectDensity3D, 0.76f + metrics.beatConfidence * 0.10f);
@@ -449,6 +627,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
     if (metrics.downbeatConfidence > 0.58f &&
         metrics.barConfidence > 0.34f &&
         metrics.dropIntensity < 0.62f &&
+        !hasBreakCue &&
+        !hasDarkMinimalCue &&
+        !hasSpaciousCalmCue &&
+        metrics.style != AudioStyle::Techno &&
+        metrics.style != AudioStyle::BassHeavy &&
+        metrics.style != AudioStyle::Bright &&
         (metrics.harmonicEnergy > 0.42f || metrics.stereoWidth > 0.44f) &&
         (metrics.spectralFlux > 0.18f || metrics.phraseIntensity > 0.32f || metrics.section == ArrangementSection::Groove)) {
         target.mode = VisualMode::NeuralConstellation;
@@ -565,6 +749,21 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
 
     const bool strongDrop = metrics.dropIntensity > 0.68f ||
                             (metrics.section == ArrangementSection::Drop && metrics.sectionConfidence > 0.62f);
+    const bool strongBreak = transientBreakCue(metrics) &&
+                             (metrics.spectralFlux > 0.30f ||
+                              highBandOnset(metrics) > 0.38f ||
+                              metrics.onset > 0.26f);
+    const bool strongMusicIdentity = strongBreak ||
+                                     ((target.mode == VisualMode::ChromaKaleidoscope ||
+                                       target.mode == VisualMode::FrequencyBloom) &&
+                                      melodicCue(metrics)) ||
+                                     ((target.mode == VisualMode::PhaseWeave ||
+                                       target.mode == VisualMode::LissajousMesh) &&
+                                      softHarmonicFieldCue(metrics)) ||
+                                     ((target.mode == VisualMode::TechnoMandala ||
+                                       target.mode == VisualMode::PolyrhythmLattice) &&
+                                      structuralTechnoCue(metrics)) ||
+                                     (target.palette == Palette::MonochromeLaser && darkMinimalCue(metrics));
     const bool phraseBoundary = (metrics.phraseBoundary && metrics.phraseConfidence > 0.42f) ||
                                 (metrics.downbeat && metrics.downbeatConfidence > 0.45f) ||
                                 (metrics.phraseIntensity > 0.55f && metrics.beatPhase < 0.22f) ||
@@ -572,11 +771,11 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
                                  metrics.sectionConfidence > 0.58f &&
                                  metrics.sectionProgress < 0.2f);
     const bool switchWindowElapsed = (timeSeconds - lastModeSwitchSeconds_) > 1.35;
-    if (target.mode != currentMode_ && (strongDrop || phraseBoundary || switchWindowElapsed)) {
+    if (target.mode != currentMode_ && (strongDrop || strongMusicIdentity || phraseBoundary || switchWindowElapsed)) {
         currentMode_ = target.mode;
         lastModeSwitchSeconds_ = timeSeconds;
         transitionStartSeconds_ = timeSeconds;
-        transitionDurationSeconds_ = strongDrop ? 0.72 : (phraseBoundary ? 1.05 : 0.86);
+        transitionDurationSeconds_ = strongDrop ? 0.72 : (strongBreak ? 0.58 : (phraseBoundary ? 1.05 : 0.86));
         transitionStrength_ = std::clamp(0.48f +
                                              metrics.dropIntensity * 0.36f +
                                              metrics.phraseIntensity * 0.22f +
@@ -586,7 +785,7 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
                                          0.45f,
                                          1.0f);
     }
-    if (target.palette != currentPalette_ && (strongDrop || switchWindowElapsed)) {
+    if (target.palette != currentPalette_ && (strongDrop || strongMusicIdentity || switchWindowElapsed)) {
         currentPalette_ = target.palette;
     }
 
