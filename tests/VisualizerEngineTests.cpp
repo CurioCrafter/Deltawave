@@ -865,10 +865,11 @@ void sceneTransitionAddsMorphGeometry()
     settings.sceneTransitionProgress = 0.25f;
     const GeometryFrame morph = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 1.0);
 
-    require(countPrimitives(morph) > countPrimitives(neutral) + 20,
-            "scene transitions should add a visible morph overlay");
-    require(morph.polylines.size() > neutral.polylines.size(),
-            "scene transitions should add folded linework");
+    require(morph.projected3DPrimitiveCount > neutral.projected3DPrimitiveCount + 20 ||
+                morph.objects3D.size() > neutral.objects3D.size(),
+            "scene transitions should add visible 3D morph structures");
+    require(morph.retained2DPrimitiveCount == 0,
+            "scene transitions should not retain a flat 2D morph overlay");
     require(morph.flash > neutral.flash,
             "scene transitions should add a flash accent");
 }
@@ -905,8 +906,9 @@ void hyperspacePolytopeRespondsToDimensionalEnergy()
     const GeometryFrame calmFrame = engine.buildFrame(calm, settings, 1280.0f, 720.0f, 2.0);
     const GeometryFrame intenseFrame = engine.buildFrame(intense, settings, 1280.0f, 720.0f, 2.0);
     require(!calmFrame.polylines.empty(), "hyperspace polytope should generate projected edge linework");
-    require(intenseFrame.particles.size() > calmFrame.particles.size(),
-            "drop and harmonic energy should light up edge particles");
+    require(intenseFrame.projected3DPrimitiveCount > calmFrame.projected3DPrimitiveCount ||
+                averageObjectGlow(intenseFrame) > averageObjectGlow(calmFrame) + 0.04f,
+            "drop and harmonic energy should light up the 3D hyperspace object field");
     require(intenseFrame.flash > calmFrame.flash,
             "intense hyperspace frames should preserve flash response");
 }
@@ -1331,7 +1333,9 @@ void syncMetricsAddVisualAccents()
     const std::size_t syncCount = syncFrame.rings.size() + syncFrame.beams.size() +
                                   syncFrame.particles.size() + syncFrame.polylines.size();
     require(syncCount > neutralCount, "advanced sync metrics should add visual accents");
-    require(syncFrame.beams.size() > neutral.beams.size(), "downbeat metrics should add shared sync beams");
+    require(syncFrame.projected3DPrimitiveCount > neutral.projected3DPrimitiveCount ||
+                syncFrame.projected3DVisualWeight > neutral.projected3DVisualWeight + 20.0f,
+            "downbeat metrics should add shared 3D sync structure");
 
     AudioMetrics phraseBuild = base;
     phraseBuild.phrasePhase = 0.88f;
@@ -1393,9 +1397,9 @@ void hueShiftChangesRenderedPalette()
 
     require(countPrimitives(base) == countPrimitives(shifted),
             "hue shift should recolor without changing geometry density");
-    require(!base.beams.empty() && !shifted.beams.empty(), "frequency bloom should generate beams for hue comparison");
-    require(colorDistance(base.beams.front().color, shifted.beams.front().color) > 0.2f,
-            "hue shift should visibly change generated colors");
+    require(!base.polylines.empty() && !shifted.polylines.empty(), "frequency bloom should generate projected 3D color geometry");
+    require(colorDistance(base.polylines.front().color, shifted.polylines.front().color) > 0.2f,
+            "hue shift should visibly change projected 3D colors");
     require(colorDistance(base.background, shifted.background) > 0.01f,
             "hue shift should influence background tint");
 }
@@ -1683,14 +1687,14 @@ void allModesStay3DFirstInStillFrames()
                                                       5.0 + static_cast<double>(i) * 0.23);
         require(frame.projected3DPrimitiveCount > 0, "each visual mode should project real 3D geometry");
         require(frame.objects3D.size() >= 8U, "each visual mode should author a meaningful 3D object set");
-        require(frame.retained2DPrimitiveCount < frame.authored2DPrimitiveCount,
-                "3D-first composition should suppress legacy 2D primitives in every mode");
-        require(frame.retained2DPrimitiveRatio < 0.36f,
-                "each mode should retain only a small legacy 2D guide layer");
-        require(frame.retained2DVisualRatio < 0.20f,
-                "each mode should heavily fade legacy 2D visual weight");
-        require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.4f,
-                "projected 3D visual weight should dominate retained 2D guides in every mode");
+        require(frame.authored2DPrimitiveCount > 0,
+                "manual modes still author legacy 2D candidates before 3D-first suppression");
+        require(frame.retained2DPrimitiveCount == 0,
+                "high-depth 3D-first composition should remove retained legacy 2D primitives in every mode");
+        require(frame.retained2DVisualWeight <= 0.001f,
+                "high-depth 3D-first composition should remove retained legacy 2D visual weight");
+        require(frame.projected3DVisualWeight > 100.0f,
+                "projected 3D visual weight should carry every high-depth mode");
         require(frame.threeDDominance > 1.25f, "each mode should report clear 3D dominance");
         require(frame.objectDepthRange > 80.0f, "each mode should occupy visible depth in still captures");
         spatialSignatures.push_back(objectSpatialSignature(frame));
@@ -2043,14 +2047,16 @@ void threeDFirstCompositionSuppressesLegacy2D()
 
     const GeometryFrame frame = engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 4.0);
 
-    require(frame.authored2DPrimitiveCount > frame.retained2DPrimitiveCount * 2,
-            "3D-first composition should substantially thin legacy screen-space primitive counts");
-    require(frame.authored2DVisualWeight > frame.retained2DVisualWeight * 4.0f,
-            "3D-first composition should strongly fade legacy 2D visual weight");
-    require(frame.retained2DPrimitiveRatio < 0.22f,
-            "high-depth 3D-first composition should keep only a small fraction of legacy 2D primitives");
-    require(frame.retained2DVisualRatio < 0.08f,
-            "high-depth 3D-first composition should leave very little legacy 2D visual weight");
+    require(frame.authored2DPrimitiveCount > 0,
+            "3D-first composition should still measure legacy 2D candidates before suppression");
+    require(frame.retained2DPrimitiveCount == 0,
+            "high-depth 3D-first composition should remove retained legacy screen-space primitive counts");
+    require(frame.retained2DVisualWeight <= 0.001f,
+            "high-depth 3D-first composition should remove retained legacy 2D visual weight");
+    require(frame.retained2DPrimitiveRatio == 0.0f,
+            "high-depth 3D-first composition should report zero retained legacy 2D primitive ratio");
+    require(frame.retained2DVisualRatio == 0.0f,
+            "high-depth 3D-first composition should report zero retained legacy 2D visual ratio");
     require(frame.projected3DPrimitiveCount > frame.retained2DPrimitiveCount,
             "projected 3D primitives should outnumber retained 2D composition guides");
     require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 1.5f,
@@ -2419,6 +2425,10 @@ void autoSceneProfilesProduceDistinct3DSignatures()
                                                       3.0 + static_cast<double>(i) * 0.45);
         require(frame.projected3DPrimitiveCount > frame.retained2DPrimitiveCount,
                 std::string(profiles[i].name) + " Auto Scene profile should remain 3D-dominant");
+        require(frame.retained2DPrimitiveCount == 0,
+                std::string(profiles[i].name) + " Auto Scene profile should remove retained legacy 2D primitives");
+        require(frame.retained2DVisualWeight <= 0.001f,
+                std::string(profiles[i].name) + " Auto Scene profile should remove retained legacy 2D visual weight");
         require(frame.objectDepthRange > 80.0f,
                 std::string(profiles[i].name) + " Auto Scene profile should occupy real depth");
         modes.push_back(directed.mode);
@@ -3853,14 +3863,14 @@ void interactionAndEnvironmentRemain3DFirst()
 
     const GeometryFrame frame = engine.buildFrame(metrics, settings, interaction, environment, 1280.0f, 720.0f, 3.4);
 
-    require(frame.retained2DPrimitiveRatio < 0.28f,
-            "interactive/environmental high-depth frames should not retain a large flat 2D layer");
-    require(frame.retained2DVisualRatio < 0.12f,
-            "interactive/environmental high-depth frames should heavily fade flat 2D visual weight");
-    require(frame.projected3DPrimitiveCount > frame.retained2DPrimitiveCount * 2,
+    require(frame.retained2DPrimitiveCount == 0,
+            "interactive/environmental high-depth frames should remove the flat retained 2D layer");
+    require(frame.retained2DVisualWeight <= 0.001f,
+            "interactive/environmental high-depth frames should keep flat 2D visual weight at zero");
+    require(frame.projected3DPrimitiveCount > 0,
             "3D projection should remain the visible backbone under mouse/environment input");
-    require(frame.projected3DVisualWeight > frame.retained2DVisualWeight * 2.4f,
-            "3D visual weight should dominate mouse/environment guide accents");
+    require(frame.projected3DVisualWeight > 100.0f,
+            "3D visual weight should dominate mouse/environment depth interaction");
     require(frame.sectionBreakdown3D > 0.45f,
             "breakdown interpretation should still create 3D depth structure under live interaction");
 }
@@ -4146,12 +4156,12 @@ void neuralConstellationRespondsToBarsHarmonyAndOnsets()
     const GeometryFrame calmFrame = engine.buildFrame(calm, settings, 1280.0f, 720.0f, 2.0);
     const GeometryFrame lockedFrame = engine.buildFrame(locked, settings, 1280.0f, 720.0f, 2.0);
 
-    require(calmFrame.particles.size() > 20, "neural constellation should generate node particles");
-    require(calmFrame.polylines.size() > 20, "neural constellation should generate connection polylines");
-    require(lockedFrame.rings.size() > calmFrame.rings.size(),
-            "downbeats and harmony should add neural constellation rings");
-    require(lockedFrame.beams.size() > calmFrame.beams.size(),
-            "drop and spectral energy should add neural constellation beams");
+    require(calmFrame.objects3D.size() > 20U, "neural constellation should generate 3D node objects");
+    require(calmFrame.projected3DPrimitiveCount > 120, "neural constellation should project dense 3D connections");
+    require(lockedFrame.objects3D.size() > calmFrame.objects3D.size(),
+            "downbeats and harmony should add 3D neural constellation objects");
+    require(lockedFrame.projected3DVisualWeight > calmFrame.projected3DVisualWeight + 20.0f,
+            "drop and spectral energy should add visible 3D neural constellation weight");
     require(countPrimitives(lockedFrame) > countPrimitives(calmFrame),
             "bar-locked harmonic input should increase neural constellation density");
     require(lockedFrame.flash > calmFrame.flash,

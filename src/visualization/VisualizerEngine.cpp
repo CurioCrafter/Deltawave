@@ -969,7 +969,11 @@ float primitiveVisualWeight(const GeometryFrame& frame)
 template <typename T>
 void retainEvenlySpaced(std::vector<T>& items, std::size_t maximum)
 {
-    if (items.size() <= maximum || maximum == 0U) {
+    if (maximum == 0U) {
+        items.clear();
+        return;
+    }
+    if (items.size() <= maximum) {
         return;
     }
 
@@ -1315,6 +1319,7 @@ void suppressScreenSpaceLayerFor3D(GeometryFrame& frame,
     const float clarity = patternClarityOf(settings);
     const float stability = motionStabilityOf(settings);
     const float highDepth = smootherStep(0.62f, 1.0f, depth);
+    const bool strict3DFirst = true;
     const float transitionKeep = clamp01(settings.sceneTransition) * 0.055f;
     const float musicKeep = clamp01(metrics.dropIntensity * 0.06f +
                                     metrics.phraseIntensity * 0.030f +
@@ -1324,8 +1329,8 @@ void suppressScreenSpaceLayerFor3D(GeometryFrame& frame,
                                             (1.0f - clarity) * 0.032f +
                                             (1.0f - stability) * 0.024f +
                                             transitionKeep + musicKeep,
-                                        0.018f,
-                                        0.18f);
+                                        strict3DFirst ? 0.0f : 0.012f,
+                                        strict3DFirst ? 0.035f : 0.16f);
     const float strokeScale = std::clamp(0.34f + (1.0f - clarity) * 0.08f + (1.0f - stability) * 0.045f,
                                          0.28f,
                                          0.54f);
@@ -1352,24 +1357,35 @@ void suppressScreenSpaceLayerFor3D(GeometryFrame& frame,
         decimatePolyline(line, maximumPoints);
     }
 
-    const std::size_t maxRings = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(2.0f + (1.0f - depth) * 6.0f + settings.sceneTransition * 3.0f)),
-        2,
-        10));
-    const std::size_t maxBeams = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(2.0f + (1.0f - depth) * 5.0f + metrics.dropIntensity * 2.0f)),
-        2,
-        10));
-    const std::size_t maxParticles = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(8.0f + (1.0f - depth) * 18.0f + metrics.spectralFlux * 5.0f)),
-        6,
-        38));
-    const std::size_t maxPolylines = static_cast<std::size_t>(std::clamp(
-        static_cast<int>(std::round(2.0f + (1.0f - depth) * 6.0f +
-                                    metrics.phraseIntensity * 2.0f +
-                                    settings.sceneTransition * 7.0f)),
-        2,
-        16));
+    const std::size_t maxRings = strict3DFirst
+                                     ? 0U
+                                     : static_cast<std::size_t>(std::clamp(
+                                           static_cast<int>(std::round(1.0f + (1.0f - depth) * 6.0f +
+                                                                       settings.sceneTransition * 3.0f)),
+                                           1,
+                                           9));
+    const std::size_t maxBeams = strict3DFirst
+                                     ? 0U
+                                     : static_cast<std::size_t>(std::clamp(
+                                           static_cast<int>(std::round(1.0f + (1.0f - depth) * 5.0f +
+                                                                       metrics.dropIntensity * 2.0f)),
+                                           1,
+                                           9));
+    const std::size_t maxParticles = strict3DFirst
+                                         ? 0U
+                                         : static_cast<std::size_t>(std::clamp(
+                                               static_cast<int>(std::round(4.0f + (1.0f - depth) * 16.0f +
+                                                                           metrics.spectralFlux * 4.0f)),
+                                               3,
+                                               32));
+    const std::size_t maxPolylines = strict3DFirst
+                                         ? 0U
+                                         : static_cast<std::size_t>(std::clamp(
+                                               static_cast<int>(std::round(1.0f + (1.0f - depth) * 6.0f +
+                                                                           metrics.phraseIntensity * 2.0f +
+                                                                           settings.sceneTransition * 7.0f)),
+                                               1,
+                                               14));
     retainEvenlySpaced(frame.rings, maxRings);
     retainEvenlySpaced(frame.beams, maxBeams);
     retainEvenlySpaced(frame.particles, maxParticles);
@@ -5860,10 +5876,122 @@ void addMusicalRoleConvergenceRig3D(std::vector<Object3D>& objects,
     }
 }
 
+void addSceneTransitionObjects3D(std::vector<Object3D>& objects,
+                                 const VisualSettings& settings,
+                                 const AudioMetrics& metrics,
+                                 const std::array<ColorRGBA, 5>& colors,
+                                 float minimumDimension,
+                                 float density,
+                                 float response,
+                                 double time)
+{
+    const float transition = clamp01(settings.sceneTransition);
+    if (transition <= 0.001f) {
+        return;
+    }
+
+    const float progress = clamp01(settings.sceneTransitionProgress);
+    const float phase = static_cast<float>(time);
+    const float foldPhase = progress * 2.0f * kPi;
+    const float harmonic = clamp01(metrics.harmonicEnergy * 0.62f +
+                                   metrics.keyConfidence * 0.26f +
+                                   averageChromaEnergy(metrics) * 0.18f);
+    const float pulse = transition * (0.68f + metrics.beatConfidence * 0.20f + metrics.dropIntensity * 0.18f);
+    const int folds = scaledCount(4 + static_cast<int>(std::round(transition * 5.0f)),
+                                  density * (0.44f + transition * 0.34f));
+
+    for (int i = 0; i < folds; ++i) {
+        const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, folds - 1));
+        const float lane = unit * 2.0f - 1.0f;
+        const float angle = lane * kPi * (0.42f + transition * 0.22f) + foldPhase + phase * 0.022f;
+        const float depthLane = -0.30f + unit * (0.88f + transition * 0.18f);
+        const Vec3 position{
+            std::sin(angle) * minimumDimension * (0.20f + transition * 0.20f),
+            lane * minimumDimension * (0.10f + harmonic * 0.06f),
+            minimumDimension * (depthLane + std::cos(angle) * transition * 0.12f)
+        };
+        const Object3DKind kind = i % 3 == 0 ? Object3DKind::Cage :
+                                  (i % 2 == 0 ? Object3DKind::DepthPlane : Object3DKind::Ribbon);
+        objects.push_back(makeObject3D(kind,
+                                       position,
+                                       Vec3{minimumDimension * (0.020f + transition * 0.040f + unit * 0.010f),
+                                            minimumDimension * (0.060f + transition * 0.110f + harmonic * 0.040f),
+                                            minimumDimension * (0.018f + transition * 0.055f)},
+                                       Vec3{foldPhase * 0.12f + unit,
+                                            angle * 0.24f,
+                                            foldPhase + lane * 0.34f},
+                                       withAlpha(mix(colors[i % 5], colors[(i + 2) % 5], harmonic),
+                                                 0.18f + transition * 0.28f),
+                                       0.20f + pulse * 0.42f + response * 0.06f));
+    }
+
+    if (transition > 0.18f) {
+        objects.push_back(makeObject3D(Object3DKind::WaveSurface,
+                                       Vec3{0.0f,
+                                            minimumDimension * std::sin(foldPhase) * 0.035f,
+                                            minimumDimension * (0.12f + transition * 0.18f)},
+                                       Vec3{minimumDimension * (0.26f + transition * 0.18f),
+                                            minimumDimension * (0.080f + transition * 0.080f),
+                                            minimumDimension * (0.018f + transition * 0.030f)},
+                                       Vec3{0.42f + transition * 0.20f,
+                                            foldPhase * 0.16f,
+                                            foldPhase},
+                                       withAlpha(colors[2], 0.12f + transition * 0.22f),
+                                       0.18f + transition * 0.46f));
+    }
+}
+
+void addEnvironmentContextObjects3D(std::vector<Object3D>& objects,
+                                    const VisualSettings& settings,
+                                    const EnvironmentState& environment,
+                                    const AudioMetrics& metrics,
+                                    const std::array<ColorRGBA, 5>& colors,
+                                    float minimumDimension,
+                                    float density,
+                                    float response,
+                                    double time)
+{
+    if (!settings.environmentReactive || !environment.enabled) {
+        return;
+    }
+
+    const float drive = environmentDrive(settings, environment);
+    if (drive <= 0.001f) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float dayPhase = clamp01(environment.timeOfDay) * 2.0f * kPi;
+    const float stereo = 0.72f + metrics.stereoWidth * 0.44f;
+    const ColorRGBA warm = mix(colors[1], colors[2], 0.42f + std::sin(dayPhase) * 0.24f);
+    const ColorRGBA cool = mix(colors[0], colors[3], 0.46f + std::cos(dayPhase) * 0.22f);
+    const int shells = scaledCount(3 + static_cast<int>(std::round(drive * 4.0f)),
+                                   density * (0.32f + drive * 0.28f));
+
+    for (int i = 0; i < shells; ++i) {
+        const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, shells - 1));
+        const float angle = unit * 2.0f * kPi + dayPhase * 0.35f + phase * (0.012f + environment.motion * 0.018f);
+        const float radius = minimumDimension * (0.18f + unit * 0.18f + environment.ambient * 0.05f) * stereo;
+        objects.push_back(makeObject3D(i % 2 == 0 ? Object3DKind::DepthPlane : Object3DKind::Orbiter,
+                                       Vec3{std::cos(angle) * radius,
+                                            std::sin(angle * 0.72f) * minimumDimension * (0.06f + drive * 0.05f),
+                                            minimumDimension * (0.18f + unit * 0.72f + environment.motion * 0.08f)},
+                                       Vec3{minimumDimension * (0.10f + unit * 0.050f + drive * 0.055f),
+                                            minimumDimension * (0.045f + environment.ambient * 0.050f),
+                                            minimumDimension * (0.012f + drive * 0.012f)},
+                                       Vec3{0.46f + unit * 0.16f,
+                                            angle * 0.18f,
+                                            dayPhase * 0.12f + phase * 0.010f},
+                                       withAlpha(mix(cool, warm, unit), 0.10f + drive * 0.20f),
+                                       0.10f + drive * 0.32f + response * 0.035f));
+    }
+}
+
 void addObject3DScene(GeometryFrame& frame,
                       const AudioMetrics& metrics,
                       const VisualSettings& settings,
                       const InteractionState& interaction,
+                      const EnvironmentState& environment,
                       const std::array<ColorRGBA, 5>& colors,
                       float width,
                       float height,
@@ -5962,6 +6090,23 @@ void addObject3DScene(GeometryFrame& frame,
                                  objectDensity,
                                  response,
                                  time);
+    addSceneTransitionObjects3D(objects,
+                                settings,
+                                metrics,
+                                colors,
+                                minimumDimension,
+                                objectDensity,
+                                response,
+                                time);
+    addEnvironmentContextObjects3D(objects,
+                                   settings,
+                                   environment,
+                                   metrics,
+                                   colors,
+                                   minimumDimension,
+                                   objectDensity,
+                                   response,
+                                   time);
     applyMusicChoreography3D(objects, settings.mode, choreography, minimumDimension);
     applySongIdentityComposition3D(objects, songIdentity, intent, metrics, minimumDimension);
     applyModeComposition3D(objects, settings.mode, metrics, settings, minimumDimension, time);
@@ -8230,7 +8375,7 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
     frame.retained2DVisualRatio = frame.authored2DVisualWeight > 0.0f
                                       ? frame.retained2DVisualWeight / frame.authored2DVisualWeight
                                       : 0.0f;
-    addObject3DScene(frame, visualMetrics, settings, interaction, colors, width, height, speed, intensity, density, timeSeconds);
+    addObject3DScene(frame, visualMetrics, settings, interaction, environment, colors, width, height, speed, intensity, density, timeSeconds);
     frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
 
     return frame;
