@@ -4641,6 +4641,95 @@ void songArcMemoryShapesBuildDropRecovery()
             "song arc structures must remain 3D-first without retained flat overlays");
 }
 
+void songIdentityMemoryHoldsAmbiguousSceneLanguage()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::TechnoMandala;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.88f;
+    settings.lightingGlow = 0.88f;
+    settings.colorImpact = 0.94f;
+    settings.scenePersonality = 0.90f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.90f;
+    settings.patternClarity = 0.94f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics techno = syntheticMetrics();
+    techno.rms = 0.48f;
+    techno.peak = 0.72f;
+    techno.bass = 0.54f;
+    techno.lowMid = 0.42f;
+    techno.mid = 0.16f;
+    techno.stereoWidth = 0.32f;
+    techno.beat = true;
+    techno.beatConfidence = 0.92f;
+    techno.barConfidence = 0.86f;
+    techno.downbeatConfidence = 0.76f;
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.92f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.88f;
+    techno.drumRole = 0.84f;
+    techno.bassRole = 0.42f;
+    techno.roleSeparation = 0.78f;
+
+    AudioMetrics ambiguous = syntheticMetrics();
+    ambiguous.rms = 0.13f;
+    ambiguous.peak = 0.20f;
+    ambiguous.bass = 0.16f;
+    ambiguous.lowMid = 0.18f;
+    ambiguous.mid = 0.24f;
+    ambiguous.stereoWidth = 0.54f;
+    ambiguous.spectralFlux = 0.06f;
+    ambiguous.beat = false;
+    ambiguous.beatConfidence = 0.12f;
+    ambiguous.barConfidence = 0.10f;
+    ambiguous.style = AudioStyle::Wide;
+    ambiguous.styleConfidence = 0.50f;
+    ambiguous.section = ArrangementSection::Groove;
+    ambiguous.sectionConfidence = 0.32f;
+    ambiguous.spaceRole = 0.30f;
+    ambiguous.harmonyRole = 0.22f;
+    ambiguous.roleSeparation = 0.28f;
+
+    AudioMetrics bassDrop = techno;
+    bassDrop.style = AudioStyle::BassHeavy;
+    bassDrop.styleConfidence = 0.94f;
+    bassDrop.section = ArrangementSection::Drop;
+    bassDrop.sectionConfidence = 0.94f;
+    bassDrop.dropIntensity = 0.90f;
+    bassDrop.bass = 0.92f;
+    bassDrop.lowMid = 0.76f;
+    bassDrop.bassRole = 0.90f;
+    bassDrop.drumRole = 0.42f;
+    bassDrop.convergenceRole = 0.52f;
+    bassDrop.downbeat = true;
+    bassDrop.downbeatConfidence = 0.92f;
+    bassDrop.roleSeparation = 0.86f;
+
+    const GeometryFrame technoFrame = engine.buildFrame(techno, settings, 1280.0f, 720.0f, 0.0);
+    const GeometryFrame heldFrame = engine.buildFrame(ambiguous, settings, 1280.0f, 720.0f, 0.55);
+    const GeometryFrame dropFrame = engine.buildFrame(bassDrop, settings, 1280.0f, 720.0f, 1.20);
+
+    require(technoFrame.songIdentityName == "Techno Architecture",
+            "locked techno should establish a mechanical song identity");
+    require(heldFrame.songIdentityName == "Techno Architecture",
+            "ambiguous low-energy passage should hold the previous song identity instead of flipping the scene language; got " +
+                std::string(heldFrame.songIdentityName));
+    require(heldFrame.songIdentityContinuity3D > 0.70f,
+            "held ambiguous identity should expose strong continuity");
+    require(dropFrame.songIdentityName == "Bass Pressure",
+            "decisive bass/drop cue should be allowed to take over the song identity");
+    require(dropFrame.songIdentityConfidence3D > 0.42f,
+            "decisive bass/drop identity should expose usable confidence");
+    require(dropFrame.songIdentityContinuity3D < heldFrame.songIdentityContinuity3D,
+            "identity switch should lower continuity so exports can identify a real scene turn");
+}
+
 void mouseDepthInteractionMoves3DObjects()
 {
     VisualizerEngine engine;
@@ -6016,8 +6105,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include bar and downbeat columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "timeline should include phrase structure columns");
-        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
-                "timeline should include scene intent, material share, and 3D dominance columns");
+        require(timelineText.find("scene3DName,sceneIntent,songIdentity,songIdentityConfidence3D,songIdentityContinuity3D,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
+                "timeline should include scene intent, song identity, material share, and 3D dominance columns");
         require(timelineText.find("projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare") != std::string::npos,
                 "timeline should include projected 3D framing and depth-layer columns");
         require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
@@ -6356,8 +6445,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain 3D object, glow, color, personality, response, stability, and clarity columns");
         require(timelineText.find("phraseBoundary,phrasePhase,phraseConfidence,buildTension") != std::string::npos,
                 "batch timeline should contain phrase structure columns");
-        require(timelineText.find("scene3DName,sceneIntent,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
-                "batch timeline should contain scene intent, material share, and 3D dominance columns");
+        require(timelineText.find("scene3DName,sceneIntent,songIdentity,songIdentityConfidence3D,songIdentityContinuity3D,authored2DPrimitiveCount,retained2DPrimitiveCount,projected3DPrimitiveCount,projected3DFillVisualWeight,projected3DOutlineVisualWeight,projected3DMaterialShare,threeDDominance") != std::string::npos,
+                "batch timeline should contain scene intent, song identity, material share, and 3D dominance columns");
         require(timelineText.find("projected3DScreenCoverage,projected3DCenterOffset,foreground3DShare,midground3DShare,background3DShare") != std::string::npos,
                 "batch timeline should contain projected 3D framing and depth-layer columns");
         require(timelineText.find("cameraMotion3D,cameraContinuity3D") != std::string::npos,
@@ -6469,6 +6558,7 @@ int main()
         {"wireHeavy3DFamiliesRenderSolidMaterialFaces", viz::tests::wireHeavy3DFamiliesRenderSolidMaterialFaces},
         {"sectionNarrativeAuthorsDistinct3DStructures", viz::tests::sectionNarrativeAuthorsDistinct3DStructures},
         {"songArcMemoryShapesBuildDropRecovery", viz::tests::songArcMemoryShapesBuildDropRecovery},
+        {"songIdentityMemoryHoldsAmbiguousSceneLanguage", viz::tests::songIdentityMemoryHoldsAmbiguousSceneLanguage},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
         {"interactionAndEnvironmentRemain3DFirst", viz::tests::interactionAndEnvironmentRemain3DFirst},

@@ -17,6 +17,7 @@ struct AnalysisTimelineEntry {
     int primitiveCount = 0;
     std::string_view scene3DName = "Flat Geometry";
     std::string_view sceneIntentName = "Calm";
+    std::string_view songIdentityName = "Calm Space";
     int authored2DPrimitiveCount = 0;
     int retained2DPrimitiveCount = 0;
     int projected3DPrimitiveCount = 0;
@@ -45,6 +46,8 @@ struct AnalysisTimelineEntry {
     float songArcImpact3D = 0.0f;
     float songArcRecovery3D = 0.0f;
     float songArcContinuity3D = 0.0f;
+    float songIdentityConfidence3D = 0.0f;
+    float songIdentityContinuity3D = 0.0f;
     float sceneBassRole3D = 0.0f;
     float sceneDrumRole3D = 0.0f;
     float sceneMelodyRole3D = 0.0f;

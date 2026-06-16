@@ -241,6 +241,10 @@ foreach ($profile in $profiles) {
         finalMode = $last.mode
         finalMotion = $last.motionStyle
         finalStyle = $last.style
+        finalSongIdentity = if ($timeline[0].PSObject.Properties.Name -contains "songIdentity") { $last.songIdentity } else { "" }
+        songIdentityDistinct = if ($timeline[0].PSObject.Properties.Name -contains "songIdentity") { @($timeline | Select-Object -ExpandProperty songIdentity -Unique).Count } else { 0 }
+        songIdentityConfidenceMax = if ($timeline[0].PSObject.Properties.Name -contains "songIdentityConfidence3D") { & $metric $timeline "songIdentityConfidence3D" "max" } else { 0.0 }
+        songIdentityContinuityMin = if ($timeline[0].PSObject.Properties.Name -contains "songIdentityContinuity3D") { & $metric $timeline "songIdentityContinuity3D" "min" } else { 0.0 }
         retained2DMax = & $metric $timeline "retained2DPrimitiveCount" "max"
         coverageMin = & $metric $timeline "projected3DScreenCoverage" "min"
         centerOffsetMax = & $metric $timeline "projected3DCenterOffset" "max"
@@ -321,6 +325,9 @@ foreach ($row in $summaryRows) {
         if ([double]$row.musicalStructureMax -lt 0.30) {
             $failures += "$($row.profile): musical structure stayed too low; visuals may read as one blended mass"
         }
+        if ([double]$row.songIdentityConfidenceMax -lt 0.22) {
+            $failures += "$($row.profile): song identity confidence stayed too low; scene language may be generic"
+        }
         $sectionThreshold = if ($row.profile -in @("ambient", "melodic")) { 0.10 } else { 0.20 }
         if ([double]$row.sectionTransformMax -lt $sectionThreshold) {
             $failures += "$($row.profile): section-level 3D transformation stayed too low"
@@ -334,6 +341,9 @@ foreach ($row in $summaryRows) {
             if ([double]$row.drumRoleMax -lt 0.22) {
                 $failures += "techno: drum/sequencer role did not dominate enough"
             }
+            if ($row.finalSongIdentity -ne "Techno Architecture") {
+                $failures += "techno: final song identity should be Techno Architecture, got $($row.finalSongIdentity)"
+            }
         }
         "bass_drop" {
             if ($row.finalMode -ne "Quantum Tunnel" -or $row.finalMotion -ne "Heavy Bass") {
@@ -345,10 +355,16 @@ foreach ($row in $summaryRows) {
             if ([double]$row.impactArcMax -lt 0.24) {
                 $failures += "bass_drop: persistent song-arc impact did not rise enough"
             }
+            if ($row.finalSongIdentity -ne "Bass Pressure") {
+                $failures += "bass_drop: final song identity should be Bass Pressure, got $($row.finalSongIdentity)"
+            }
         }
         "ambient" {
             if ([double]$row.spaceRoleMax -lt 0.30) {
                 $failures += "ambient: spatial depth role did not dominate enough"
+            }
+            if ($row.finalSongIdentity -notin @("Ambient Orbit", "Calm Space")) {
+                $failures += "ambient: final song identity should be Ambient Orbit or Calm Space, got $($row.finalSongIdentity)"
             }
         }
         "melodic" {
@@ -358,6 +374,9 @@ foreach ($row in $summaryRows) {
             if ([double]$row.recoveryArcMax -lt 0.04 -and [double]$row.anticipationArcMax -lt 0.05) {
                 $failures += "melodic: song-arc memory did not expose phrase lift or recovery"
             }
+            if ($row.finalSongIdentity -ne "Melodic Crystal") {
+                $failures += "melodic: final song identity should be Melodic Crystal, got $($row.finalSongIdentity)"
+            }
         }
         "breakbeat" {
             if ($row.finalMode -ne "Spectral Origami" -or $row.finalMotion -ne "Breakbeat") {
@@ -366,10 +385,16 @@ foreach ($row in $summaryRows) {
             if ([double]$row.fractureRoleMax -lt 0.28) {
                 $failures += "breakbeat: fracture/cut-plane role did not dominate enough"
             }
+            if ($row.finalSongIdentity -ne "Breakbeat Fracture") {
+                $failures += "breakbeat: final song identity should be Breakbeat Fracture, got $($row.finalSongIdentity)"
+            }
         }
         "dark_minimal" {
             if ([double]$row.shadowRoleMax -lt 0.24) {
                 $failures += "dark_minimal: shadow/monolith role did not dominate enough"
+            }
+            if ($row.finalSongIdentity -ne "Dark Monolith") {
+                $failures += "dark_minimal: final song identity should be Dark Monolith, got $($row.finalSongIdentity)"
             }
         }
     }
@@ -406,7 +431,7 @@ try {
         $y = [int][Math]::Floor($i / $columns) * $cellHeight
         $row = $images[$i].Row
         $graphics.DrawString($row.profile, $font, $brush, [single]($x + 8), [single]($y + 5))
-        $metrics = "$($row.finalMode) / $($row.finalMotion)  cov $([Math]::Round([double]$row.coverageMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))  sect $([Math]::Round([double]$row.sectionTransformMax, 3))"
+        $metrics = "$($row.finalMode) / $($row.finalMotion) / $($row.finalSongIdentity)  cov $([Math]::Round([double]$row.coverageMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))  sect $([Math]::Round([double]$row.sectionTransformMax, 3))"
         $graphics.DrawString($metrics, $font, $mutedBrush, [single]($x + 8), [single]($y + 24))
         $graphics.DrawImage($images[$i].Image, $x, $y + $labelHeight, $images[$i].Image.Width, $images[$i].Image.Height)
     }
@@ -439,7 +464,7 @@ if ($contactSheetWritten) {
 [void]$html.AppendLine("<div class='grid'>")
 foreach ($row in $summaryRows) {
     $relativePreview = "$($row.profile)/preview.bmp"
-    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle). coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3)), vocabulary max $([Math]::Round([double]$row.roleVocabularyMax, 3)), silhouette max $([Math]::Round([double]$row.roleSilhouetteContrastMax, 3)), legibility max $([Math]::Round([double]$row.roleLegibilityMax, 3)), motion max $([Math]::Round([double]$row.roleMotionContrastMax, 3)), structure max $([Math]::Round([double]$row.musicalStructureMax, 3)), crosstalk max $([Math]::Round([double]$row.roleCrosstalkMax, 3)), section transform max $([Math]::Round([double]$row.sectionTransformMax, 3)), section depth max $([Math]::Round([double]$row.sectionDepthMotionMax, 3)), camera continuity min $([Math]::Round([double]$row.cameraContinuityMin, 3)), song arc max $([Math]::Round([double]$row.songArcMax, 3))</p></div>")
+    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle) / $($row.finalSongIdentity). identity confidence max $([Math]::Round([double]$row.songIdentityConfidenceMax, 3)), coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3)), vocabulary max $([Math]::Round([double]$row.roleVocabularyMax, 3)), silhouette max $([Math]::Round([double]$row.roleSilhouetteContrastMax, 3)), legibility max $([Math]::Round([double]$row.roleLegibilityMax, 3)), motion max $([Math]::Round([double]$row.roleMotionContrastMax, 3)), structure max $([Math]::Round([double]$row.musicalStructureMax, 3)), crosstalk max $([Math]::Round([double]$row.roleCrosstalkMax, 3)), section transform max $([Math]::Round([double]$row.sectionTransformMax, 3)), section depth max $([Math]::Round([double]$row.sectionDepthMotionMax, 3)), camera continuity min $([Math]::Round([double]$row.cameraContinuityMin, 3)), song arc max $([Math]::Round([double]$row.songArcMax, 3))</p></div>")
 }
 [void]$html.AppendLine("</div>")
 [void]$html.AppendLine("<h2>Metrics</h2><table><tr>")

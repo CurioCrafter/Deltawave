@@ -324,6 +324,9 @@ void Direct2DRenderer::drawHud(const GeometryFrame& frame,
          << L"  SectionSens " << metrics.sectionSensitivity << L"\n";
     text << L"3D Scene " << widen(frame.scene3DName)
          << L"  Intent " << widen(frame.sceneIntentName)
+         << L"  Song " << widen(frame.songIdentityName)
+         << L" " << std::setprecision(0) << (frame.songIdentityConfidence3D * 100.0f) << L"%"
+         << L"  Hold " << (frame.songIdentityContinuity3D * 100.0f) << L"%"
          << L"  3D x" << std::setprecision(1) << frame.threeDDominance
          << L"  2D " << frame.retained2DPrimitiveCount << L"/" << frame.authored2DPrimitiveCount
          << L" " << std::setprecision(0) << (frame.retained2DPrimitiveRatio * 100.0f) << L"%"

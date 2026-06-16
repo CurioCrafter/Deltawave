@@ -124,6 +124,7 @@ struct GeometryFrame {
     std::string_view scene3DName = "Flat Geometry";
     SceneIntent sceneIntent = SceneIntent::Calm;
     std::string_view sceneIntentName = "Calm";
+    std::string_view songIdentityName = "Calm Space";
     int authored2DPrimitiveCount = 0;
     int retained2DPrimitiveCount = 0;
     int projected3DPrimitiveCount = 0;
@@ -158,6 +159,8 @@ struct GeometryFrame {
     float songArcImpact3D = 0.0f;
     float songArcRecovery3D = 0.0f;
     float songArcContinuity3D = 0.0f;
+    float songIdentityConfidence3D = 0.0f;
+    float songIdentityContinuity3D = 0.0f;
     float sceneBassRole3D = 0.0f;
     float sceneDrumRole3D = 0.0f;
     float sceneMelodyRole3D = 0.0f;
@@ -276,6 +279,13 @@ struct SongArcMemory {
     float continuity = 0.0f;
 };
 
+struct SongIdentityMemory {
+    double lastTimeSeconds = -1.0;
+    int identity = 0;
+    float confidence = 0.0f;
+    float continuity = 0.0f;
+};
+
 struct CameraMotionMemory {
     double lastTimeSeconds = -1.0;
     float centerX = 0.0f;
@@ -317,6 +327,7 @@ public:
 
 private:
     mutable SongArcMemory songArc_;
+    mutable SongIdentityMemory songIdentity_;
     mutable CameraMotionMemory cameraMotion_;
 };
 
