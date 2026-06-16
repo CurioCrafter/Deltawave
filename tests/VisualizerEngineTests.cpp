@@ -4409,6 +4409,95 @@ void sectionNarrativeAuthorsDistinct3DStructures()
             "section narrative structures should remain 3D-dominant");
 }
 
+void songArcMemoryShapesBuildDropRecovery()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::TechnoMandala;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.86f;
+    settings.lightingGlow = 0.88f;
+    settings.colorImpact = 0.94f;
+    settings.scenePersonality = 0.88f;
+    settings.response3D = 0.96f;
+    settings.motionStability = 0.88f;
+    settings.patternClarity = 0.92f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics base = syntheticMetrics();
+    base.rms = 0.36f;
+    base.peak = 0.52f;
+    base.bass = 0.42f;
+    base.lowMid = 0.28f;
+    base.mid = 0.24f;
+    base.stereoWidth = 0.42f;
+    base.beat = true;
+    base.beatConfidence = 0.78f;
+    base.barConfidence = 0.66f;
+    base.downbeatConfidence = 0.46f;
+    base.style = AudioStyle::Techno;
+    base.styleConfidence = 0.82f;
+    base.section = ArrangementSection::Groove;
+    base.sectionConfidence = 0.70f;
+    base.sectionProgress = 0.20f;
+
+    AudioMetrics build = base;
+    build.section = ArrangementSection::Build;
+    build.sectionConfidence = 0.90f;
+    build.sectionProgress = 0.86f;
+    build.buildTension = 0.86f;
+    build.phraseIntensity = 0.66f;
+    build.phraseConfidence = 0.74f;
+    build.stereoWidth = 0.52f;
+
+    AudioMetrics drop = base;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.94f;
+    drop.sectionProgress = 0.12f;
+    drop.dropIntensity = 0.90f;
+    drop.bass = 0.86f;
+    drop.bassRole = 0.84f;
+    drop.convergenceRole = 0.48f;
+    drop.downbeat = true;
+    drop.downbeatConfidence = 0.92f;
+    drop.bandOnsets[0] = 0.78f;
+
+    AudioMetrics release = drop;
+    release.sectionProgress = 0.88f;
+    release.dropIntensity = 0.36f;
+    release.phraseBoundary = true;
+    release.phraseConfidence = 0.86f;
+    release.phraseIntensity = 0.68f;
+
+    const GeometryFrame baseFrame = engine.buildFrame(base, settings, 1280.0f, 720.0f, 0.0);
+    const GeometryFrame buildFrame = engine.buildFrame(build, settings, 1280.0f, 720.0f, 0.80);
+    const GeometryFrame dropFrame = engine.buildFrame(drop, settings, 1280.0f, 720.0f, 1.55);
+    const GeometryFrame releaseFrame = engine.buildFrame(release, settings, 1280.0f, 720.0f, 2.35);
+
+    require(buildFrame.songArcAnticipation3D > baseFrame.songArcAnticipation3D + 0.20f,
+            "song arc memory should accumulate visible anticipation during a build");
+    require(dropFrame.songArcImpact3D > buildFrame.songArcImpact3D + 0.28f &&
+                dropFrame.songArcImpact3D > 0.48f,
+            "song arc memory should create a strong persistent impact when build turns into drop");
+    require(dropFrame.songArcAnticipation3D < buildFrame.songArcAnticipation3D,
+            "drop impact should release stored build anticipation instead of stacking both forever");
+    require(releaseFrame.songArcRecovery3D > dropFrame.songArcRecovery3D + 0.16f &&
+                releaseFrame.songArcRecovery3D > 0.28f,
+            "late drop/phrase boundary should create visible recovery follow-through");
+    require(dropFrame.cameraDepth < buildFrame.cameraDepth - 28.0f,
+            "drop impact should dolly the camera inward after build anticipation");
+    require(releaseFrame.cameraDepth > dropFrame.cameraDepth + 18.0f,
+            "recovery should open camera depth back up after impact");
+    require(dropFrame.objects3D.size() > baseFrame.objects3D.size() + 8U &&
+                releaseFrame.objects3D.size() > baseFrame.objects3D.size() + 8U,
+            "song arc memory should author extra 3D structures instead of only changing scalar metrics");
+    require(dropFrame.retained2DPrimitiveCount == 0 &&
+                releaseFrame.retained2DPrimitiveCount == 0,
+            "song arc structures must remain 3D-first without retained flat overlays");
+}
+
 void mouseDepthInteractionMoves3DObjects()
 {
     VisualizerEngine engine;
@@ -5790,6 +5879,8 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include projected 3D framing and depth-layer columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
                 "timeline should include 3D section narrative columns");
+        require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
+                "timeline should include persistent song-arc interpretation columns");
         require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D") != std::string::npos,
                 "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
@@ -6126,6 +6217,8 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain projected 3D framing and depth-layer columns");
         require(timelineText.find("sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D") != std::string::npos,
                 "batch timeline should contain 3D section narrative columns");
+        require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
+                "batch timeline should contain persistent song-arc interpretation columns");
         require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D") != std::string::npos,
                 "batch timeline should contain separated musical role columns");
     }
@@ -6227,6 +6320,7 @@ int main()
         {"threeDScenesRenderMaterialFacesAndDepthHaze", viz::tests::threeDScenesRenderMaterialFacesAndDepthHaze},
         {"wireHeavy3DFamiliesRenderSolidMaterialFaces", viz::tests::wireHeavy3DFamiliesRenderSolidMaterialFaces},
         {"sectionNarrativeAuthorsDistinct3DStructures", viz::tests::sectionNarrativeAuthorsDistinct3DStructures},
+        {"songArcMemoryShapesBuildDropRecovery", viz::tests::songArcMemoryShapesBuildDropRecovery},
         {"mouseDepthInteractionMoves3DObjects", viz::tests::mouseDepthInteractionMoves3DObjects},
         {"mouseDepthInteractionAddsCameraParallax", viz::tests::mouseDepthInteractionAddsCameraParallax},
         {"interactionAndEnvironmentRemain3DFirst", viz::tests::interactionAndEnvironmentRemain3DFirst},

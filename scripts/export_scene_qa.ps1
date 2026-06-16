@@ -259,6 +259,11 @@ foreach ($profile in $profiles) {
         fractureRoleMax = & $columnMax $timeline "fractureRole3D"
         shadowRoleMax = & $columnMax $timeline "shadowRole3D"
         convergenceRoleMax = & $columnMax $timeline "convergence3D"
+        songArcMax = & $columnMax $timeline "songArc3D"
+        anticipationArcMax = & $columnMax $timeline "songArcAnticipation3D"
+        impactArcMax = & $columnMax $timeline "songArcImpact3D"
+        recoveryArcMax = & $columnMax $timeline "songArcRecovery3D"
+        continuityArcMax = & $columnMax $timeline "songArcContinuity3D"
         preview = Join-Path $profileOutput "preview.bmp"
         timeline = $timelinePath
     }
@@ -306,6 +311,9 @@ foreach ($row in $summaryRows) {
             if ([double]$row.bassRoleMax -lt 0.34 -or [double]$row.convergenceRoleMax -lt 0.10) {
                 $failures += "bass_drop: bass pressure/convergence role did not respond enough"
             }
+            if ([double]$row.impactArcMax -lt 0.24) {
+                $failures += "bass_drop: persistent song-arc impact did not rise enough"
+            }
         }
         "ambient" {
             if ([double]$row.spaceRoleMax -lt 0.30) {
@@ -315,6 +323,9 @@ foreach ($row in $summaryRows) {
         "melodic" {
             if (([double]$row.melodyRoleMax + [double]$row.harmonyRoleMax) -lt 0.34) {
                 $failures += "melodic: melody/harmony roles did not dominate enough"
+            }
+            if ([double]$row.recoveryArcMax -lt 0.04 -and [double]$row.anticipationArcMax -lt 0.05) {
+                $failures += "melodic: song-arc memory did not expose phrase lift or recovery"
             }
         }
         "breakbeat" {
@@ -364,7 +375,7 @@ try {
         $y = [int][Math]::Floor($i / $columns) * $cellHeight
         $row = $images[$i].Row
         $graphics.DrawString($row.profile, $font, $brush, [single]($x + 8), [single]($y + 5))
-        $metrics = "$($row.finalMode) / $($row.finalMotion)  cov $([Math]::Round([double]$row.coverageMin, 3))  mat $([Math]::Round([double]$row.materialShareMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))"
+        $metrics = "$($row.finalMode) / $($row.finalMotion)  cov $([Math]::Round([double]$row.coverageMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))  arc $([Math]::Round([double]$row.songArcMax, 3))"
         $graphics.DrawString($metrics, $font, $mutedBrush, [single]($x + 8), [single]($y + 24))
         $graphics.DrawImage($images[$i].Image, $x, $y + $labelHeight, $images[$i].Image.Width, $images[$i].Image.Height)
     }
@@ -397,7 +408,7 @@ if ($contactSheetWritten) {
 [void]$html.AppendLine("<div class='grid'>")
 foreach ($row in $summaryRows) {
     $relativePreview = "$($row.profile)/preview.bmp"
-    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle). coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3))</p></div>")
+    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle). coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3)), song arc max $([Math]::Round([double]$row.songArcMax, 3))</p></div>")
 }
 [void]$html.AppendLine("</div>")
 [void]$html.AppendLine("<h2>Metrics</h2><table><tr>")

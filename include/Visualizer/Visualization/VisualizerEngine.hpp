@@ -150,6 +150,11 @@ struct GeometryFrame {
     float sectionGroove3D = 0.0f;
     float sectionBreakdown3D = 0.0f;
     float sectionRelease3D = 0.0f;
+    float songArc3D = 0.0f;
+    float songArcAnticipation3D = 0.0f;
+    float songArcImpact3D = 0.0f;
+    float songArcRecovery3D = 0.0f;
+    float songArcContinuity3D = 0.0f;
     float sceneBassRole3D = 0.0f;
     float sceneDrumRole3D = 0.0f;
     float sceneMelodyRole3D = 0.0f;
@@ -251,6 +256,15 @@ struct VisualSettings {
     bool autoScene = false;
 };
 
+struct SongArcMemory {
+    double lastTimeSeconds = -1.0;
+    ArrangementSection lastSection = ArrangementSection::Silence;
+    float anticipation = 0.0f;
+    float impact = 0.0f;
+    float recovery = 0.0f;
+    float continuity = 0.0f;
+};
+
 std::string_view toString(VisualMode mode);
 std::string_view toString(Palette palette);
 std::string_view toString(MotionStyle style);
@@ -279,6 +293,9 @@ public:
                              float width,
                              float height,
                              double timeSeconds) const;
+
+private:
+    mutable SongArcMemory songArc_;
 };
 
 } // namespace viz

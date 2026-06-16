@@ -271,6 +271,14 @@ struct SectionNarrative3D {
     float intensity = 0.0f;
 };
 
+struct MusicSceneArc3D {
+    float intensity = 0.0f;
+    float anticipation = 0.0f;
+    float impact = 0.0f;
+    float recovery = 0.0f;
+    float continuity = 0.0f;
+};
+
 struct MusicRoleScene3D {
     float bass = 0.0f;
     float drums = 0.0f;
@@ -786,6 +794,117 @@ SceneInterpretation interpretSceneIntent(const AudioMetrics& metrics, const Visu
     intent.depthReveal = clamp01(intent.spacious * 0.34f + intent.drop * 0.28f + intent.tension * 0.22f + metrics.stereoWidth * 0.20f);
     intent.cameraDrama = clamp01(intent.drop * 0.40f + intent.tension * 0.24f + intent.spacious * 0.18f + intent.chaotic * 0.12f);
     return intent;
+}
+
+float followArcValue(float current, float target, float dt, float attackSeconds, float releaseSeconds)
+{
+    const float seconds = target > current ? attackSeconds : releaseSeconds;
+    const float alpha = 1.0f - std::exp(-dt / std::max(0.001f, seconds));
+    return current + (target - current) * std::clamp(alpha, 0.0f, 1.0f);
+}
+
+MusicSceneArc3D updateSongArcMemory(SongArcMemory& memory,
+                                    const AudioMetrics& metrics,
+                                    const VisualSettings& settings,
+                                    const SceneInterpretation& intent,
+                                    double timeSeconds)
+{
+    float dt = 1.0f / 60.0f;
+    if (memory.lastTimeSeconds >= 0.0) {
+        dt = static_cast<float>(timeSeconds - memory.lastTimeSeconds);
+    }
+    if (memory.lastTimeSeconds < 0.0 ||
+        dt <= 0.0001f ||
+        dt > 8.0f) {
+        memory = SongArcMemory{};
+        dt = 1.0f / 60.0f;
+    }
+    dt = std::clamp(dt, 1.0f / 120.0f, 0.75f);
+
+    const float confidence = clamp01(metrics.sectionConfidence);
+    const float progress = clamp01(metrics.sectionProgress);
+    const float arcAudibility = (metrics.style == AudioStyle::Silence &&
+                                 metrics.rms < 0.025f &&
+                                 metrics.peak < 0.055f)
+                                    ? 0.0f
+                                    : clamp01(0.22f + metrics.rms * 2.4f + metrics.peak * 0.50f);
+    const float phrase = clamp01(metrics.phraseIntensity * 0.54f +
+                                 metrics.phraseConfidence * 0.28f +
+                                 (metrics.phraseBoundary ? metrics.phraseConfidence * 0.24f : 0.0f)) *
+                         arcAudibility;
+    const float melodicLift = clamp01(metrics.melodyRole * 0.24f +
+                                      metrics.harmonyRole * 0.20f +
+                                      metrics.harmonicEnergy * 0.22f +
+                                      metrics.keyConfidence * 0.12f +
+                                      averageChromaEnergy(metrics) * 0.18f +
+                                      intent.melodic * 0.22f +
+                                      intent.spacious * 0.08f) *
+                              arcAudibility;
+    const float buildTarget = clamp01(metrics.buildTension * 0.54f +
+                                      intent.tension * 0.28f +
+                                      phrase * (0.16f + melodicLift * 0.08f) +
+                                      melodicLift * 0.035f +
+                                      (metrics.section == ArrangementSection::Build
+                                           ? confidence * (0.28f + progress * 0.62f)
+                                           : 0.0f) -
+                                      metrics.dropIntensity * 0.28f);
+    const float impactTarget = clamp01(metrics.dropIntensity * 0.58f +
+                                       intent.drop * 0.28f +
+                                       metrics.bassRole * 0.10f +
+                                       metrics.convergenceRole * 0.18f +
+                                       (metrics.downbeat ? metrics.downbeatConfidence * 0.12f : 0.0f) +
+                                       (metrics.section == ArrangementSection::Drop
+                                            ? confidence * (0.34f + (1.0f - progress) * 0.42f)
+                                            : 0.0f));
+    const float recoveryTarget = clamp01((metrics.section == ArrangementSection::Drop
+                                              ? confidence * smootherStep(0.34f, 0.94f, progress) *
+                                                    (0.40f + phrase * 0.28f)
+                                              : 0.0f) +
+                                         (metrics.phraseBoundary ? metrics.phraseConfidence * 0.24f : 0.0f) +
+                                         intent.release * 0.32f +
+                                         melodicLift * phrase * 0.26f);
+    const float continuityTarget = clamp01(confidence * 0.32f +
+                                           metrics.barConfidence * 0.18f +
+                                           metrics.roleSeparation * 0.20f +
+                                           std::max({intent.groove, intent.spacious, intent.melodic, intent.heavy}) * 0.20f +
+                                           melodicLift * 0.15f);
+
+    memory.anticipation = followArcValue(memory.anticipation, buildTarget, dt, 0.42f, 0.86f);
+    memory.impact = followArcValue(memory.impact, impactTarget, dt, 0.075f, 0.70f);
+    memory.recovery = followArcValue(memory.recovery, recoveryTarget, dt, 0.30f, 1.05f);
+    memory.continuity = followArcValue(memory.continuity, continuityTarget, dt, 0.54f, 1.35f);
+
+    if (memory.lastSection == ArrangementSection::Build &&
+        metrics.section == ArrangementSection::Drop &&
+        confidence > 0.35f) {
+        memory.impact = std::max(memory.impact, clamp01(0.50f + confidence * 0.34f + metrics.dropIntensity * 0.18f));
+        memory.anticipation *= 0.54f;
+    }
+    if (memory.lastSection == ArrangementSection::Drop &&
+        metrics.section != ArrangementSection::Drop &&
+        confidence > 0.25f) {
+        memory.recovery = std::max(memory.recovery, clamp01(0.34f + memory.impact * 0.34f + phrase * 0.22f));
+    }
+    if (metrics.phraseBoundary && metrics.phraseConfidence > 0.25f) {
+        const float phraseLift = clamp01(0.055f +
+                                         phrase * 0.18f +
+                                         melodicLift * 0.22f +
+                                         intent.release * 0.12f);
+        memory.recovery = std::max(memory.recovery, phraseLift);
+        memory.anticipation = std::max(memory.anticipation, phraseLift * (0.18f + melodicLift * 0.12f));
+    }
+
+    memory.lastTimeSeconds = timeSeconds;
+    memory.lastSection = metrics.section;
+
+    const float stabilityDamp = 0.82f + (1.0f - motionStabilityOf(settings)) * 0.18f;
+    MusicSceneArc3D arc;
+    arc.anticipation = clamp01(memory.anticipation * stabilityDamp);
+    arc.impact = clamp01(memory.impact * stabilityDamp);
+    arc.recovery = clamp01(memory.recovery * (0.88f + patternClarityOf(settings) * 0.12f));
+    arc.continuity = clamp01(memory.continuity);
+    arc.intensity = std::max({arc.anticipation, arc.impact, arc.recovery, arc.continuity * 0.72f});
+    return arc;
 }
 
 MusicRoleScene3D buildMusicRoleScene3D(const SceneInterpretation& intent,
@@ -2314,6 +2433,7 @@ SongSceneIdentity songSceneIdentityFor(const SceneInterpretation& intent,
 Camera3D makeCamera3D(const VisualSettings& settings,
                       const AudioMetrics& metrics,
                       const SceneInterpretation& intent,
+                      const MusicSceneArc3D& arc,
                       SongSceneIdentity identity,
                       float width,
                       float height,
@@ -2377,6 +2497,24 @@ Camera3D makeCamera3D(const VisualSettings& settings,
     camera.yaw += buildReveal * 0.035f - breakdownHold * 0.030f;
     camera.pitch += buildReveal * 0.030f + breakdownHold * 0.022f - dropPunch * 0.018f;
     camera.roll *= 1.0f - breakdownHold * 0.45f;
+    camera.focalLength *= std::clamp(1.0f +
+                                         arc.anticipation * 0.035f +
+                                         arc.impact * 0.055f -
+                                         arc.recovery * 0.030f,
+                                     0.94f,
+                                     1.12f);
+    camera.cameraDistance += minimumDimension *
+                              (arc.anticipation * 0.115f -
+                               arc.impact * 0.150f +
+                               arc.recovery * 0.135f +
+                               arc.continuity * 0.028f);
+    camera.yaw += std::sin(phase * 0.045f + metrics.phrasePhase * kPi) *
+                  (arc.anticipation * 0.030f + arc.recovery * 0.024f);
+    camera.pitch += arc.anticipation * 0.026f -
+                    arc.impact * 0.022f +
+                    arc.recovery * 0.030f;
+    camera.roll *= std::clamp(1.0f - arc.recovery * 0.34f - arc.continuity * 0.10f, 0.54f, 1.0f);
+    camera.center.y += minimumDimension * (arc.anticipation * 0.010f - arc.impact * 0.020f + arc.recovery * 0.014f);
 
     switch (identity) {
     case SongSceneIdentity::CalmSpace:
@@ -5910,6 +6048,179 @@ void addSectionNarrativeObjects3D(std::vector<Object3D>& objects,
     }
 }
 
+void addSongArcObjects3D(std::vector<Object3D>& objects,
+                         const MusicSceneArc3D& arc,
+                         const AudioMetrics& metrics,
+                         const std::array<ColorRGBA, 5>& colors,
+                         float minimumDimension,
+                         float density,
+                         float response,
+                         double time)
+{
+    if (arc.intensity <= 0.035f) {
+        return;
+    }
+
+    const float phase = static_cast<float>(time);
+    const float stereoSpread = 0.78f + metrics.stereoWidth * 0.56f;
+    const auto pushArcObject = [&](Object3D object) {
+        object.musicRole = Object3DRole::Convergence;
+        objects.push_back(object);
+    };
+    const auto pushArcLink = [&](Vec3 from, Vec3 to, ColorRGBA color, float glow) {
+        Object3D link = makeObject3D(Object3DKind::Link, from, Vec3{1.0f, 1.0f, 1.0f}, Vec3{}, color, glow);
+        link.target = to;
+        link.musicRole = Object3DRole::Convergence;
+        objects.push_back(link);
+    };
+
+    if (arc.anticipation > 0.06f) {
+        const int spines = scaledCount(5 + static_cast<int>(std::round(arc.anticipation * 6.0f)),
+                                       density * (0.36f + arc.anticipation * 0.28f));
+        std::vector<Vec3> anchors;
+        anchors.reserve(static_cast<std::size_t>(spines));
+        for (int i = 0; i < spines; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, spines - 1));
+            const float lift = std::pow(unit, 1.25f) * arc.anticipation;
+            const Vec3 position{
+                std::sin(unit * 2.4f * kPi + phase * 0.030f) * minimumDimension * (0.08f + lift * 0.12f) * stereoSpread,
+                -minimumDimension * (0.20f - unit * 0.36f + arc.anticipation * 0.035f),
+                minimumDimension * (-0.42f + unit * (1.08f + arc.anticipation * 0.28f))
+            };
+            anchors.push_back(position);
+            pushArcObject(makeObject3D(i % 2 == 0 ? Object3DKind::Cage : Object3DKind::Column,
+                                       position,
+                                       Vec3{minimumDimension * (0.016f + arc.anticipation * 0.016f),
+                                            minimumDimension * (0.052f + lift * 0.080f),
+                                            minimumDimension * (0.014f + arc.anticipation * 0.020f)},
+                                       Vec3{unit * 0.20f,
+                                            phase * 0.018f + unit,
+                                            metrics.phrasePhase * kPi + unit * 0.42f},
+                                       withAlpha(mix(colors[0], colors[2], unit), 0.12f + arc.anticipation * 0.22f),
+                                       0.14f + arc.anticipation * 0.46f + response * 0.040f));
+        }
+        for (std::size_t i = 1; i < anchors.size(); ++i) {
+            pushArcLink(anchors[i - 1U],
+                        anchors[i],
+                        withAlpha(colors[(i + 2U) % 5U], 0.06f + arc.anticipation * 0.10f),
+                        0.06f + arc.anticipation * 0.18f);
+        }
+    }
+
+    if (arc.impact > 0.05f) {
+        const int shocks = scaledCount(4 + static_cast<int>(std::round(arc.impact * 5.0f)),
+                                       density * (0.34f + arc.impact * 0.32f));
+        for (int i = 0; i < shocks; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, shocks - 1));
+            const float pressure = std::pow(1.0f - unit * 0.58f, 1.2f) * arc.impact;
+            const float side = i % 2 == 0 ? -1.0f : 1.0f;
+            pushArcObject(makeObject3D(Object3DKind::TunnelRib,
+                                       Vec3{0.0f,
+                                            minimumDimension * (0.10f + pressure * 0.06f),
+                                            minimumDimension * (-0.62f + unit * 0.70f - pressure * 0.18f)},
+                                       Vec3{minimumDimension * (0.18f + pressure * 0.18f + unit * 0.05f),
+                                            minimumDimension * (0.10f + pressure * 0.10f),
+                                            0.60f + pressure * 0.92f},
+                                       Vec3{pressure * 0.20f,
+                                            phase * 0.028f,
+                                            metrics.beatPhase * kPi + unit * 0.40f},
+                                       withAlpha(mix(colors[1], colors[2], unit), 0.18f + arc.impact * 0.24f),
+                                       0.26f + arc.impact * 0.72f + metrics.bass * response * 0.08f));
+            pushArcObject(makeObject3D(Object3DKind::Plate,
+                                       Vec3{side * minimumDimension * (0.16f + pressure * 0.14f),
+                                            minimumDimension * (0.03f + pressure * 0.07f),
+                                            minimumDimension * (-0.38f + unit * 0.54f)},
+                                       Vec3{minimumDimension * (0.028f + pressure * 0.040f),
+                                            minimumDimension * (0.12f + pressure * 0.090f),
+                                            minimumDimension * 0.014f},
+                                       Vec3{0.62f,
+                                            side * (0.22f + pressure * 0.20f),
+                                            metrics.beatPhase * kPi + unit},
+                                       withAlpha(colors[(i + 1) % 5], 0.13f + arc.impact * 0.24f),
+                                       0.20f + arc.impact * 0.56f));
+        }
+    }
+
+    if (arc.recovery > 0.05f) {
+        const int ribbons = scaledCount(4 + static_cast<int>(std::round(arc.recovery * 6.0f)),
+                                        density * (0.30f + arc.recovery * 0.28f));
+        std::vector<Vec3> anchors;
+        anchors.reserve(static_cast<std::size_t>(ribbons));
+        for (int i = 0; i < ribbons; ++i) {
+            const float unit = static_cast<float>(i) / static_cast<float>(std::max(1, ribbons - 1));
+            const float angle = unit * 2.0f * kPi + phase * (0.014f + arc.recovery * 0.012f);
+            const Vec3 position{
+                std::cos(angle) * minimumDimension * (0.16f + arc.recovery * 0.18f) * stereoSpread,
+                -minimumDimension * (0.12f + std::sin(unit * kPi) * arc.recovery * 0.12f),
+                minimumDimension * (0.02f + unit * (0.72f + arc.recovery * 0.22f))
+            };
+            anchors.push_back(position);
+            pushArcObject(makeObject3D(i % 2 == 0 ? Object3DKind::Ribbon : Object3DKind::WaveSurface,
+                                       position,
+                                       Vec3{minimumDimension * (0.08f + arc.recovery * 0.10f),
+                                            minimumDimension * (0.036f + arc.recovery * 0.040f),
+                                            minimumDimension * (0.014f + arc.recovery * 0.018f)},
+                                       Vec3{0.36f + unit * 0.14f,
+                                            angle * 0.16f,
+                                            metrics.phrasePhase * kPi + arc.recovery},
+                                       withAlpha(mix(colors[3], colors[4], unit), 0.10f + arc.recovery * 0.20f),
+                                       0.12f + arc.recovery * 0.36f));
+        }
+        for (std::size_t i = 1; i < anchors.size(); ++i) {
+            pushArcLink(anchors[i - 1U],
+                        anchors[i],
+                        withAlpha(colors[(i + 3U) % 5U], 0.05f + arc.recovery * 0.10f),
+                        0.05f + arc.recovery * 0.16f);
+        }
+    }
+}
+
+void applySongArcComposition3D(std::vector<Object3D>& objects,
+                               const MusicSceneArc3D& arc,
+                               const AudioMetrics& metrics,
+                               const VisualSettings& settings,
+                               float minimumDimension)
+{
+    if (objects.empty() || arc.intensity <= 0.025f) {
+        return;
+    }
+
+    const float clarityDamp = 0.78f + patternClarityOf(settings) * 0.22f;
+    const float stabilityDamp = 0.70f + motionStabilityOf(settings) * 0.30f;
+    const float spread = (arc.anticipation * 0.10f + arc.recovery * 0.12f - arc.impact * 0.06f) * clarityDamp;
+    const float compress = arc.impact * (0.10f + metrics.bass * 0.06f) * stabilityDamp;
+    const float dolly = minimumDimension * (arc.anticipation * 0.080f -
+                                            arc.impact * 0.115f +
+                                            arc.recovery * 0.105f);
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        Object3D& object = objects[i];
+        const float seed = static_cast<float>(i + 1U) * 0.417f +
+                           static_cast<float>(static_cast<int>(object.kind)) * 0.193f;
+        const float lane = std::sin(seed) >= 0.0f ? 1.0f : -1.0f;
+        const float depthUnit = wrapUnit(std::sin(seed * 1.7f) * 0.5f + 0.5f);
+        object.position.x *= 1.0f + spread - compress;
+        object.position.y += minimumDimension * (arc.anticipation * 0.030f -
+                                                 arc.impact * 0.026f -
+                                                 arc.recovery * 0.034f * depthUnit);
+        object.position.z += dolly * (0.48f + depthUnit * 0.58f);
+        object.rotation.x += lane * arc.anticipation * 0.030f;
+        object.rotation.y += lane * arc.recovery * 0.034f;
+        object.rotation.z += lane * arc.impact * 0.045f;
+        object.glow += arc.impact * 0.12f + arc.anticipation * 0.040f + arc.recovery * 0.035f;
+        if (object.kind == Object3DKind::TunnelRib || object.kind == Object3DKind::Column) {
+            object.scale.y *= 1.0f + arc.impact * 0.10f + arc.anticipation * 0.035f;
+            object.scale.z *= 1.0f + arc.impact * 0.08f;
+        } else if (object.kind == Object3DKind::DepthPlane || object.kind == Object3DKind::WaveSurface) {
+            object.scale.x *= 1.0f + arc.recovery * 0.10f + arc.anticipation * 0.045f;
+        }
+        if (object.kind == Object3DKind::Link) {
+            object.target.x *= 1.0f + spread - compress;
+            object.target.y += minimumDimension * (arc.anticipation * 0.022f - arc.recovery * 0.026f);
+            object.target.z += dolly * (0.50f + depthUnit * 0.42f);
+        }
+    }
+}
+
 void addIntentDrivenSceneObjects3D(std::vector<Object3D>& objects,
                                    const SceneInterpretation& intent,
                                    const AudioMetrics& metrics,
@@ -7350,6 +7661,7 @@ void addObject3DScene(GeometryFrame& frame,
                       const VisualSettings& settings,
                       const InteractionState& interaction,
                       const EnvironmentState& environment,
+                      const MusicSceneArc3D& songArc,
                       const std::array<ColorRGBA, 5>& colors,
                       float width,
                       float height,
@@ -7378,10 +7690,18 @@ void addObject3DScene(GeometryFrame& frame,
     const float personality = scenePersonalityOf(settings);
     const float response = musicResponse3D(metrics, settings);
     const SongSceneIdentity songIdentity = songSceneIdentityFor(intent, metrics, settings.mode);
-    Camera3D camera = makeCamera3D(settings, metrics, intent, songIdentity, width, height, speed, time);
+    Camera3D camera = makeCamera3D(settings, metrics, intent, songArc, songIdentity, width, height, speed, time);
     applyCameraInteraction3D(camera, interaction, settings, width, height);
     const MusicChoreography choreography = buildMusicChoreography(metrics, settings, settings.mode, time, speed);
-    const SectionNarrative3D sectionNarrative = buildSectionNarrative3D(metrics, choreography, intent);
+    SectionNarrative3D sectionNarrative = buildSectionNarrative3D(metrics, choreography, intent);
+    sectionNarrative.build = std::max(sectionNarrative.build, songArc.anticipation * 0.78f);
+    sectionNarrative.drop = std::max(sectionNarrative.drop, songArc.impact * 0.86f);
+    sectionNarrative.release = std::max(sectionNarrative.release, songArc.recovery * 0.82f);
+    sectionNarrative.intensity = std::max({sectionNarrative.build,
+                                           sectionNarrative.drop,
+                                           sectionNarrative.groove,
+                                           sectionNarrative.breakdown,
+                                           sectionNarrative.release});
     const MusicRoleScene3D roleScene = buildMusicRoleScene3D(intent, metrics, settings);
     if (songIdentity == SongSceneIdentity::DarkMonolith) {
         for (Ring& ring : frame.rings) {
@@ -7448,6 +7768,14 @@ void addObject3DScene(GeometryFrame& frame,
                                  objectDensity,
                                  response,
                                  time);
+    addSongArcObjects3D(objects,
+                        songArc,
+                        metrics,
+                        colors,
+                        minimumDimension,
+                        objectDensity,
+                        response,
+                        time);
     addSceneTransitionObjects3D(objects,
                                 settings,
                                 metrics,
@@ -7466,6 +7794,7 @@ void addObject3DScene(GeometryFrame& frame,
                                    response,
                                    time);
     applyMusicChoreography3D(objects, settings.mode, choreography, minimumDimension);
+    applySongArcComposition3D(objects, songArc, metrics, settings, minimumDimension);
     applySongIdentityComposition3D(objects, songIdentity, intent, metrics, minimumDimension);
     applyModeComposition3D(objects, settings.mode, metrics, settings, minimumDimension, time);
     softenBackgroundMeshForRoleScene(objects, roleScene, minimumDimension);
@@ -7540,6 +7869,11 @@ void addObject3DScene(GeometryFrame& frame,
     frame.sectionGroove3D = sectionNarrative.groove;
     frame.sectionBreakdown3D = sectionNarrative.breakdown;
     frame.sectionRelease3D = sectionNarrative.release;
+    frame.songArc3D = songArc.intensity;
+    frame.songArcAnticipation3D = songArc.anticipation;
+    frame.songArcImpact3D = songArc.impact;
+    frame.songArcRecovery3D = songArc.recovery;
+    frame.songArcContinuity3D = songArc.continuity;
     frame.sceneBassRole3D = roleScene.bass;
     frame.sceneDrumRole3D = roleScene.drums;
     frame.sceneMelodyRole3D = roleScene.melody;
@@ -9657,13 +9991,21 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
                                          colors[0],
                                          0.18f + visualMetrics.spectralCentroid * 0.1f + environmentStrength * 0.08f);
 
+    const SceneInterpretation frameIntent = interpretSceneIntent(visualMetrics, settings);
+    const MusicSceneArc3D songArc = updateSongArcMemory(songArc_, visualMetrics, settings, frameIntent, timeSeconds);
+    const ColorRGBA arcTint = mix(mix(colors[1], colors[2], songArc.impact),
+                                  mix(colors[3], colors[4], songArc.recovery),
+                                  songArc.recovery);
     frame.background = mix(ColorRGBA{0.006f, 0.008f, 0.013f, 1.0f},
                            withAlpha(backgroundTint, 1.0f),
                            0.08f + visualMetrics.spectralCentroid * 0.1f + drive * 0.08f +
                                tonalLift * 0.035f + environmentStrength * 0.045f);
-    frame.flash = std::max(visualMetrics.beat ? clamp01(0.16f + visualMetrics.beatConfidence * 0.46f) : 0.0f,
-                           clamp01(visualMetrics.dropIntensity * 0.26f));
-    const SceneInterpretation frameIntent = interpretSceneIntent(visualMetrics, settings);
+    frame.background = mix(frame.background,
+                           withAlpha(arcTint, 1.0f),
+                           songArc.anticipation * 0.026f + songArc.impact * 0.045f + songArc.recovery * 0.032f);
+    frame.flash = std::max(std::max(visualMetrics.beat ? clamp01(0.16f + visualMetrics.beatConfidence * 0.46f) : 0.0f,
+                                    clamp01(visualMetrics.dropIntensity * 0.26f)),
+                           clamp01(songArc.impact * 0.16f + songArc.anticipation * 0.045f));
     frame.sceneIntent = frameIntent.primary;
     frame.sceneIntentName = toString(frameIntent.primary);
 
@@ -9757,7 +10099,7 @@ GeometryFrame VisualizerEngine::buildFrame(const AudioMetrics& metrics,
     frame.retained2DVisualRatio = frame.authored2DVisualWeight > 0.0f
                                       ? frame.retained2DVisualWeight / frame.authored2DVisualWeight
                                       : 0.0f;
-    addObject3DScene(frame, visualMetrics, settings, interaction, environment, colors, width, height, speed, intensity, density, timeSeconds);
+    addObject3DScene(frame, visualMetrics, settings, interaction, environment, songArc, colors, width, height, speed, intensity, density, timeSeconds);
     frame.threeDDominance = frame.projected3DVisualWeight / std::max(1.0f, frame.retained2DVisualWeight);
 
     return frame;
