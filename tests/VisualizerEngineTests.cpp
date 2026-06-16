@@ -786,6 +786,26 @@ void sceneDirectorUsesMusicalRolesForAmbiguousStyles()
     require(bass.motionStyle == MotionStyle::HeavyBass,
             "dominant bass role should select heavy-bass motion");
 
+    SceneDirector sustainedBassDirector;
+    AudioMetrics sustainedBass = withRoles(0.50f, 0.42f, 0.04f, 0.18f, 0.08f, 0.14f, 0.61f, 0.12f);
+    sustainedBass.style = AudioStyle::BassHeavy;
+    sustainedBass.styleConfidence = 0.74f;
+    sustainedBass.rms = 0.38f;
+    sustainedBass.peak = 0.64f;
+    sustainedBass.bass = 0.89f;
+    sustainedBass.lowMid = 0.07f;
+    sustainedBass.highMid = 0.018f;
+    sustainedBass.treble = 0.014f;
+    sustainedBass.stereoWidth = 0.025f;
+    sustainedBass.spectralFlux = 0.018f;
+    sustainedBass.beatConfidence = 0.0f;
+    sustainedBass.barConfidence = 0.67f;
+    const VisualSettings sustainedBassSettings = sustainedBassDirector.resolve(base, sustainedBass, 0.0);
+    require(sustainedBassSettings.mode == VisualMode::QuantumTunnel,
+            "sustained high-pressure bass should stay in pressure/tunnel geometry even when shadow texture is present");
+    require(sustainedBassSettings.motionStyle == MotionStyle::HeavyBass,
+            "sustained high-pressure bass should keep heavy-bass motion");
+
     SceneDirector darkMinimalDirector;
     AudioMetrics darkMinimalMetrics = withRoles(0.56f, 0.18f, 0.06f, 0.18f, 0.10f, 0.16f, 0.58f, 0.16f);
     darkMinimalMetrics.style = AudioStyle::BassHeavy;
@@ -822,6 +842,34 @@ void sceneDirectorUsesMusicalRolesForAmbiguousStyles()
             "dominant drum role should direct ambiguous style into mechanical architecture");
     require(drums.motionStyle == MotionStyle::Mechanical,
             "dominant drum role should select mechanical motion");
+
+    SceneDirector lockedTechnoDirector;
+    AudioMetrics lockedTechno = withRoles(0.24f, 0.46f, 0.06f, 0.14f, 0.12f, 0.31f, 0.10f, 0.18f);
+    lockedTechno.style = AudioStyle::Techno;
+    lockedTechno.styleConfidence = 0.72f;
+    lockedTechno.rms = 0.12f;
+    lockedTechno.peak = 0.41f;
+    lockedTechno.bass = 0.33f;
+    lockedTechno.lowMid = 0.18f;
+    lockedTechno.mid = 0.18f;
+    lockedTechno.highMid = 0.07f;
+    lockedTechno.treble = 0.05f;
+    lockedTechno.stereoWidth = 0.06f;
+    lockedTechno.spectralFlux = 0.13f;
+    lockedTechno.onset = 0.23f;
+    lockedTechno.beat = true;
+    lockedTechno.beatConfidence = 0.22f;
+    lockedTechno.barConfidence = 0.49f;
+    lockedTechno.downbeatConfidence = 0.22f;
+    lockedTechno.section = ArrangementSection::Groove;
+    lockedTechno.sectionConfidence = 0.70f;
+    lockedTechno.bandOnsets = {0.18f, 0.16f, 0.14f, 0.12f, 0.10f};
+    const VisualSettings lockedTechnoSettings = lockedTechnoDirector.resolve(base, lockedTechno, 0.0);
+    require(lockedTechnoSettings.mode == VisualMode::TechnoMandala ||
+                lockedTechnoSettings.mode == VisualMode::PolyrhythmLattice,
+            "locked low-stereo techno peaks should remain mechanical instead of becoming breakbeat fracture");
+    require(lockedTechnoSettings.motionStyle == MotionStyle::Mechanical,
+            "locked low-stereo techno peaks should keep mechanical motion");
 
     SceneDirector melodicDirector;
     AudioMetrics melodicMetrics = withRoles(0.06f, 0.10f, 0.78f, 0.62f, 0.24f, 0.08f, 0.06f, 0.18f);
@@ -3743,7 +3791,8 @@ void autoSceneContinuityResistsAmbiguousFrameFlips()
     const VisualSettings heldAmbient = ambientDirector.resolve(base, falseTechno, 2.1);
     require(heldAmbient.mode == VisualMode::PhaseWeave ||
                 heldAmbient.mode == VisualMode::LissajousMesh,
-            "song continuity should keep established ambient material in spacious 3D fields through false techno frames");
+            "song continuity should keep established ambient material in spacious 3D fields through false techno frames, got " +
+                std::string(toString(heldAmbient.mode)) + " / " + std::string(toString(heldAmbient.motionStyle)));
     require(heldAmbient.motionStyle == MotionStyle::AmbientDrift,
             "song continuity should preserve ambient drift motion language");
 
@@ -3764,6 +3813,34 @@ void autoSceneContinuityResistsAmbiguousFrameFlips()
             "hard breakbeat transients should still override continuity immediately");
     require(breakOverride.motionStyle == MotionStyle::Breakbeat,
             "hard breakbeat transients should select breakbeat choreography");
+
+    SceneDirector staggeredDirector;
+    AudioMetrics staggeredCuts = syntheticMetrics();
+    staggeredCuts.rms = 0.16f;
+    staggeredCuts.peak = 0.46f;
+    staggeredCuts.bass = 0.36f;
+    staggeredCuts.lowMid = 0.14f;
+    staggeredCuts.mid = 0.26f;
+    staggeredCuts.highMid = 0.06f;
+    staggeredCuts.treble = 0.05f;
+    staggeredCuts.stereoWidth = 0.64f;
+    staggeredCuts.spectralFlux = 0.045f;
+    staggeredCuts.onset = 0.060f;
+    staggeredCuts.beat = false;
+    staggeredCuts.beatConfidence = 0.04f;
+    staggeredCuts.barConfidence = 0.42f;
+    staggeredCuts.style = AudioStyle::Techno;
+    staggeredCuts.styleConfidence = 0.58f;
+    staggeredCuts.fractureRole = 0.34f;
+    staggeredCuts.drumRole = 0.20f;
+    staggeredCuts.spaceRole = 0.22f;
+    staggeredCuts.shadowRole = 0.18f;
+    staggeredCuts.roleSeparation = 0.48f;
+    const VisualSettings staggeredSettings = staggeredDirector.resolve(base, staggeredCuts, 0.0);
+    require(staggeredSettings.mode == VisualMode::SpectralOrigami,
+            "staggered mid-band cuts should become a fracture/origami scene instead of locked techno");
+    require(staggeredSettings.motionStyle == MotionStyle::Breakbeat,
+            "staggered mid-band cuts should use breakbeat motion language");
 }
 
 void autoSceneSelectsMotionStyleFromMusic()

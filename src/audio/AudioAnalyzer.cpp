@@ -172,6 +172,15 @@ float styleEvidence(const AudioMetrics& metrics, AudioStyle style)
                                            metrics.lowMid * 0.18f,
                                        0.02f,
                                        0.28f);
+    const float crestTransient = rise(metrics.peak - metrics.rms * 1.35f, 0.08f, 0.36f);
+    const float stereoCutGate = 0.35f + rise(metrics.stereoWidth, 0.24f, 0.58f) * 0.65f;
+    const float stereoCutTransient = clamp01(crestTransient * 0.44f +
+                                             metrics.stereoWidth * 0.20f +
+                                             metrics.mid * 0.16f +
+                                             highBandHit * 0.20f -
+                                             bassDominance * 0.10f -
+                                             metrics.dropIntensity * 0.08f) *
+                                     stereoCutGate;
     const float dropPressure = metrics.dropIntensity * bassPressure;
     const float quietMusical = rise(metrics.rms, 0.012f, 0.08f) *
                                (1.0f - clamp01(metrics.beatConfidence * 0.72f + metrics.dropIntensity * 0.52f));
@@ -188,6 +197,7 @@ float styleEvidence(const AudioMetrics& metrics, AudioStyle style)
                        metrics.lowMid * 0.12f +
                        metrics.bandOnsets[0] * 0.10f -
                        brightDominance * 0.14f -
+                       stereoCutTransient * 0.10f -
                        metrics.stereoWidth * 0.06f);
     case AudioStyle::BassHeavy:
         return clamp01(metrics.bass * 0.22f +
@@ -204,6 +214,7 @@ float styleEvidence(const AudioMetrics& metrics, AudioStyle style)
                        rise(highEnergy, 0.10f, 0.28f) * 0.24f +
                        brightDominance * 0.42f +
                        transient * 0.34f +
+                       stereoCutTransient * 0.28f +
                        metrics.spectralCentroid * 0.22f +
                        highBandHit * 0.18f -
                        bassDominance * 0.18f);
@@ -840,6 +851,28 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
     const float darkMinimalPressure = clamp01(darkTexture * 0.60f +
                                               sparseLowMass * 0.36f +
                                               sectionBreakdown * 0.16f);
+    const float crestTransient = rise(metrics.peak - metrics.rms * 1.35f, 0.08f, 0.36f);
+    const float cutTexture = clamp01(midBandHit * 0.28f +
+                                     highBandHit * 0.40f +
+                                     metrics.mid * 0.18f +
+                                     metrics.highMid * 0.30f +
+                                     metrics.treble * 0.34f +
+                                     styleEvidence(metrics, AudioStyle::Bright) * 0.16f);
+    const float staggeredCutCue = clamp01(crestTransient * 0.46f +
+                                          transient * 0.28f +
+                                          cutTexture * 0.34f +
+                                          metrics.stereoWidth * 0.22f +
+                                          (1.0f - metrics.beatConfidence) * 0.12f -
+                                          rhythmGrid * tempo * 0.12f -
+                                          metrics.dropIntensity * 0.10f -
+                                          bassDominance * 0.08f);
+    const float harmonicLineCue = clamp01(harmonicFocus * 0.46f +
+                                          metrics.harmonicEnergy * 0.24f +
+                                          rise(metrics.lowMid + metrics.mid, 0.14f, 0.48f) * 0.16f +
+                                          metrics.phraseConfidence * 0.08f -
+                                          bassDominance * 0.18f -
+                                          metrics.dropIntensity * 0.18f);
+    const float focusedHarmonicLine = harmonicLineCue * (1.0f - rise(metrics.stereoWidth, 0.66f, 0.90f));
 
     float bassRole = audible * clamp01(metrics.bass * 0.46f +
                                        metrics.lowMid * 0.20f +
@@ -885,6 +918,7 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
                                         highDominance * 0.18f);
     float fractureRole = audible * clamp01(transient * 0.48f +
                                            metrics.spectralFlux * 0.34f +
+                                           staggeredCutCue * 0.34f +
                                            highBandHit * 0.30f +
                                            midBandHit * 0.12f +
                                            metrics.onset * 0.16f +
@@ -901,6 +935,18 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
                                          highBandHit * 0.12f -
                                          transient * 0.08f);
 
+    const float dancePulseCue = clamp01(tempo * 0.34f +
+                                        metrics.beatConfidence * 0.26f +
+                                        metrics.barConfidence * 0.20f +
+                                        lowBandHit * 0.20f +
+                                        metrics.onset * 0.16f -
+                                        spatialCalm * 0.10f);
+    const float sequencerCue = std::max(clamp01(rhythmGrid * 0.60f +
+                                                styleEvidence(metrics, AudioStyle::Techno) * 0.30f +
+                                                tempo * metrics.beatConfidence * 0.12f -
+                                                spatialCalm * 0.18f -
+                                                harmonicLineCue * 0.10f),
+                                        dancePulseCue * std::clamp(1.0f - focusedHarmonicLine * 0.18f, 0.72f, 1.0f));
     if (metrics.style == AudioStyle::Techno) {
         drumRole = std::max(drumRole,
                             audible * clamp01(0.14f +
@@ -915,8 +961,12 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
         melodyRole *= 0.88f;
         spaceRole *= 0.80f;
     } else if (metrics.style == AudioStyle::Wide || metrics.style == AudioStyle::Ambient) {
-        spaceRole = std::max(spaceRole, audible * clamp01(0.18f + spatialCalm * 0.64f));
-        drumRole *= 0.76f;
+        spaceRole = std::max(spaceRole,
+                             audible * clamp01(0.18f +
+                                               spatialCalm * 0.64f -
+                                               rhythmGrid * 0.28f -
+                                               styleEvidence(metrics, AudioStyle::Techno) * 0.22f));
+        drumRole *= std::clamp(0.76f + sequencerCue * 0.24f, 0.76f, 1.0f);
         fractureRole *= 0.82f;
     } else if (metrics.style == AudioStyle::Bright) {
         fractureRole = std::max(fractureRole,
@@ -926,6 +976,44 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
                                                   highBandHit * 0.20f));
         melodyRole = std::max(melodyRole, audible * clamp01(harmonicFocus * 0.36f + highEnergy * 0.22f));
         spaceRole *= 0.48f;
+    }
+
+    if (sequencerCue > 0.32f && metrics.dropIntensity < 0.52f) {
+        drumRole = std::max(drumRole,
+                            audible * clamp01(0.14f +
+                                              sequencerCue * 0.86f +
+                                              lowBandHit * 0.10f -
+                                              focusedHarmonicLine * 0.12f));
+        spaceRole *= std::clamp(1.0f - sequencerCue * 0.66f, 0.24f, 1.0f);
+    }
+
+    if (staggeredCutCue > 0.24f && metrics.bass < 0.68f && metrics.dropIntensity < 0.42f) {
+        fractureRole = std::max(fractureRole,
+                                audible * clamp01(0.10f +
+                                                  staggeredCutCue * 0.78f +
+                                                  metrics.stereoWidth * 0.10f +
+                                                  crestTransient * 0.12f -
+                                                  harmonicFocus * 0.10f));
+        if (metrics.style == AudioStyle::Techno && metrics.beatConfidence < 0.42f) {
+            drumRole *= std::clamp(1.0f - staggeredCutCue * 0.20f, 0.72f, 1.0f);
+        }
+        shadowRole *= std::clamp(1.0f - staggeredCutCue * 0.16f, 0.74f, 1.0f);
+    }
+
+    if (focusedHarmonicLine > 0.24f && metrics.bass < 0.34f && metrics.dropIntensity < 0.36f) {
+        melodyRole = std::max(melodyRole,
+                              audible * clamp01(0.12f +
+                                                focusedHarmonicLine * 0.56f +
+                                                metrics.mid * 0.16f +
+                                                metrics.lowMid * 0.10f +
+                                                metrics.keyConfidence * 0.12f));
+        harmonyRole = std::max(harmonyRole,
+                               audible * clamp01(0.14f +
+                                                 focusedHarmonicLine * 0.62f +
+                                                 metrics.harmonicEnergy * 0.20f +
+                                                 metrics.phraseConfidence * 0.10f));
+        drumRole *= std::clamp(1.0f - focusedHarmonicLine * 0.16f, 0.74f, 1.0f);
+        shadowRole *= std::clamp(1.0f - focusedHarmonicLine * 0.30f, 0.62f, 1.0f);
     }
 
     const float bassArticulation = clamp01(0.44f +
@@ -1024,7 +1112,7 @@ void AudioAnalyzer::updateMusicalRoleMetrics(AudioMetrics& metrics)
                                                dominance * 0.32f +
                                                topRole * 0.24f +
                                                blendedFamilies * 0.14f +
-                                               (1.0f - std::min(activeRoles / 6.0f, 1.0f)) * 0.12f);
+                                               std::min(activeRoles / 6.0f, 1.0f) * 0.10f);
 }
 
 void AudioAnalyzer::updateArrangementSection(AudioMetrics& metrics,

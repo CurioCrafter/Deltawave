@@ -93,3 +93,15 @@ Useful batch-specific options:
 - `--max-files N`: cap the number of rendered tracks for quick previews.
 - `--mp4`: encode one MP4 per track using FFmpeg.
 - `--share` / `--no-share`: enable or disable per-track share pages.
+
+## 3D Scene QA Contact Sheet
+
+Run the deterministic scene QA script when checking that Deltawave still renders a 3D-first scene family across the required music profiles:
+
+```powershell
+.\scripts\export_scene_qa.ps1
+```
+
+The script generates eight short WAV profiles (`silence`, `low_volume`, `techno`, `bass_drop`, `ambient`, `melodic`, `breakbeat`, and `dark_minimal`), exports each through `VisualizerExport.exe` with high-clarity 3D-first settings, writes per-profile share folders, and creates a root `scene_contact_sheet.bmp`, `scene_qa_summary.csv`, and `index.html`. It fails if any profile keeps retained 2D primitives, has weak projected 3D coverage, has weak material-surface share, drifts too far off-center, lacks explicit music-role 3D geometry, or does not spread role districts clearly through depth.
+
+The QA also locks representative scene identity for the strongest profiles: techno must resolve to mechanical rhythm architecture, bass drops must stay `Quantum Tunnel` / `Heavy Bass`, breakbeat cuts must resolve to `Spectral Origami` / `Breakbeat`, ambient must expose a dominant space role, melodic material must expose melody/harmony roles, and dark minimal material must expose a shadow/monolith role. Use `scene_qa_summary.csv` and the per-profile `analysis_timeline.csv` files to compare final mode, motion style, role maxima, explicit role share, and district spread.

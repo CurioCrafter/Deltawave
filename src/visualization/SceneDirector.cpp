@@ -38,6 +38,60 @@ float highBandOnset(const AudioMetrics& metrics)
     return std::max(metrics.bandOnsets[3], metrics.bandOnsets[4]);
 }
 
+float crestTransientCue(const AudioMetrics& metrics)
+{
+    return std::clamp((metrics.peak - metrics.rms * 1.35f - 0.08f) / 0.28f, 0.0f, 1.0f);
+}
+
+bool staggeredCutCue(const AudioMetrics& metrics)
+{
+    const float crest = crestTransientCue(metrics);
+    const float cutTexture = std::clamp(metrics.mid * 0.22f +
+                                            metrics.highMid * 0.34f +
+                                            metrics.treble * 0.38f +
+                                            highBandOnset(metrics) * 0.32f +
+                                            metrics.spectralFlux * 0.22f,
+                                        0.0f,
+                                        1.0f);
+    const float offGridStereo = std::clamp((1.0f - metrics.beatConfidence) * 0.24f +
+                                               metrics.stereoWidth * 0.26f +
+                                               metrics.barConfidence * 0.08f,
+                                           0.0f,
+                                           1.0f);
+    const bool falseGridFrame = metrics.style == AudioStyle::Techno &&
+                                metrics.beatConfidence > 0.18f &&
+                                metrics.spectralFlux < 0.18f &&
+                                metrics.fractureRole < 0.30f;
+    const bool stableWidePad = metrics.style == AudioStyle::Wide &&
+                               metrics.styleConfidence > 0.70f &&
+                               metrics.spectralFlux < 0.12f &&
+                               metrics.fractureRole < 0.30f;
+    const bool lockedSequencerFrame = metrics.style == AudioStyle::Techno &&
+                                      metrics.stereoWidth < 0.34f &&
+                                      metrics.spectralFlux < 0.22f &&
+                                      metrics.drumRole > metrics.fractureRole + 0.055f &&
+                                      (metrics.beatConfidence > 0.16f ||
+                                       metrics.barConfidence > 0.38f ||
+                                       metrics.downbeatConfidence > 0.22f);
+    const bool readableCutStereo = metrics.stereoWidth > 0.30f ||
+                                   metrics.fractureRole > metrics.drumRole + 0.08f ||
+                                   metrics.spectralFlux > 0.26f ||
+                                   (metrics.style == AudioStyle::Bright &&
+                                    highTexture(metrics) > metrics.bass * 0.22f + 0.025f);
+    return metrics.rms > 0.035f &&
+           metrics.peak > 0.16f &&
+           metrics.style != AudioStyle::Ambient &&
+           !falseGridFrame &&
+           !stableWidePad &&
+           !lockedSequencerFrame &&
+           readableCutStereo &&
+           metrics.bass < 0.68f &&
+           metrics.dropIntensity < 0.44f &&
+           crest > 0.22f &&
+           offGridStereo > 0.24f &&
+           (cutTexture > 0.12f || metrics.onset > 0.035f || metrics.spectralFlux > 0.025f);
+}
+
 float musicalRoleSum(const AudioMetrics& metrics)
 {
     return metrics.bassRole +
@@ -72,9 +126,19 @@ float strongestMusicalRole(const AudioMetrics& metrics)
 
 bool transientBreakCue(const AudioMetrics& metrics)
 {
+    const bool staggeredCut = staggeredCutCue(metrics);
     const bool lockedTechno = metrics.style == AudioStyle::Techno &&
-                              metrics.bass > 0.42f &&
-                              metrics.beatConfidence > 0.62f;
+                              metrics.bass > 0.32f &&
+                              metrics.stereoWidth < 0.36f &&
+                              metrics.spectralFlux < 0.24f &&
+                              (metrics.beatConfidence > 0.52f ||
+                               metrics.barConfidence > 0.40f ||
+                               metrics.drumRole > metrics.fractureRole + 0.045f);
+    const bool wideDimensionalTechno = metrics.style == AudioStyle::Techno &&
+                                       metrics.stereoWidth > 0.50f &&
+                                       metrics.spectralFlux > 0.46f &&
+                                       metrics.beatConfidence > 0.62f &&
+                                       metrics.fractureRole < metrics.drumRole + 0.08f;
     const bool wideBuild = metrics.style == AudioStyle::Wide &&
                            metrics.section == ArrangementSection::Build &&
                            metrics.stereoWidth > 0.55f;
@@ -87,15 +151,16 @@ bool transientBreakCue(const AudioMetrics& metrics)
                                   metrics.keyConfidence > 0.48f &&
                                   metrics.harmonicEnergy > 0.40f;
     return metrics.rms > 0.045f &&
-           metrics.spectralFlux > 0.24f &&
+           (staggeredCut || metrics.spectralFlux > 0.24f) &&
            metrics.dropIntensity < 0.58f &&
            metrics.bass < 0.74f &&
            !lockedTechno &&
+           !wideDimensionalTechno &&
            !wideBuild &&
            !harmonicBuild &&
            !barLockedHarmony &&
-           (metrics.onset > 0.14f || metrics.beatConfidence > 0.22f || metrics.section == ArrangementSection::Drop) &&
-           (highTexture(metrics) > 0.045f || highBandOnset(metrics) > 0.20f);
+           (staggeredCut || metrics.onset > 0.14f || metrics.beatConfidence > 0.22f || metrics.section == ArrangementSection::Drop) &&
+           (highTexture(metrics) > 0.045f || highBandOnset(metrics) > 0.20f || staggeredCut);
 }
 
 bool melodicCue(const AudioMetrics& metrics)
@@ -103,6 +168,7 @@ bool melodicCue(const AudioMetrics& metrics)
     return metrics.rms > 0.075f &&
            metrics.dropIntensity < 0.38f &&
            metrics.bass < 0.28f &&
+           metrics.stereoWidth < 0.70f &&
            metrics.harmonicEnergy > 0.30f &&
            metrics.keyConfidence > 0.08f &&
            metrics.spectralFlux < 0.30f;
@@ -262,6 +328,7 @@ ContinuityScores scoreContinuity(const AudioMetrics& metrics)
                                 0.0f,
                                 1.0f);
     scores.broken = std::clamp((breakCue ? 0.58f : 0.0f) +
+                                   (staggeredCutCue(metrics) ? 0.34f : 0.0f) +
                                    transient * 0.38f +
                                    (metrics.style == AudioStyle::Bright ? styleWeight * 0.16f : 0.0f) -
                                    metrics.bass * 0.10f,
@@ -1129,11 +1196,17 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
     const bool hardDropNow = metrics.dropIntensity > 0.66f ||
                              (metrics.section == ArrangementSection::Drop && metrics.sectionConfidence > 0.70f);
     const bool darkTextureNow = darkMinimalCue(metrics);
-    const bool articulatedBassRole = metrics.bassRole > 0.58f &&
-                                     (metrics.bass > 0.76f ||
-                                      metrics.peak > 0.48f ||
-                                      metrics.lowMid > 0.075f ||
-                                      metrics.convergenceRole > 0.50f);
+    const bool sustainedBassPressure = metrics.style == AudioStyle::BassHeavy &&
+                                       metrics.bass > 0.82f &&
+                                       metrics.rms > 0.28f &&
+                                       metrics.peak > 0.50f &&
+                                       metrics.stereoWidth < 0.12f;
+    const bool articulatedBassRole = (metrics.bassRole > 0.58f &&
+                                      (metrics.bass > 0.76f ||
+                                       metrics.peak > 0.48f ||
+                                       metrics.lowMid > 0.075f ||
+                                       metrics.convergenceRole > 0.50f)) ||
+                                     sustainedBassPressure;
     const bool shadowCanChallengeBass = darkTextureNow ||
                                         (metrics.dropIntensity < 0.42f &&
                                          metrics.convergenceRole < 0.54f &&
@@ -1172,16 +1245,23 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
                                    metrics.spaceRole > metrics.bassRole + 0.08f &&
                                    metrics.spaceRole > metrics.drumRole + 0.06f &&
                                    metrics.spaceRole > metrics.fractureRole + 0.06f;
+    const bool staggeredBreakNow = staggeredCutCue(metrics);
     const bool roleFractureDominant = roleAware &&
-                                      metrics.fractureRole > 0.40f &&
-                                      metrics.fractureRole > metrics.spaceRole + 0.06f &&
-                                      metrics.fractureRole > metrics.bassRole + 0.06f &&
-                                      metrics.fractureRole > metrics.shadowRole + 0.03f &&
-                                      metrics.fractureRole > melodyRoleScore;
+                                      metrics.fractureRole > (staggeredBreakNow ? 0.30f : 0.40f) &&
+                                      metrics.fractureRole > metrics.drumRole + (staggeredBreakNow ? -0.02f : 0.04f) &&
+                                      metrics.fractureRole > metrics.spaceRole + (staggeredBreakNow ? -0.02f : 0.06f) &&
+                                      metrics.fractureRole > metrics.bassRole + (staggeredBreakNow ? 0.00f : 0.06f) &&
+                                      metrics.fractureRole > metrics.shadowRole + (staggeredBreakNow ? -0.03f : 0.03f) &&
+                                      metrics.fractureRole > melodyRoleScore - (staggeredBreakNow ? 0.05f : 0.0f);
     const bool hardBreakNow = transientBreakCue(metrics) &&
-                              (metrics.spectralFlux > 0.32f || metrics.onset > 0.30f || highBandOnset(metrics) > 0.40f);
+                              (staggeredBreakNow ||
+                               metrics.spectralFlux > 0.32f ||
+                               metrics.onset > 0.30f ||
+                               highBandOnset(metrics) > 0.40f);
     const bool hardRoleBreakNow = roleFractureDominant &&
-                                  (metrics.convergenceRole > 0.24f || metrics.roleSeparation > 0.52f);
+                                  (staggeredBreakNow ||
+                                   metrics.convergenceRole > 0.24f ||
+                                   metrics.roleSeparation > 0.52f);
     const bool dominantBreak = (breakMemory_ > 0.46f &&
                                 breakMemory_ > bassMemory_ + 0.05f &&
                                 breakMemory_ > technoMemory_ - 0.02f &&
@@ -1345,10 +1425,17 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
     if ((currentMode_ == VisualMode::PhaseWeave ||
          currentMode_ == VisualMode::LissajousMesh) &&
         (target.mode == VisualMode::TechnoMandala ||
-         target.mode == VisualMode::PolyrhythmLattice) &&
+         target.mode == VisualMode::PolyrhythmLattice ||
+         target.mode == VisualMode::SpectralOrigami) &&
         ambiguousLowMotionFrame &&
         ambientMemory_ > 0.34f &&
-        metrics.beatConfidence < 0.18f) {
+        !roleDrumDominant &&
+        !roleBassDominant &&
+        !roleFractureDominant &&
+        metrics.fractureRole < 0.30f &&
+        metrics.beatConfidence < 0.32f &&
+        metrics.dropIntensity < 0.30f &&
+        metrics.spectralFlux < 0.18f) {
         target.mode = currentMode_;
         target.palette = Palette::OceanicPulse;
         target.motionStyle = MotionStyle::AmbientDrift;
@@ -1372,7 +1459,8 @@ VisualSettings SceneDirector::resolve(const VisualSettings& base,
     const bool strongDrop = metrics.dropIntensity > 0.68f ||
                             (metrics.section == ArrangementSection::Drop && metrics.sectionConfidence > 0.62f);
     const bool strongBreak = transientBreakCue(metrics) &&
-                             (metrics.spectralFlux > 0.30f ||
+                             (staggeredBreakNow ||
+                              metrics.spectralFlux > 0.30f ||
                               highBandOnset(metrics) > 0.38f ||
                               metrics.onset > 0.26f);
     const bool strongRoleIdentity = (roleBassDominant ||

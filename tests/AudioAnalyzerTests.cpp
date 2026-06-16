@@ -565,6 +565,16 @@ void analyzerReportsSeparatedMusicalRoles()
                 std::to_string(bright.fractureRole) +
                 " space=" + std::to_string(bright.spaceRole));
 
+    const AudioMetrics brokenMid = analyzePulsedStyle(132.0f, 0.055f, 0.20f, 0.30f, 0.08f, 0.72f, 60.0 / 162.0, true);
+    requireRolesNormalized(brokenMid, "broken-mid");
+    require(brokenMid.fractureRole > 0.28f &&
+                brokenMid.fractureRole > brokenMid.bassRole + 0.04f &&
+                brokenMid.fractureRole > brokenMid.spaceRole,
+            "staggered stereo mid-band cuts should expose a fracture voice instead of generic techno mass; fracture=" +
+                std::to_string(brokenMid.fractureRole) +
+                " bass=" + std::to_string(brokenMid.bassRole) +
+                " space=" + std::to_string(brokenMid.spaceRole));
+
     AudioAnalyzer wideAnalyzer(48000, 2);
     AudioMetrics wide;
     const std::vector<float> wideFrame = makeStyleFrame(180.0f, 0.10f, 620.0f, 0.21f, 2800.0f, 0.22f, 0.96f, false);
@@ -593,6 +603,21 @@ void analyzerReportsSeparatedMusicalRoles()
                 std::to_string(melodic.melodyRole) +
                 " harmony=" + std::to_string(melodic.harmonyRole) +
                 " bass=" + std::to_string(melodic.bassRole));
+
+    AudioAnalyzer lowMidMelodyAnalyzer(48000, 2);
+    AudioMetrics lowMidMelody;
+    const std::vector<float> lowMidMelodyFrame = makeStyleFrame(220.0f, 0.025f, 554.37f, 0.22f, 1108.73f, 0.10f, 0.30f, false);
+    for (int frame = 0; frame < 18; ++frame) {
+        lowMidMelody = lowMidMelodyAnalyzer.analyzeInterleaved(lowMidMelodyFrame.data(), 4096, static_cast<double>(frame) * 0.12);
+    }
+    requireRolesNormalized(lowMidMelody, "low-mid-melody");
+    require(lowMidMelody.melodyRole + lowMidMelody.harmonyRole >
+                lowMidMelody.shadowRole + lowMidMelody.bassRole + 0.08f,
+            "low-mid harmonic lines should become melody/harmony geometry, not shadow/bass mass; melody=" +
+                std::to_string(lowMidMelody.melodyRole) +
+                " harmony=" + std::to_string(lowMidMelody.harmonyRole) +
+                " shadow=" + std::to_string(lowMidMelody.shadowRole) +
+                " bass=" + std::to_string(lowMidMelody.bassRole));
 
     const AudioMetrics dark = analyzePulsedStyle(86.0f, 0.26f, 0.50f, 0.08f, 0.01f, 0.05f, 60.0 / 124.0, false);
     requireRolesNormalized(dark, "dark");
