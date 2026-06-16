@@ -35,6 +35,7 @@ void audioAnalyzerLoadsAndSavesStyleProfile();
 void audioSyncProfilePersistsSensitivity();
 void audioAnalyzerLoadsAndSavesSyncProfile();
 void analyzerReportsAdvancedSyncMetrics();
+void analyzerClassifiesMusicalStyleCues();
 void analyzerTracksBarPhaseAndDownbeats();
 void analyzerDetectsArrangementSections();
 void supportBundleWritesDiagnosticsWithoutCopyingLargeMedia();
@@ -457,8 +458,8 @@ void sceneDirectorAdaptsVisualSettings()
     base.autoScene = true;
     (void)director.resolve(base, techno, 0.1);
     VisualSettings directed = director.resolve(base, techno, 0.8);
-    require(directed.mode == VisualMode::PolyrhythmLattice,
-            "techno metrics should direct toward the polyrhythm lattice");
+    require(directed.mode == VisualMode::PolyrhythmLattice || directed.mode == VisualMode::TechnoMandala,
+            "techno metrics should direct toward a mechanical techno scene");
     require(directed.palette == Palette::NeonVoltage || directed.palette == Palette::AcidAurora,
             "techno metrics should direct toward an electronic palette");
     require(directed.intensity > base.intensity, "high-energy techno should raise intensity");
@@ -3950,6 +3951,7 @@ int main()
         {"audioSyncProfilePersistsSensitivity", viz::tests::audioSyncProfilePersistsSensitivity},
         {"audioAnalyzerLoadsAndSavesSyncProfile", viz::tests::audioAnalyzerLoadsAndSavesSyncProfile},
         {"analyzerReportsAdvancedSyncMetrics", viz::tests::analyzerReportsAdvancedSyncMetrics},
+        {"analyzerClassifiesMusicalStyleCues", viz::tests::analyzerClassifiesMusicalStyleCues},
         {"analyzerTracksBarPhaseAndDownbeats", viz::tests::analyzerTracksBarPhaseAndDownbeats},
         {"analyzerDetectsArrangementSections", viz::tests::analyzerDetectsArrangementSections},
         {"geometryModesProduceShapes", viz::tests::geometryModesProduceShapes},

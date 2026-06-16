@@ -65,6 +65,63 @@ void writeTestWav(const std::filesystem::path& path)
     }
 }
 
+std::vector<float> makeStyleFrame(float lowHz,
+                                  float lowAmp,
+                                  float midHz,
+                                  float midAmp,
+                                  float highHz,
+                                  float highAmp,
+                                  float stereoSpread,
+                                  bool transient)
+{
+    constexpr int frames = 4096;
+    std::vector<float> samples(frames * 2, 0.0f);
+    for (int i = 0; i < frames; ++i) {
+        const float t = static_cast<float>(i) / 48000.0f;
+        const float low = std::sin(2.0f * kPi * lowHz * t) * lowAmp;
+        const float mid = std::sin(2.0f * kPi * midHz * t) * midAmp;
+        const float high = std::sin(2.0f * kPi * highHz * t) * highAmp;
+        const float click = transient && i >= frames - 420
+                                ? std::sin(2.0f * kPi * 3600.0f * t) * (0.32f + highAmp * 0.45f)
+                                : 0.0f;
+        const float spread = std::clamp(stereoSpread, 0.0f, 1.0f);
+        const float left = low + mid + high + click;
+        const float right = low * (1.0f - spread * 0.28f) -
+                            mid * spread +
+                            high * (1.0f - spread * 1.55f) -
+                            click * spread * 0.75f;
+        samples[static_cast<std::size_t>(i) * 2U] = std::clamp(left, -1.0f, 1.0f);
+        samples[(static_cast<std::size_t>(i) * 2U) + 1U] = std::clamp(right, -1.0f, 1.0f);
+    }
+    return samples;
+}
+
+AudioMetrics analyzePulsedStyle(float lowHz,
+                                float bodyLow,
+                                float kickLow,
+                                float midAmp,
+                                float highAmp,
+                                float stereoSpread,
+                                double beatPeriodSeconds,
+                                bool transient)
+{
+    AudioAnalyzer analyzer(48000, 2);
+    std::vector<float> silence(2048 * 2, 0.0f);
+    for (int i = 0; i < 30; ++i) {
+        analyzer.analyzeInterleaved(silence.data(), 2048, static_cast<double>(i) * 0.05);
+    }
+
+    AudioMetrics metrics;
+    const std::vector<float> body = makeStyleFrame(lowHz, bodyLow, 720.0f, midAmp, 3600.0f, highAmp, stereoSpread, false);
+    const std::vector<float> kick = makeStyleFrame(lowHz, kickLow, 920.0f, midAmp, 4200.0f, highAmp, stereoSpread, transient);
+    for (int beat = 0; beat < 12; ++beat) {
+        const double baseTime = 1.0 + static_cast<double>(beat) * beatPeriodSeconds;
+        analyzer.analyzeInterleaved(body.data(), 4096, baseTime - 0.08);
+        metrics = analyzer.analyzeInterleaved(kick.data(), 4096, baseTime);
+    }
+    return metrics;
+}
+
 } // namespace
 
 void analyzerReportsSilence()
@@ -402,6 +459,61 @@ void analyzerReportsAdvancedSyncMetrics()
             "phrase confidence should be normalized");
     require(metrics.buildTension >= 0.0f && metrics.buildTension <= 1.0f,
             "build tension should be normalized");
+}
+
+void analyzerClassifiesMusicalStyleCues()
+{
+    const AudioMetrics techno = analyzePulsedStyle(142.0f, 0.06f, 0.20f, 0.48f, 0.26f, 0.18f, 60.0 / 128.0, true);
+    require(techno.style == AudioStyle::Techno,
+            "regular kick-driven dance content should classify as Techno, got " + std::string(toString(techno.style)) +
+                " bpm=" + std::to_string(techno.bpm) +
+                " bass=" + std::to_string(techno.bass) +
+                " lowMid=" + std::to_string(techno.lowMid) +
+                " highMid=" + std::to_string(techno.highMid) +
+                " treble=" + std::to_string(techno.treble) +
+                " beat=" + std::to_string(techno.beatConfidence) +
+                " drop=" + std::to_string(techno.dropIntensity) +
+                " flux=" + std::to_string(techno.spectralFlux));
+    require(techno.styleConfidence > 0.42f, "techno cue classification should carry usable confidence");
+
+    const AudioMetrics bass = analyzePulsedStyle(72.0f, 0.18f, 0.88f, 0.12f, 0.04f, 0.14f, 60.0 / 140.0, false);
+    require(bass.style == AudioStyle::BassHeavy,
+            "dominant low-frequency pressure should classify as Bass Heavy, got " + std::string(toString(bass.style)));
+    require(bass.styleConfidence > 0.42f, "bass-heavy cue classification should carry usable confidence");
+
+    const AudioMetrics bright = analyzePulsedStyle(260.0f, 0.01f, 0.025f, 0.06f, 0.95f, 0.34f, 60.0 / 104.0, true);
+    require(bright.style == AudioStyle::Bright,
+            "bright transient-heavy content should classify as Bright, got " + std::string(toString(bright.style)) +
+                " bpm=" + std::to_string(bright.bpm) +
+                " bass=" + std::to_string(bright.bass) +
+                " lowMid=" + std::to_string(bright.lowMid) +
+                " highMid=" + std::to_string(bright.highMid) +
+                " treble=" + std::to_string(bright.treble) +
+                " centroid=" + std::to_string(bright.spectralCentroid) +
+                " onset=" + std::to_string(bright.onset) +
+                " beat=" + std::to_string(bright.beatConfidence) +
+                " drop=" + std::to_string(bright.dropIntensity) +
+                " flux=" + std::to_string(bright.spectralFlux));
+    require(bright.styleConfidence > 0.42f, "bright cue classification should carry usable confidence");
+
+    AudioAnalyzer wideAnalyzer(48000, 2);
+    AudioMetrics wide;
+    const std::vector<float> wideFrame = makeStyleFrame(180.0f, 0.12f, 620.0f, 0.22f, 2800.0f, 0.24f, 0.95f, false);
+    for (int frame = 0; frame < 18; ++frame) {
+        wide = wideAnalyzer.analyzeInterleaved(wideFrame.data(), 4096, static_cast<double>(frame) * 0.12);
+    }
+    require(wide.style == AudioStyle::Wide,
+            "strong stereo spread should classify as Wide when bass/drop cues are modest, got " +
+                std::string(toString(wide.style)));
+
+    AudioAnalyzer quietAnalyzer(48000, 2);
+    AudioMetrics quiet;
+    const std::vector<float> quietFrame = makeStyleFrame(220.0f, 0.016f, 880.0f, 0.020f, 1800.0f, 0.010f, 0.28f, false);
+    for (int frame = 0; frame < 12; ++frame) {
+        quiet = quietAnalyzer.analyzeInterleaved(quietFrame.data(), 4096, static_cast<double>(frame) * 0.15);
+    }
+    require(quiet.style == AudioStyle::Ambient || quiet.style == AudioStyle::Silence,
+            "very quiet musical content should stay calm instead of becoming a dance/drop style");
 }
 
 void analyzerTracksBarPhaseAndDownbeats()

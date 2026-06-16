@@ -76,6 +76,128 @@ struct SectionCandidate {
     float confidence = 0.0f;
 };
 
+float rise(float value, float low, float high)
+{
+    if (std::abs(high - low) <= 0.0001f) {
+        return value >= high ? 1.0f : 0.0f;
+    }
+    return clamp01((value - low) / (high - low));
+}
+
+float rangePeak(float value, float low, float high)
+{
+    if (value <= 0.0f || high <= low) {
+        return 0.0f;
+    }
+    if (value >= low && value <= high) {
+        return 1.0f;
+    }
+    const float falloff = (high - low) * 0.55f;
+    if (value < low) {
+        return rise(value, low - falloff, low);
+    }
+    return 1.0f - rise(value, high, high + falloff);
+}
+
+float danceTempoScore(float bpm)
+{
+    const float direct = rangePeak(bpm, 112.0f, 156.0f);
+    const float halfTime = rangePeak(bpm * 0.5f, 112.0f, 156.0f);
+    const float doubleTime = rangePeak(bpm * 2.0f, 112.0f, 156.0f);
+    return std::max({direct, halfTime * 0.88f, doubleTime * 0.78f});
+}
+
+float maxBandOnset(const AudioMetrics& metrics)
+{
+    return *std::max_element(metrics.bandOnsets.begin(), metrics.bandOnsets.end());
+}
+
+bool isSceneStyle(AudioStyle style)
+{
+    return style == AudioStyle::Techno ||
+           style == AudioStyle::BassHeavy ||
+           style == AudioStyle::Bright ||
+           style == AudioStyle::Wide;
+}
+
+float styleEvidence(const AudioMetrics& metrics, AudioStyle style)
+{
+    if (metrics.rms < 0.006f && metrics.peak < 0.02f) {
+        return style == AudioStyle::Silence ? 1.0f : 0.0f;
+    }
+
+    const float highEnergy = clamp01(metrics.highMid * 0.82f + metrics.treble * 1.05f);
+    const float highBandHit = std::max(metrics.bandOnsets[3], metrics.bandOnsets[4]);
+    const float lowEnergy = clamp01(metrics.bass * 0.72f + metrics.lowMid * 0.42f);
+    const float transient = clamp01(metrics.spectralFlux * 0.48f +
+                                    metrics.onset * 1.25f +
+                                    maxBandOnset(metrics) * 0.36f);
+    const float rhythmic = clamp01(metrics.beatConfidence * 0.62f +
+                                   metrics.downbeatConfidence * 0.18f +
+                                   transient * 0.24f);
+    const float tempo = danceTempoScore(metrics.bpm);
+    const float bassPressure = rise(metrics.bass, 0.44f, 0.82f);
+    const float bassDominance = rise(metrics.bass - highEnergy * 0.56f, 0.03f, 0.30f);
+    const float brightDominance = rise(highEnergy +
+                                           metrics.spectralFlux * 0.28f -
+                                           metrics.bass * 0.42f -
+                                           metrics.lowMid * 0.18f,
+                                       0.02f,
+                                       0.28f);
+    const float dropPressure = metrics.dropIntensity * bassPressure;
+    const float quietMusical = rise(metrics.rms, 0.012f, 0.08f) *
+                               (1.0f - clamp01(metrics.beatConfidence * 0.72f + metrics.dropIntensity * 0.52f));
+
+    switch (style) {
+    case AudioStyle::Silence:
+        return metrics.rms < 0.014f && metrics.peak < 0.035f
+                   ? clamp01(1.0f - metrics.rms * 34.0f - metrics.peak * 9.0f)
+                   : 0.0f;
+    case AudioStyle::Techno:
+        return clamp01(tempo * 0.42f +
+                       rhythmic * 0.40f +
+                       lowEnergy * 0.22f +
+                       metrics.lowMid * 0.12f +
+                       metrics.bandOnsets[0] * 0.10f -
+                       brightDominance * 0.14f -
+                       metrics.stereoWidth * 0.06f);
+    case AudioStyle::BassHeavy:
+        return clamp01(metrics.bass * 0.22f +
+                       lowEnergy * 0.16f +
+                       bassDominance * 0.18f +
+                       bassPressure * 0.34f +
+                       dropPressure * 0.24f +
+                       metrics.bandOnsets[0] * bassPressure * 0.10f +
+                       rhythmic * 0.05f -
+                       brightDominance * 0.18f -
+                       tempo * (1.0f - bassPressure) * 0.18f);
+    case AudioStyle::Bright:
+        return clamp01(highEnergy * 0.62f +
+                       rise(highEnergy, 0.10f, 0.28f) * 0.24f +
+                       brightDominance * 0.42f +
+                       transient * 0.34f +
+                       metrics.spectralCentroid * 0.22f +
+                       highBandHit * 0.18f -
+                       bassDominance * 0.18f);
+    case AudioStyle::Wide:
+        return clamp01(metrics.stereoWidth * 0.62f +
+                       metrics.phraseIntensity * 0.16f +
+                       metrics.harmonicEnergy * 0.12f +
+                       highEnergy * 0.08f -
+                       metrics.dropIntensity * 0.18f -
+                       bassDominance * 0.10f);
+    case AudioStyle::Ambient:
+        return clamp01(quietMusical * 0.38f +
+                       (1.0f - rhythmic) * 0.24f +
+                       (1.0f - transient) * 0.18f +
+                       metrics.harmonicEnergy * 0.14f +
+                       metrics.stereoWidth * 0.10f +
+                       rise(metrics.rms, 0.02f, 0.22f) * 0.10f -
+                       metrics.dropIntensity * 0.18f);
+    }
+    return 0.0f;
+}
+
 } // namespace
 
 std::string_view toString(AudioStyle style)
@@ -352,10 +474,45 @@ AudioMetrics AudioAnalyzer::analyzeInterleaved(const float* interleavedSamples,
     updateAdvancedSyncMetrics(metrics);
     StylePrediction prediction = styleModel_.predict(metrics);
     const AudioStyle heuristic = heuristicStyle(metrics);
-    if (prediction.confidence < 0.34f && heuristic != AudioStyle::Ambient) {
+    const float heuristicConfidence = styleEvidence(metrics, heuristic);
+    const bool strongHeuristic = heuristicConfidence >= 0.58f &&
+                                 (prediction.confidence < 0.58f ||
+                                  heuristicConfidence > prediction.confidence + 0.06f);
+    const bool nonAmbientOverride = prediction.style == AudioStyle::Ambient &&
+                                    heuristic != AudioStyle::Ambient &&
+                                    heuristicConfidence >= 0.46f &&
+                                    (metrics.beatConfidence > 0.18f ||
+                                     metrics.dropIntensity > 0.18f ||
+                                     metrics.spectralFlux > 0.12f ||
+                                     metrics.bass > 0.20f ||
+                                     metrics.highMid + metrics.treble > 0.32f);
+    if ((prediction.confidence < 0.34f && heuristic != AudioStyle::Ambient) ||
+        strongHeuristic ||
+        nonAmbientOverride) {
         prediction.style = heuristic;
-        prediction.confidence = std::max(prediction.confidence, 0.42f);
+        prediction.confidence = std::max({prediction.confidence, heuristicConfidence, 0.42f});
+    } else if (heuristic == prediction.style) {
+        prediction.confidence = std::max(prediction.confidence, heuristicConfidence);
     }
+
+    const bool activeMusicalFrame = metrics.rms > 0.035f ||
+                                    metrics.peak > 0.12f ||
+                                    metrics.spectralFlux > 0.045f ||
+                                    metrics.beatConfidence > 0.06f ||
+                                    metrics.dropIntensity > 0.08f;
+    const bool weakCalmPrediction = prediction.style == AudioStyle::Ambient ||
+                                    (prediction.style == AudioStyle::Silence && prediction.confidence < 0.78f);
+    if (activeMusicalFrame &&
+        weakCalmPrediction &&
+        isSceneStyle(last_.style) &&
+        last_.styleConfidence > 0.40f &&
+        !(metrics.rms < 0.006f && metrics.peak < 0.02f)) {
+        prediction.style = last_.style;
+        prediction.confidence = std::max({prediction.confidence * 0.72f,
+                                          last_.styleConfidence * 0.84f,
+                                          0.44f});
+    }
+
     metrics.style = prediction.style;
     metrics.styleConfidence = prediction.confidence;
     styleModel_.learn(metrics, metrics.style, metrics.styleConfidence);
@@ -542,9 +699,15 @@ void AudioAnalyzer::updateAdvancedSyncMetrics(AudioMetrics& metrics)
     const float lowBandHit = clamp01(metrics.bandOnsets[0] * 0.6f + metrics.bandOnsets[1] * 0.4f);
     const bool enoughHistory = longEnergyHistory_.size() >= 24;
     if (enoughHistory && longAverage > 0.004f) {
-        const float lift = std::max(0.0f, metrics.rms - longAverage);
         const float shortLift = std::max(0.0f, shortAverage - longAverage);
-        metrics.dropIntensity = clamp01(lift * 4.4f + lowBandHit * 0.48f + metrics.beatConfidence * 0.24f);
+        const float sustainedFloor = std::max(longAverage, shortAverage * 0.82f);
+        const float punchLift = std::max(0.0f, metrics.rms - sustainedFloor);
+        const float pressureLift = std::max(0.0f, metrics.rms - longAverage);
+        const float pressureWeight = rise(metrics.bass, 0.42f, 0.82f);
+        metrics.dropIntensity = clamp01(punchLift * 4.8f +
+                                        pressureLift * pressureWeight * 2.2f +
+                                        lowBandHit * (0.24f + pressureWeight * 0.28f) +
+                                        metrics.beatConfidence * 0.18f);
         metrics.phraseIntensity = clamp01(shortLift * 3.8f + metrics.spectralFlux * 0.62f + metrics.beatConfidence * 0.16f);
     } else {
         metrics.dropIntensity = clamp01(lowBandHit * 0.35f + metrics.beatConfidence * 0.18f);
@@ -762,19 +925,54 @@ AudioStyle AudioAnalyzer::heuristicStyle(const AudioMetrics& metrics) const
     if (metrics.rms < 0.006f && metrics.peak < 0.02f) {
         return AudioStyle::Silence;
     }
-    if (metrics.stereoWidth > 0.52f && metrics.rms > 0.02f) {
-        return AudioStyle::Wide;
-    }
-    if (metrics.bpm >= 112.0f && metrics.bpm <= 156.0f && metrics.bass > metrics.mid * 0.82f) {
-        return AudioStyle::Techno;
-    }
-    if (metrics.bass > 0.38f && metrics.bass > metrics.treble * 1.35f) {
+
+    const float technoScore = styleEvidence(metrics, AudioStyle::Techno);
+    const float bassScore = styleEvidence(metrics, AudioStyle::BassHeavy);
+    const float brightScore = styleEvidence(metrics, AudioStyle::Bright);
+    const float wideScore = styleEvidence(metrics, AudioStyle::Wide);
+    const float bassPressure = rise(metrics.bass, 0.50f, 0.78f);
+    if (bassScore > 0.42f &&
+        bassPressure > 0.38f &&
+        metrics.bass > metrics.lowMid * 2.4f &&
+        metrics.highMid + metrics.treble < metrics.bass * 0.36f &&
+        (metrics.dropIntensity > 0.16f || metrics.bandOnsets[0] > 0.18f || metrics.beatConfidence > 0.14f)) {
         return AudioStyle::BassHeavy;
     }
-    if ((metrics.treble + metrics.highMid) > (metrics.bass + metrics.lowMid) * 1.15f) {
+    if (brightScore > 0.42f &&
+        (metrics.highMid + metrics.treble > metrics.bass * 0.92f ||
+         metrics.spectralFlux > 0.09f) &&
+        brightScore + 0.08f >= technoScore &&
+        brightScore + 0.10f >= bassScore) {
         return AudioStyle::Bright;
     }
-    return AudioStyle::Ambient;
+    if (danceTempoScore(metrics.bpm) > 0.55f &&
+        (metrics.beatConfidence > 0.08f || metrics.spectralFlux > 0.08f) &&
+        (metrics.dropIntensity < 0.72f || metrics.bass < 0.60f) &&
+        technoScore + (metrics.bass < 0.60f ? 0.24f : 0.08f) >= bassScore) {
+        return AudioStyle::Techno;
+    }
+    if (metrics.stereoWidth > 0.52f &&
+        metrics.rms > 0.02f &&
+        metrics.dropIntensity < 0.52f &&
+        metrics.bass < 0.62f &&
+        danceTempoScore(metrics.bpm) < 0.55f &&
+        wideScore + 0.12f >= bassScore) {
+        return AudioStyle::Wide;
+    }
+
+    AudioStyle best = AudioStyle::Ambient;
+    float bestScore = styleEvidence(metrics, best);
+    for (AudioStyle candidate : {AudioStyle::Techno,
+                                 AudioStyle::BassHeavy,
+                                 AudioStyle::Bright,
+                                 AudioStyle::Wide}) {
+        const float score = styleEvidence(metrics, candidate);
+        if (score > bestScore + 0.025f) {
+            best = candidate;
+            bestScore = score;
+        }
+    }
+    return best;
 }
 
 } // namespace viz

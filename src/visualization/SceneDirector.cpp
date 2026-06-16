@@ -125,9 +125,13 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.speed = base.speed * (0.62f + metrics.stereoWidth * 0.32f);
         break;
     case AudioStyle::Techno:
-        target.mode = metrics.spectralFlux > 0.48f && metrics.stereoWidth > 0.32f
+        target.mode = metrics.spectralFlux > 0.54f && metrics.stereoWidth > 0.34f
                           ? VisualMode::HyperspacePolytope
-                          : (metrics.phraseIntensity > 0.45f ? VisualMode::TechnoMandala : VisualMode::PolyrhythmLattice);
+                          : ((metrics.phraseIntensity > 0.38f ||
+                              metrics.buildTension > 0.32f ||
+                              metrics.beatConfidence > 0.78f)
+                                 ? VisualMode::TechnoMandala
+                                 : VisualMode::PolyrhythmLattice);
         target.palette = metrics.treble > 0.42f ? Palette::AcidAurora : Palette::NeonVoltage;
         target.motionStyle = metrics.spectralFlux > 0.52f ? MotionStyle::Breakbeat : MotionStyle::Mechanical;
         target.depth3D = std::max(base.depth3D, 0.68f + metrics.stereoWidth * 0.18f + metrics.dropIntensity * 0.12f);
@@ -142,7 +146,12 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.speed = base.speed * (0.92f + bpmScale * 0.28f + metrics.beatConfidence * 0.22f);
         break;
     case AudioStyle::BassHeavy:
-        target.mode = metrics.dropIntensity > 0.5f ? VisualMode::QuantumTunnel : VisualMode::PolyrhythmLattice;
+        target.mode = (metrics.dropIntensity > 0.34f ||
+                       metrics.bass > 0.62f ||
+                       metrics.bandOnsets[0] > 0.38f ||
+                       metrics.section == ArrangementSection::Drop)
+                          ? VisualMode::QuantumTunnel
+                          : VisualMode::PolyrhythmLattice;
         target.palette = Palette::InfraredChrome;
         target.motionStyle = MotionStyle::HeavyBass;
         target.depth3D = std::max(base.depth3D, 0.78f + metrics.bass * 0.18f + metrics.dropIntensity * 0.12f);
@@ -157,7 +166,13 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.speed = base.speed * (0.9f + bpmScale * 0.22f + metrics.onset * 0.36f);
         break;
     case AudioStyle::Bright:
-        target.mode = metrics.spectralFlux > 0.34f ? VisualMode::SpectralOrigami : VisualMode::FrequencyBloom;
+        target.mode = (metrics.spectralFlux > 0.28f ||
+                       metrics.onset > 0.34f ||
+                       metrics.bandOnsets[4] > 0.32f)
+                          ? VisualMode::SpectralOrigami
+                          : (metrics.harmonicEnergy > 0.56f && metrics.keyConfidence > 0.46f
+                                 ? VisualMode::ChromaKaleidoscope
+                                 : VisualMode::FrequencyBloom);
         target.palette = Palette::AcidAurora;
         target.motionStyle = metrics.onset > 0.42f ? MotionStyle::Breakbeat : MotionStyle::Liquid;
         target.depth3D = std::max(base.depth3D, 0.58f + metrics.spectralFlux * 0.16f);
@@ -333,6 +348,27 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.intensity *= 1.05f + metrics.harmonicEnergy * 0.12f + metrics.buildTension * 0.08f;
     }
 
+    const bool darkMinimalCue = metrics.rms > 0.08f &&
+                                metrics.bass > 0.30f &&
+                                metrics.highMid + metrics.treble < metrics.bass * 0.08f &&
+                                metrics.spectralFlux < 0.22f &&
+                                metrics.dropIntensity < 0.46f;
+    if (darkMinimalCue) {
+        target.mode = metrics.keyConfidence > 0.24f ? VisualMode::ResonanceTessellation : VisualMode::FractalCathedral;
+        target.palette = Palette::MonochromeLaser;
+        target.motionStyle = MotionStyle::Smooth;
+        target.depth3D = std::max(target.depth3D, 0.88f);
+        target.colorImpact = std::min(target.colorImpact, 0.66f);
+        target.objectDensity3D = std::clamp(0.42f + metrics.bass * 0.22f, 0.42f, 0.64f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.58f + metrics.harmonicEnergy * 0.10f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.82f);
+        target.response3D = std::max(target.response3D, 0.70f + metrics.beatConfidence * 0.10f);
+        target.motionStability = std::max(target.motionStability, 0.92f);
+        target.patternClarity = std::max(target.patternClarity, 0.92f);
+        target.intensity *= 0.74f + metrics.bass * 0.22f;
+        target.speed *= 0.58f + metrics.beatConfidence * 0.14f;
+    }
+
     if (metrics.dropIntensity > 0.68f) {
         target.mode = metrics.spectralFlux > 0.54f && metrics.stereoWidth > 0.52f
                           ? VisualMode::PhaseWeave
@@ -350,6 +386,17 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.patternClarity = std::max(target.patternClarity, 0.82f);
         target.intensity *= 1.18f;
         target.speed *= 1.08f;
+    } else if (metrics.style == AudioStyle::BassHeavy &&
+               (metrics.dropIntensity > 0.34f || metrics.bass > 0.70f) &&
+               metrics.treble < metrics.bass * 0.82f) {
+        target.mode = VisualMode::QuantumTunnel;
+        target.motionStyle = MotionStyle::HeavyBass;
+        target.depth3D = std::max(target.depth3D, 0.86f + metrics.bass * 0.10f);
+        target.colorImpact = std::max(target.colorImpact, 0.78f + metrics.dropIntensity * 0.08f);
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.82f + metrics.bass * 0.08f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.78f + metrics.dropIntensity * 0.10f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.78f + metrics.bass * 0.10f);
+        target.response3D = std::max(target.response3D, 0.88f + metrics.dropIntensity * 0.10f);
     } else if (metrics.bandOnsets[0] > 0.55f && metrics.beatConfidence > 0.5f) {
         target.mode = VisualMode::PolyrhythmLattice;
         target.motionStyle = MotionStyle::Mechanical;
@@ -377,6 +424,15 @@ SceneTarget targetFor(const VisualSettings& base, const AudioMetrics& metrics)
         target.response3D = std::max(target.response3D, 0.78f + metrics.onset * 0.14f);
         target.motionStability = std::max(target.motionStability, 0.76f);
         target.patternClarity = std::max(target.patternClarity, 0.86f);
+    } else if (metrics.style == AudioStyle::Bright &&
+               (metrics.spectralFlux > 0.24f || metrics.onset > 0.30f) &&
+               metrics.treble + metrics.highMid > metrics.bass + metrics.lowMid * 0.5f) {
+        target.mode = VisualMode::SpectralOrigami;
+        target.motionStyle = MotionStyle::Breakbeat;
+        target.objectDensity3D = std::max(target.objectDensity3D, 0.70f + metrics.spectralFlux * 0.14f);
+        target.lightingGlow = std::max(target.lightingGlow, 0.78f + metrics.treble * 0.12f);
+        target.scenePersonality = std::max(target.scenePersonality, 0.74f + metrics.onset * 0.12f);
+        target.response3D = std::max(target.response3D, 0.78f + metrics.onset * 0.12f);
     } else if (target.mode != VisualMode::ResonanceTessellation &&
                target.mode != VisualMode::CymaticInterference &&
                metrics.keyConfidence > 0.58f &&
