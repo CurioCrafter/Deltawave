@@ -53,6 +53,8 @@ struct AnalysisTimelineEntry {
     float sceneRoleBridgeShare3D = 0.0f;
     float sceneRoleDistrictSpread3D = 0.0f;
     float sceneRoleBalance3D = 0.0f;
+    float sceneRoleVocabulary3D = 0.0f;
+    float sceneRoleSilhouetteContrast3D = 0.0f;
 };
 
 class AnalysisTimelineWriter {

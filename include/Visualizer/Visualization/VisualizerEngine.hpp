@@ -168,6 +168,8 @@ struct GeometryFrame {
     float sceneRoleBridgeShare3D = 0.0f;
     float sceneRoleDistrictSpread3D = 0.0f;
     float sceneRoleBalance3D = 0.0f;
+    float sceneRoleVocabulary3D = 0.0f;
+    float sceneRoleSilhouetteContrast3D = 0.0f;
     float cameraDepth = 0.0f;
     float cameraYaw = 0.0f;
     float cameraPitch = 0.0f;

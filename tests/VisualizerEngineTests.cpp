@@ -3111,6 +3111,14 @@ void musicalRoleDistrictsConvergeOnlyWhenEarned()
     require(separatedFrame.projected3DMaterialShare > 0.35f &&
                 convergedFrame.projected3DMaterialShare > 0.35f,
             "separate and converged role scenes should not be dominated by outline noise");
+    require(separatedFrame.sceneRoleVocabulary3D > 0.34f &&
+                convergedFrame.sceneRoleVocabulary3D > 0.30f,
+            "musical roles should keep distinct 3D object vocabularies before and during earned convergence; separated=" +
+                std::to_string(separatedFrame.sceneRoleVocabulary3D) +
+                " converged=" + std::to_string(convergedFrame.sceneRoleVocabulary3D));
+    require(separatedFrame.sceneRoleSilhouetteContrast3D > 0.14f,
+            "separated musical roles should have different silhouettes/material presence, not only different positions; contrast=" +
+                std::to_string(separatedFrame.sceneRoleSilhouetteContrast3D));
 }
 
 void layeredMusicalPartsStayReadableBeforeConvergence()
@@ -3205,6 +3213,12 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
                 std::to_string(separatedFrame.sceneRoleBalance3D) +
                 " explicit=" + std::to_string(separatedFrame.sceneExplicitRoleShare3D) +
                 " bridge=" + std::to_string(separatedFrame.sceneRoleBridgeShare3D));
+    require(separatedFrame.sceneRoleVocabulary3D > 0.36f,
+            "layered pre-drop music should assign different geometry vocabularies to different musical parts; vocabulary=" +
+                std::to_string(separatedFrame.sceneRoleVocabulary3D));
+    require(separatedFrame.sceneRoleSilhouetteContrast3D > 0.16f,
+            "layered pre-drop music should make roles read through different silhouettes/materials, not just position; contrast=" +
+                std::to_string(separatedFrame.sceneRoleSilhouetteContrast3D));
 
     require(objectRoleCount(separatedFrame, Object3DRole::Bass) >= 4 &&
                 objectRoleCount(separatedFrame, Object3DRole::Drums) >= 8 &&
@@ -3238,6 +3252,8 @@ void layeredMusicalPartsStayReadableBeforeConvergence()
             "earned convergence should still preserve a composed 3D pattern instead of one unreadable blob");
     require(convergedFrame.sceneExplicitRoleShare3D > 0.32f,
             "converged drop should still be built from musical-role geometry");
+    require(convergedFrame.sceneRoleVocabulary3D > 0.30f,
+            "converged drop should preserve enough role vocabulary to remain interpretable");
 }
 
 void songIdentitiesDriveDistinctCameraLanguage()
@@ -5881,7 +5897,7 @@ void offlineExporterWritesDeterministicFrames()
                 "timeline should include 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
                 "timeline should include persistent song-arc interpretation columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D") != std::string::npos,
                 "timeline should include separated musical role columns");
         require(timelineText.find("styleAdaptation,syncAdaptation,beatSensitivity,sectionSensitivity") != std::string::npos,
                 "timeline should include adaptive audio profile columns");
@@ -6219,7 +6235,7 @@ void batchExporterWritesGalleryForAudioDirectory()
                 "batch timeline should contain 3D section narrative columns");
         require(timelineText.find("songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D") != std::string::npos,
                 "batch timeline should contain persistent song-arc interpretation columns");
-        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D") != std::string::npos,
+        require(timelineText.find("bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D") != std::string::npos,
                 "batch timeline should contain separated musical role columns");
     }
 

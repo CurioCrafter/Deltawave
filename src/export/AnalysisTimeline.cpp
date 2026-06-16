@@ -62,7 +62,7 @@ bool AnalysisTimelineWriter::open(const std::filesystem::path& path, std::string
             << "sectionNarrative3D,sectionBuild3D,sectionDrop3D,sectionGroove3D,sectionBreakdown3D,sectionRelease3D,"
             << "songArc3D,songArcAnticipation3D,songArcImpact3D,songArcRecovery3D,songArcContinuity3D,"
             << "bassRole3D,drumRole3D,melodyRole3D,harmonyRole3D,spaceRole3D,fractureRole3D,shadowRole3D,convergence3D,roleSeparation3D,"
-            << "explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D,"
+            << "explicitRoleShare3D,roleBridgeShare3D,roleDistrictSpread3D,roleBalance3D,roleVocabulary3D,roleSilhouetteContrast3D,"
             << "primitiveCount\n";
     if (!output_) {
         error = "Failed while writing timeline header.";
@@ -184,6 +184,8 @@ bool AnalysisTimelineWriter::write(const AnalysisTimelineEntry& entry, std::stri
             << std::setprecision(3) << entry.sceneRoleBridgeShare3D << ","
             << std::setprecision(3) << entry.sceneRoleDistrictSpread3D << ","
             << std::setprecision(3) << entry.sceneRoleBalance3D << ","
+            << std::setprecision(3) << entry.sceneRoleVocabulary3D << ","
+            << std::setprecision(3) << entry.sceneRoleSilhouetteContrast3D << ","
             << entry.primitiveCount << "\n";
 
     if (!output_) {

@@ -857,7 +857,9 @@ void WindowsApp::updateCapturePackage(const AudioMetrics& metrics,
                 geometry.sceneExplicitRoleShare3D,
                 geometry.sceneRoleBridgeShare3D,
                 geometry.sceneRoleDistrictSpread3D,
-                geometry.sceneRoleBalance3D
+                geometry.sceneRoleBalance3D,
+                geometry.sceneRoleVocabulary3D,
+                geometry.sceneRoleSilhouetteContrast3D
             },
             error)) {
             captureTimelineActive_ = false;

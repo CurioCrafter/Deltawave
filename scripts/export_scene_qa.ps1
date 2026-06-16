@@ -251,6 +251,8 @@ foreach ($profile in $profiles) {
         explicitRoleShareMax = if ($timeline[0].PSObject.Properties.Name -contains "explicitRoleShare3D") { & $metric $timeline "explicitRoleShare3D" "max" } else { 0.0 }
         bridgeShareMax = if ($timeline[0].PSObject.Properties.Name -contains "roleBridgeShare3D") { & $metric $timeline "roleBridgeShare3D" "max" } else { 0.0 }
         districtSpreadMax = if ($timeline[0].PSObject.Properties.Name -contains "roleDistrictSpread3D") { & $metric $timeline "roleDistrictSpread3D" "max" } else { 0.0 }
+        roleVocabularyMax = if ($timeline[0].PSObject.Properties.Name -contains "roleVocabulary3D") { & $metric $timeline "roleVocabulary3D" "max" } else { 0.0 }
+        roleSilhouetteContrastMax = if ($timeline[0].PSObject.Properties.Name -contains "roleSilhouetteContrast3D") { & $metric $timeline "roleSilhouetteContrast3D" "max" } else { 0.0 }
         bassRoleMax = & $columnMax $timeline "bassRole3D"
         drumRoleMax = & $columnMax $timeline "drumRole3D"
         melodyRoleMax = & $columnMax $timeline "melodyRole3D"
@@ -293,6 +295,12 @@ foreach ($row in $summaryRows) {
         }
         if ([double]$row.districtSpreadMax -lt 0.72) {
             $failures += "$($row.profile): role districts did not spread enough across 3D space"
+        }
+        if ([double]$row.roleVocabularyMax -lt 0.28) {
+            $failures += "$($row.profile): role geometry vocabulary was not distinct enough"
+        }
+        if ([double]$row.roleSilhouetteContrastMax -lt 0.09) {
+            $failures += "$($row.profile): role silhouettes/materials were not distinct enough"
         }
     }
     switch ($row.profile) {
@@ -375,7 +383,7 @@ try {
         $y = [int][Math]::Floor($i / $columns) * $cellHeight
         $row = $images[$i].Row
         $graphics.DrawString($row.profile, $font, $brush, [single]($x + 8), [single]($y + 5))
-        $metrics = "$($row.finalMode) / $($row.finalMotion)  cov $([Math]::Round([double]$row.coverageMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))  arc $([Math]::Round([double]$row.songArcMax, 3))"
+        $metrics = "$($row.finalMode) / $($row.finalMotion)  cov $([Math]::Round([double]$row.coverageMin, 3))  spread $([Math]::Round([double]$row.districtSpreadMax, 3))  vocab $([Math]::Round([double]$row.roleVocabularyMax, 3))"
         $graphics.DrawString($metrics, $font, $mutedBrush, [single]($x + 8), [single]($y + 24))
         $graphics.DrawImage($images[$i].Image, $x, $y + $labelHeight, $images[$i].Image.Width, $images[$i].Image.Height)
     }
@@ -408,7 +416,7 @@ if ($contactSheetWritten) {
 [void]$html.AppendLine("<div class='grid'>")
 foreach ($row in $summaryRows) {
     $relativePreview = "$($row.profile)/preview.bmp"
-    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle). coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3)), song arc max $([Math]::Round([double]$row.songArcMax, 3))</p></div>")
+    [void]$html.AppendLine("<div class='card'><h2>$($row.profile)</h2><a href='$relativePreview'><img src='$relativePreview'></a><p>$($row.finalMode) / $($row.finalMotion) / $($row.finalStyle). coverage min $([Math]::Round([double]$row.coverageMin, 3)), material min $([Math]::Round([double]$row.materialShareMin, 3)), role spread max $([Math]::Round([double]$row.districtSpreadMax, 3)), vocabulary max $([Math]::Round([double]$row.roleVocabularyMax, 3)), silhouette max $([Math]::Round([double]$row.roleSilhouetteContrastMax, 3)), song arc max $([Math]::Round([double]$row.songArcMax, 3))</p></div>")
 }
 [void]$html.AppendLine("</div>")
 [void]$html.AppendLine("<h2>Metrics</h2><table><tr>")
