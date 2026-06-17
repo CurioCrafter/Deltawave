@@ -3925,6 +3925,7 @@ void musicalPartsAuthorSeparateMotifFamilies()
     const Vec3 bassCenter = objectRoleCentroid(separatedFrame, Object3DRole::Bass);
     const Vec3 drumCenter = objectRoleCentroid(separatedFrame, Object3DRole::Drums);
     const Vec3 melodyCenter = objectRoleCentroid(separatedFrame, Object3DRole::Melody);
+    const Vec3 harmonyCenter = objectRoleCentroid(separatedFrame, Object3DRole::Harmony);
     const Vec3 spaceCenter = objectRoleCentroid(separatedFrame, Object3DRole::Space);
     const Vec3 fractureCenter = objectRoleCentroid(separatedFrame, Object3DRole::Fracture);
     const Vec3 shadowCenter = objectRoleCentroid(separatedFrame, Object3DRole::Shadow);
@@ -3935,6 +3936,16 @@ void musicalPartsAuthorSeparateMotifFamilies()
             "drums should not be buried inside the melody district");
     require(spaceCenter.z > bassCenter.z + 180.0f,
             "space/atmosphere should sit behind bass pressure instead of sharing the same depth");
+    require(drumCenter.z > bassCenter.z + 45.0f &&
+                melodyCenter.z > drumCenter.z + 35.0f &&
+                harmonyCenter.z > melodyCenter.z + 30.0f &&
+                spaceCenter.z > harmonyCenter.z + 55.0f,
+            "layered music should form a readable 3D depth score from bass pressure through drums, melody, harmony, and space; bassZ=" +
+                std::to_string(bassCenter.z) +
+                " drumZ=" + std::to_string(drumCenter.z) +
+                " melodyZ=" + std::to_string(melodyCenter.z) +
+                " harmonyZ=" + std::to_string(harmonyCenter.z) +
+                " spaceZ=" + std::to_string(spaceCenter.z));
     require(fractureCenter.x > drumCenter.x + 170.0f,
             "fracture cuts should occupy their own lateral district away from drum machinery");
     require(shadowCenter.y > melodyCenter.y + 120.0f,
