@@ -421,6 +421,30 @@ float objectRoleDepthSpan(const GeometryFrame& frame, Object3DRole role)
     return haveObject ? maximumZ - minimumZ : 0.0f;
 }
 
+float objectRoleAxisSpan(const GeometryFrame& frame, Object3DRole role, int axis)
+{
+    bool haveObject = false;
+    float minimum = 0.0f;
+    float maximum = 0.0f;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role || object.kind == Object3DKind::Link) {
+            continue;
+        }
+        const float value = axis == 0 ? object.position.x
+                            : axis == 1 ? object.position.y
+                                        : object.position.z;
+        if (!haveObject) {
+            minimum = value;
+            maximum = value;
+            haveObject = true;
+            continue;
+        }
+        minimum = std::min(minimum, value);
+        maximum = std::max(maximum, value);
+    }
+    return haveObject ? maximum - minimum : 0.0f;
+}
+
 float objectRoleScaleAxisRatio(const GeometryFrame& frame, Object3DRole role, int axis)
 {
     float total = 0.0f;
@@ -4546,11 +4570,15 @@ void songSectionsMoveRolesWithDistinctEmotionalDirection()
             "release should carry a visible material/shape recovery after impact");
 
     const Vec3 grooveBass = objectRoleCentroid(grooveFrame, Object3DRole::Bass);
+    const Vec3 buildBass = objectRoleCentroid(buildFrame, Object3DRole::Bass);
     const Vec3 dropBass = objectRoleCentroid(dropFrame, Object3DRole::Bass);
     const Vec3 grooveMelody = objectRoleCentroid(grooveFrame, Object3DRole::Melody);
     const Vec3 buildMelody = objectRoleCentroid(buildFrame, Object3DRole::Melody);
+    const Vec3 dropMelody = objectRoleCentroid(dropFrame, Object3DRole::Melody);
     const Vec3 breakdownSpace = objectRoleCentroid(breakdownFrame, Object3DRole::Space);
     const Vec3 grooveSpace = objectRoleCentroid(grooveFrame, Object3DRole::Space);
+    const Vec3 dropSpace = objectRoleCentroid(dropFrame, Object3DRole::Space);
+    const Vec3 releaseSpace = objectRoleCentroid(releaseFrame, Object3DRole::Space);
     const Vec3 releaseHarmony = objectRoleCentroid(releaseFrame, Object3DRole::Harmony);
     const Vec3 dropHarmony = objectRoleCentroid(dropFrame, Object3DRole::Harmony);
 
@@ -4571,13 +4599,33 @@ void songSectionsMoveRolesWithDistinctEmotionalDirection()
     require(buildMelody.y < grooveMelody.y - 35.0f &&
                 buildMelody.z > grooveMelody.z + 30.0f,
             "build should lift the melodic braid upward and deeper before the drop");
+    require((buildMelody.z - grooveMelody.z) > (buildBass.z - grooveBass.z) + 34.0f &&
+                centroidDistance(buildMelody, grooveMelody) > centroidDistance(buildBass, grooveBass) * 1.08f,
+            "build anticipation should steer melody more than bass pressure, not move every role identically; melodyDz=" +
+                std::to_string(buildMelody.z - grooveMelody.z) +
+                " bassDz=" + std::to_string(buildBass.z - grooveBass.z) +
+                " melodyMove=" + std::to_string(centroidDistance(buildMelody, grooveMelody)) +
+                " bassMove=" + std::to_string(centroidDistance(buildBass, grooveBass)));
     require(objectRoleMotionEnergy(buildFrame, Object3DRole::Melody) >
                 objectRoleMotionEnergy(grooveFrame, Object3DRole::Melody) * 1.08f,
             "build should choreograph melody with anticipation instead of leaving it on the groove path");
+    require(centroidDistance(dropBass, grooveBass) >
+                centroidDistance(dropMelody, grooveMelody) * 0.86f &&
+                dropBass.z < buildBass.z - 95.0f,
+            "drop impact should be led by bass depth pressure instead of generic scene motion; bassMove=" +
+                std::to_string(centroidDistance(dropBass, grooveBass)) +
+                " melodyMove=" + std::to_string(centroidDistance(dropMelody, grooveMelody)) +
+                " buildBassZ=" + std::to_string(buildBass.z) +
+                " dropBassZ=" + std::to_string(dropBass.z));
     require(breakdownSpace.z > grooveSpace.z + 150.0f,
             "breakdown should open the spatial layer backward in depth; grooveSpaceZ=" +
                 std::to_string(grooveSpace.z) +
                 " breakdownSpaceZ=" + std::to_string(breakdownSpace.z));
+    require(objectRoleAxisSpan(breakdownFrame, Object3DRole::Space, 0) >
+                objectRoleAxisSpan(grooveFrame, Object3DRole::Space, 0) + 60.0f,
+            "breakdown should widen the spatial layer laterally instead of only translating it; grooveSpaceXSpan=" +
+                std::to_string(objectRoleAxisSpan(grooveFrame, Object3DRole::Space, 0)) +
+                " breakdownSpaceXSpan=" + std::to_string(objectRoleAxisSpan(breakdownFrame, Object3DRole::Space, 0)));
     require(objectRoleScaleAxisRatio(breakdownFrame, Object3DRole::Space, 2) >
                 objectRoleScaleAxisRatio(grooveFrame, Object3DRole::Space, 2) + 0.08f,
             "breakdown should stretch spatial bodies into depth, not just translate the whole scene; grooveSpaceZScale=" +
@@ -4587,6 +4635,14 @@ void songSectionsMoveRolesWithDistinctEmotionalDirection()
                 " breakdownSpan=" + std::to_string(objectRoleDepthSpan(breakdownFrame, Object3DRole::Space)));
     require(releaseHarmony.z > dropHarmony.z + 80.0f,
             "release should let harmonic chambers recover outward after the drop");
+    require(releaseSpace.z > dropSpace.z + 55.0f &&
+                objectRoleAxisSpan(releaseFrame, Object3DRole::Harmony, 0) >
+                    objectRoleAxisSpan(dropFrame, Object3DRole::Harmony, 0) + 28.0f,
+            "release should recover space and harmony outward after impact instead of staying compressed; dropSpaceZ=" +
+                std::to_string(dropSpace.z) +
+                " releaseSpaceZ=" + std::to_string(releaseSpace.z) +
+                " dropHarmonyXSpan=" + std::to_string(objectRoleAxisSpan(dropFrame, Object3DRole::Harmony, 0)) +
+                " releaseHarmonyXSpan=" + std::to_string(objectRoleAxisSpan(releaseFrame, Object3DRole::Harmony, 0)));
     require(objectRoleVisualMass(releaseFrame, Object3DRole::Harmony) >
                 objectRoleVisualMass(dropFrame, Object3DRole::Harmony) * 0.86f,
             "release should restore harmonic material instead of letting the drop erase it");
