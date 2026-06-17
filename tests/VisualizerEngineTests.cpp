@@ -426,7 +426,7 @@ float objectRoleScaleAxisRatio(const GeometryFrame& frame, Object3DRole role, in
     float total = 0.0f;
     int count = 0;
     for (const Object3D& object : frame.objects3D) {
-        if (object.musicRole != role) {
+        if (object.musicRole != role || object.kind == Object3DKind::Link) {
             continue;
         }
 
@@ -3009,6 +3009,29 @@ void sameModeSongIdentitiesAuthorDistinct3DSetPieces()
                 objectKindCount(darkFrame, Object3DKind::Anchor) > objectKindCount(ambientFrame, Object3DKind::Anchor),
             "dark minimal identity should author sparse monoliths and a depth anchor");
 
+    const Vec3 bassMassCenter = objectRoleCentroid(bassFrame, Object3DRole::Bass);
+    const Vec3 bassMelodyCenter = objectRoleCentroid(bassFrame, Object3DRole::Melody);
+    const Vec3 technoDrumCenter = objectRoleCentroid(technoFrame, Object3DRole::Drums);
+    const Vec3 technoSpaceCenter = objectRoleCentroid(technoFrame, Object3DRole::Space);
+    const float ambientSpaceSpan = objectRoleDepthSpan(ambientFrame, Object3DRole::Space);
+    const float ambientDrumSpan = objectRoleDepthSpan(ambientFrame, Object3DRole::Drums);
+    const float bassMass = objectRoleVisualMass(bassFrame, Object3DRole::Bass);
+    const float bassMelodyMass = objectRoleVisualMass(bassFrame, Object3DRole::Melody);
+    require(centroidDistance(bassMassCenter, bassMelodyCenter) > 180.0f,
+            "bass/drop identity should keep bass pressure apart from melody instead of meshing every part together; distance=" +
+                std::to_string(centroidDistance(bassMassCenter, bassMelodyCenter)));
+    require(centroidDistance(technoDrumCenter, technoSpaceCenter) > 160.0f,
+            "techno identity should keep sequencer/drum architecture apart from ambient depth space; distance=" +
+                std::to_string(centroidDistance(technoDrumCenter, technoSpaceCenter)));
+    require(ambientSpaceSpan > ambientDrumSpan + 70.0f,
+            "ambient identity should represent stereo/space as deeper architecture than drum movement; spaceSpan=" +
+                std::to_string(ambientSpaceSpan) +
+                " drumSpan=" + std::to_string(ambientDrumSpan));
+    require(bassMass > bassMelodyMass * 1.08f,
+            "bass/drop identity should make low-end pressure the dominant 3D mass instead of equal visual clutter; bassMass=" +
+                std::to_string(bassMass) +
+                " melodyMass=" + std::to_string(bassMelodyMass));
+
     std::vector<std::array<int, 14>> signatures;
     for (const GeometryFrame* frame : frames) {
         signatures.push_back(objectKindSignature(*frame));
@@ -5397,7 +5420,15 @@ void motionStabilityAndPatternClarityReduceJitter()
                                 averageObjectGlow(clearIntense) * 60.0f;
 
     require(clearWildness < wildness,
-            "stability and clarity should cap excessive depth, scale, and glow");
+            "stability and clarity should cap excessive depth, scale, and glow; wild=" +
+                std::to_string(wildness) +
+                " clear=" + std::to_string(clearWildness) +
+                " wildRange=" + std::to_string(wildIntense.objectDepthRange) +
+                " clearRange=" + std::to_string(clearIntense.objectDepthRange) +
+                " wildScale=" + std::to_string(averageObjectScale(wildIntense)) +
+                " clearScale=" + std::to_string(averageObjectScale(clearIntense)) +
+                " wildGlow=" + std::to_string(averageObjectGlow(wildIntense)) +
+                " clearGlow=" + std::to_string(averageObjectGlow(clearIntense)));
     require(averageObjectGlow(clearIntense) <= averageObjectGlow(wildIntense) + 0.03f,
             "clear mode should cap glow compared with wild response");
     require(visualEnergyScore(clearIntense) > visualEnergyScore(clearCalm) + 1.5f,
