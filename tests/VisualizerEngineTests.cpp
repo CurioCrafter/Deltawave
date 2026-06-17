@@ -750,6 +750,16 @@ float cameraPoseSignature(const GeometryFrame& frame)
            std::fabs(frame.cameraCenterOffset.y) * 0.050f;
 }
 
+float cameraPoseDelta(const GeometryFrame& a, const GeometryFrame& b)
+{
+    return std::fabs(a.cameraDepth - b.cameraDepth) * 0.006f +
+           std::fabs(a.cameraYaw - b.cameraYaw) * 140.0f +
+           std::fabs(a.cameraPitch - b.cameraPitch) * 130.0f +
+           std::fabs(a.cameraRoll - b.cameraRoll) * 120.0f +
+           std::fabs(a.cameraCenterOffset.x - b.cameraCenterOffset.x) * 0.045f +
+           std::fabs(a.cameraCenterOffset.y - b.cameraCenterOffset.y) * 0.050f;
+}
+
 bool objectDepthsAreSorted(const GeometryFrame& frame)
 {
     for (std::size_t i = 1; i < frame.objects3D.size(); ++i) {
@@ -5517,7 +5527,9 @@ void musicalRolesSteerCameraComposition()
     require(std::fabs(fractureFrame.cameraYaw - drumFrame.cameraYaw) > 0.04f,
             "fracture role should produce a visibly different cut angle from drum architecture");
     require(std::fabs(spaceFrame.cameraCenterOffset.x - bassFrame.cameraCenterOffset.x) > 10.0f,
-            "space role should use lateral parallax framing instead of bass-centered pressure");
+            "space role should use lateral parallax framing instead of bass-centered pressure; bassX=" +
+                std::to_string(bassFrame.cameraCenterOffset.x) +
+                " spaceX=" + std::to_string(spaceFrame.cameraCenterOffset.x));
     require(std::fabs(shadowFrame.cameraRoll) < std::fabs(fractureFrame.cameraRoll) * 0.45f &&
                 shadowFrame.cameraPitch > 0.03f,
             "shadow role should stay monumental and upright while looking upward into depth");
@@ -6145,6 +6157,186 @@ void cameraContinuityEasesAbruptDropsWithoutMutingThem()
     require(looseDepthDelta > stableDepthDelta * 1.18f ||
                 looseDrop.cameraContinuity3D < stableDrop.cameraContinuity3D,
             "low-stability camera should preserve sharper impact than stable cinematic easing");
+}
+
+void emotionalCameraStagingReadsSongSectionsWithoutShakyCollapse()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::TechnoMandala;
+    settings.motionStyle = MotionStyle::Mechanical;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.88f;
+    settings.lightingGlow = 0.90f;
+    settings.colorImpact = 0.92f;
+    settings.scenePersonality = 0.92f;
+    settings.response3D = 0.98f;
+    settings.motionStability = 0.90f;
+    settings.patternClarity = 0.94f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.92f;
+
+    AudioMetrics groove = syntheticMetrics();
+    groove.rms = 0.38f;
+    groove.peak = 0.54f;
+    groove.bass = 0.42f;
+    groove.lowMid = 0.32f;
+    groove.mid = 0.25f;
+    groove.highMid = 0.20f;
+    groove.treble = 0.18f;
+    groove.stereoWidth = 0.44f;
+    groove.beat = true;
+    groove.beatConfidence = 0.78f;
+    groove.barConfidence = 0.70f;
+    groove.downbeatConfidence = 0.44f;
+    groove.style = AudioStyle::Techno;
+    groove.styleConfidence = 0.84f;
+    groove.section = ArrangementSection::Groove;
+    groove.sectionConfidence = 0.78f;
+    groove.sectionProgress = 0.28f;
+    groove.drumRole = 0.62f;
+    groove.bassRole = 0.38f;
+    groove.roleSeparation = 0.58f;
+
+    AudioMetrics buildEarly = groove;
+    buildEarly.section = ArrangementSection::Build;
+    buildEarly.sectionConfidence = 0.86f;
+    buildEarly.sectionProgress = 0.38f;
+    buildEarly.buildTension = 0.58f;
+    buildEarly.phraseIntensity = 0.52f;
+    buildEarly.phraseConfidence = 0.70f;
+    buildEarly.stereoWidth = 0.50f;
+
+    AudioMetrics buildPeak = buildEarly;
+    buildPeak.sectionProgress = 0.94f;
+    buildPeak.buildTension = 0.90f;
+    buildPeak.phraseIntensity = 0.72f;
+    buildPeak.phraseConfidence = 0.82f;
+    buildPeak.stereoWidth = 0.58f;
+    buildPeak.melodyRole = 0.36f;
+    buildPeak.harmonyRole = 0.28f;
+    buildPeak.harmonicEnergy = 0.38f;
+
+    AudioMetrics dropAttack = groove;
+    dropAttack.section = ArrangementSection::Drop;
+    dropAttack.sectionConfidence = 0.95f;
+    dropAttack.sectionProgress = 0.08f;
+    dropAttack.rms = 0.88f;
+    dropAttack.peak = 1.0f;
+    dropAttack.bass = 0.96f;
+    dropAttack.lowMid = 0.76f;
+    dropAttack.mid = 0.40f;
+    dropAttack.spectralFlux = 0.58f;
+    dropAttack.onset = 0.78f;
+    dropAttack.dropIntensity = 0.94f;
+    dropAttack.downbeat = true;
+    dropAttack.downbeatConfidence = 0.94f;
+    dropAttack.bassRole = 0.88f;
+    dropAttack.drumRole = 0.72f;
+    dropAttack.convergenceRole = 0.62f;
+    dropAttack.roleSeparation = 0.80f;
+    dropAttack.style = AudioStyle::BassHeavy;
+    dropAttack.styleConfidence = 0.92f;
+    dropAttack.bandOnsets = {0.86f, 0.72f, 0.42f, 0.22f, 0.18f};
+
+    AudioMetrics dropSustain = dropAttack;
+    dropSustain.sectionProgress = 0.38f;
+    dropSustain.dropIntensity = 0.76f;
+    dropSustain.onset = 0.32f;
+    dropSustain.downbeat = false;
+    dropSustain.bass = 0.86f;
+    dropSustain.bandOnsets = {0.38f, 0.28f, 0.20f, 0.14f, 0.12f};
+
+    AudioMetrics release = dropSustain;
+    release.sectionProgress = 0.92f;
+    release.dropIntensity = 0.30f;
+    release.bass = 0.54f;
+    release.rms = 0.58f;
+    release.phraseBoundary = true;
+    release.phraseConfidence = 0.88f;
+    release.phraseIntensity = 0.74f;
+    release.melodyRole = 0.42f;
+    release.harmonyRole = 0.36f;
+    release.harmonicEnergy = 0.50f;
+
+    AudioMetrics breakdown = groove;
+    breakdown.section = ArrangementSection::Breakdown;
+    breakdown.sectionConfidence = 0.90f;
+    breakdown.sectionProgress = 0.52f;
+    breakdown.rms = 0.24f;
+    breakdown.peak = 0.36f;
+    breakdown.bass = 0.12f;
+    breakdown.lowMid = 0.16f;
+    breakdown.mid = 0.28f;
+    breakdown.treble = 0.36f;
+    breakdown.stereoWidth = 0.90f;
+    breakdown.beat = false;
+    breakdown.beatConfidence = 0.22f;
+    breakdown.barConfidence = 0.34f;
+    breakdown.phraseIntensity = 0.60f;
+    breakdown.phraseConfidence = 0.82f;
+    breakdown.spaceRole = 0.82f;
+    breakdown.melodyRole = 0.40f;
+    breakdown.bassRole = 0.08f;
+    breakdown.drumRole = 0.12f;
+    breakdown.roleSeparation = 0.76f;
+    breakdown.style = AudioStyle::Ambient;
+    breakdown.styleConfidence = 0.86f;
+
+    const GeometryFrame grooveFrame = engine.buildFrame(groove, settings, 1280.0f, 720.0f, 0.00);
+    const GeometryFrame buildEarlyFrame = engine.buildFrame(buildEarly, settings, 1280.0f, 720.0f, 0.62);
+    const GeometryFrame buildPeakFrame = engine.buildFrame(buildPeak, settings, 1280.0f, 720.0f, 1.24);
+    const GeometryFrame dropAttackFrame = engine.buildFrame(dropAttack, settings, 1280.0f, 720.0f, 1.70);
+    const GeometryFrame dropSustainFrame = engine.buildFrame(dropSustain, settings, 1280.0f, 720.0f, 2.16);
+    const GeometryFrame releaseFrame = engine.buildFrame(release, settings, 1280.0f, 720.0f, 2.88);
+    const GeometryFrame breakdownFrame = engine.buildFrame(breakdown, settings, 1280.0f, 720.0f, 3.58);
+
+    require(buildPeakFrame.cameraDepth > grooveFrame.cameraDepth + 22.0f,
+            "build staging should open the 3D camera instead of blending into the groove");
+    require(buildPeakFrame.cameraDepth >= buildEarlyFrame.cameraDepth - 6.0f,
+            "build staging should accumulate pressure instead of randomly collapsing early");
+    require(dropAttackFrame.cameraDepth < buildPeakFrame.cameraDepth - 46.0f,
+            "drop staging should visibly dolly inward from the peak build");
+    require(releaseFrame.cameraDepth > dropAttackFrame.cameraDepth + 30.0f,
+            "late-drop release should open depth back up after impact");
+    require(breakdownFrame.cameraDepth > dropSustainFrame.cameraDepth + 48.0f,
+            "breakdown staging should widen and breathe instead of using the same drop framing");
+    require(dropAttackFrame.cameraMotion3D > 0.020f &&
+                releaseFrame.cameraMotion3D > 0.010f &&
+                breakdownFrame.cameraMotion3D > 0.010f,
+            "emotional camera staging should keep reacting across drop, release, and breakdown");
+
+    const float grooveToBuild = cameraPoseDelta(grooveFrame, buildEarlyFrame);
+    const float buildToPeak = cameraPoseDelta(buildEarlyFrame, buildPeakFrame);
+    const float peakToDrop = cameraPoseDelta(buildPeakFrame, dropAttackFrame);
+    const float dropToSustain = cameraPoseDelta(dropAttackFrame, dropSustainFrame);
+    const float sustainToRelease = cameraPoseDelta(dropSustainFrame, releaseFrame);
+    const float releaseToBreakdown = cameraPoseDelta(releaseFrame, breakdownFrame);
+    require(peakToDrop > 18.0f && peakToDrop < 58.0f,
+            "drop impact should feel forceful without turning into a camera snap; peakDrop=" +
+                std::to_string(peakToDrop));
+    const float maxNonImpactDelta = std::max({grooveToBuild,
+                                              buildToPeak,
+                                              dropToSustain,
+                                              sustainToRelease,
+                                              releaseToBreakdown});
+    require(maxNonImpactDelta < 34.0f,
+            "non-impact camera staging should stay composed instead of becoming jitter; delta=" +
+                std::to_string(maxNonImpactDelta) +
+                " grooveBuild=" + std::to_string(grooveToBuild) +
+                " buildPeak=" + std::to_string(buildToPeak) +
+                " dropSustain=" + std::to_string(dropToSustain) +
+                " sustainRelease=" + std::to_string(sustainToRelease) +
+                " releaseBreakdown=" + std::to_string(releaseToBreakdown) +
+                " releaseDepth=" + std::to_string(releaseFrame.cameraDepth) +
+                " breakdownDepth=" + std::to_string(breakdownFrame.cameraDepth) +
+                " releaseYaw=" + std::to_string(releaseFrame.cameraYaw) +
+                " breakdownYaw=" + std::to_string(breakdownFrame.cameraYaw) +
+                " releasePitch=" + std::to_string(releaseFrame.cameraPitch) +
+                " breakdownPitch=" + std::to_string(breakdownFrame.cameraPitch) +
+                " releaseX=" + std::to_string(releaseFrame.cameraCenterOffset.x) +
+                " breakdownX=" + std::to_string(breakdownFrame.cameraCenterOffset.x));
 }
 
 void silenceKeepsStableReadableScaffold()
@@ -8931,6 +9123,7 @@ int main()
         {"breakbeatFractureStaysCutPlaneLed", viz::tests::breakbeatFractureStaysCutPlaneLed},
         {"motionStabilityAndPatternClarityReduceJitter", viz::tests::motionStabilityAndPatternClarityReduceJitter},
         {"cameraContinuityEasesAbruptDropsWithoutMutingThem", viz::tests::cameraContinuityEasesAbruptDropsWithoutMutingThem},
+        {"emotionalCameraStagingReadsSongSectionsWithoutShakyCollapse", viz::tests::emotionalCameraStagingReadsSongSectionsWithoutShakyCollapse},
         {"silenceKeepsStableReadableScaffold", viz::tests::silenceKeepsStableReadableScaffold},
         {"object3DDepthSortsAndProjects", viz::tests::object3DDepthSortsAndProjects},
         {"threeDScenesRenderMaterialFacesAndDepthHaze", viz::tests::threeDScenesRenderMaterialFacesAndDepthHaze},

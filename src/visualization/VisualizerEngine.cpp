@@ -6828,6 +6828,180 @@ Camera3D makeCamera3D(const VisualSettings& settings,
     return camera;
 }
 
+void applyEmotionalCameraStaging3D(Camera3D& camera,
+                                   const AudioMetrics& metrics,
+                                   const VisualSettings& settings,
+                                   const SceneInterpretation& intent,
+                                   const MusicSceneArc3D& arc,
+                                   SongSceneIdentity identity,
+                                   float width,
+                                   float height,
+                                   double time)
+{
+    const float minimumDimension = std::min(width, height);
+    const float loudness = clamp01(metrics.rms * 1.42f + metrics.peak * 0.20f + metrics.bass * 0.12f);
+    const bool silent = metrics.style == AudioStyle::Silence &&
+                        loudness < 0.075f &&
+                        metrics.beatConfidence < 0.08f;
+    if (silent || minimumDimension <= 1.0f) {
+        return;
+    }
+
+    const float response = musicResponse3D(metrics, settings);
+    const float stability = motionStabilityOf(settings);
+    const float clarity = patternClarityOf(settings);
+    const float sectionConfidence = clamp01(metrics.sectionConfidence);
+    const float progress = clamp01(metrics.sectionProgress);
+    const float phrase = clamp01(metrics.phraseIntensity * 0.50f +
+                                 metrics.phraseConfidence * 0.32f +
+                                 (metrics.phraseBoundary ? metrics.phraseConfidence * 0.20f : 0.0f));
+    const float beatAuthority = clamp01(metrics.beatConfidence * 0.58f +
+                                        metrics.barConfidence * 0.34f +
+                                        (metrics.downbeat ? metrics.downbeatConfidence * 0.16f : 0.0f));
+
+    const float buildSection = metrics.section == ArrangementSection::Build
+                                   ? sectionConfidence * smootherStep(0.08f, 0.96f, progress)
+                                   : 0.0f;
+    const float build = clamp01(std::max(arc.anticipation,
+                                         metrics.buildTension * 0.68f + buildSection * 0.48f + intent.tension * 0.18f));
+    const float dropSection = metrics.section == ArrangementSection::Drop
+                                  ? sectionConfidence * (0.86f - progress * 0.20f)
+                                  : 0.0f;
+    const float impact = clamp01(std::max(arc.impact,
+                                          metrics.dropIntensity * 0.76f +
+                                              dropSection * 0.34f +
+                                              metrics.bassRole * 0.12f +
+                                              metrics.convergenceRole * 0.14f));
+    const float releaseSection = metrics.section == ArrangementSection::Drop
+                                     ? sectionConfidence * smootherStep(0.42f, 0.96f, progress)
+                                     : 0.0f;
+    const float release = clamp01(std::max(arc.recovery,
+                                           releaseSection * 0.64f +
+                                               intent.release * 0.24f +
+                                               phrase * 0.22f));
+    const float breakdown = metrics.section == ArrangementSection::Breakdown
+                                ? sectionConfidence * (0.72f + metrics.stereoWidth * 0.22f + intent.spacious * 0.16f)
+                                : 0.0f;
+    const float groove = metrics.section == ArrangementSection::Groove
+                             ? sectionConfidence * (0.40f + beatAuthority * 0.42f + intent.groove * 0.18f)
+                             : 0.0f;
+    const float phraseOrbit = metrics.phrasePhase * 2.0f * kPi;
+    const float barSnap = std::round(std::sin(metrics.barPhase * 2.0f * kPi) * 4.0f) / 4.0f;
+    const float breath = std::sin(static_cast<float>(time) * (0.10f + response * 0.08f) + phraseOrbit);
+    const float counterBreath = std::cos(static_cast<float>(time) * (0.085f + response * 0.06f) + phraseOrbit * 0.7f);
+    const float directedGain = std::clamp(0.62f + response * 0.42f + (1.0f - stability) * 0.10f, 0.58f, 1.10f);
+    const float readability = std::clamp(0.76f + clarity * 0.28f + stability * 0.12f, 0.72f, 1.14f);
+
+    camera.cameraDistance += minimumDimension * directedGain *
+                              (build * 0.185f -
+                               impact * (0.255f + metrics.bass * 0.055f) +
+                               release * 0.215f +
+                               breakdown * 0.145f +
+                               groove * 0.030f);
+    camera.focalLength *= std::clamp(1.0f +
+                                         build * 0.025f +
+                                         impact * 0.085f -
+                                         release * 0.036f -
+                                         breakdown * 0.060f,
+                                     0.88f,
+                                     1.18f);
+    camera.yaw += directedGain *
+                  (build * barSnap * 0.070f +
+                   impact * (metrics.convergenceRole - 0.34f) * 0.070f +
+                   breakdown * breath * 0.055f +
+                   release * std::sin(phraseOrbit + static_cast<float>(time) * 0.12f) * 0.060f);
+    camera.pitch += readability *
+                    (build * 0.052f -
+                     impact * (0.064f - release * 0.024f) +
+                     release * 0.070f +
+                     breakdown * 0.040f -
+                     groove * 0.010f);
+    camera.roll += (build * barSnap * 0.024f -
+                    impact * camera.roll * 0.36f +
+                    breakdown * breath * 0.028f +
+                    release * counterBreath * 0.018f) *
+                   (1.0f - stability * 0.30f);
+    camera.center.x += minimumDimension * directedGain *
+                       (build * barSnap * 0.034f +
+                        impact * (metrics.convergenceRole - 0.42f) * 0.032f +
+                        breakdown * breath * 0.028f +
+                        release * std::sin(phraseOrbit) * 0.030f);
+    camera.center.y += minimumDimension * readability *
+                       (build * 0.020f -
+                        impact * 0.046f +
+                        breakdown * 0.030f -
+                        release * 0.022f +
+                        intent.shadow * 0.014f);
+
+    switch (identity) {
+    case SongSceneIdentity::CalmSpace:
+        camera.cameraDistance += minimumDimension * (breakdown * 0.070f + release * 0.050f);
+        camera.yaw *= 1.0f - std::max(breakdown, release) * 0.18f;
+        camera.roll *= 1.0f - std::max(breakdown, release) * 0.46f;
+        break;
+    case SongSceneIdentity::BassPressure:
+        camera.cameraDistance -= minimumDimension * (impact * 0.105f + metrics.bassRole * impact * 0.050f);
+        camera.focalLength *= 1.0f + impact * 0.048f;
+        camera.pitch -= impact * 0.040f;
+        camera.center.y -= minimumDimension * impact * 0.020f;
+        camera.roll *= 1.0f - impact * 0.58f;
+        break;
+    case SongSceneIdentity::TechnoArchitecture:
+        camera.yaw = camera.yaw * (1.0f - beatAuthority * 0.22f) +
+                     barSnap * (0.045f + build * 0.030f + groove * 0.020f);
+        camera.pitch += build * 0.025f - impact * 0.018f;
+        camera.roll *= 1.0f - beatAuthority * 0.54f;
+        camera.center.x += barSnap * minimumDimension * (0.014f + build * 0.024f);
+        break;
+    case SongSceneIdentity::AmbientOrbit:
+        camera.cameraDistance += minimumDimension * (breakdown * 0.070f + metrics.stereoWidth * 0.055f);
+        camera.yaw += breath * (0.050f + breakdown * 0.035f + metrics.stereoWidth * 0.030f);
+        camera.pitch += counterBreath * (0.030f + breakdown * 0.026f);
+        camera.roll += breath * metrics.stereoWidth * 0.020f;
+        camera.center.x += minimumDimension *
+                           ((metrics.stereoWidth >= 0.5f) ? 1.0f : -1.0f) *
+                           clamp01(metrics.spaceRole * 0.62f + breakdown * 0.46f) *
+                           0.036f;
+        break;
+    case SongSceneIdentity::MelodicCrystal:
+        camera.cameraDistance += minimumDimension * (release * 0.075f + metrics.harmonicEnergy * 0.035f);
+        camera.focalLength *= 1.0f + (metrics.melodyRole + metrics.harmonyRole) * 0.030f;
+        camera.yaw += std::sin(phraseOrbit + metrics.harmonicEnergy * kPi) * (0.046f + release * 0.030f);
+        camera.pitch += 0.028f + phrase * 0.038f + release * 0.026f;
+        break;
+    case SongSceneIdentity::BreakbeatFracture: {
+        const float cutLane = (static_cast<int>(std::floor(clamp01(metrics.beatPhase) * 8.0f)) % 2 == 0) ? -1.0f : 1.0f;
+        const float fracture = clamp01(metrics.fractureRole + transientEnergy3D(metrics) * 0.72f);
+        camera.yaw += cutLane * fracture * (0.080f + impact * 0.035f);
+        camera.roll += cutLane * fracture * (0.034f + impact * 0.020f) * (1.0f - stability * 0.34f);
+        camera.center.x += cutLane * minimumDimension * fracture * 0.028f;
+        break;
+    }
+    case SongSceneIdentity::DarkMonolith:
+        camera.cameraDistance += minimumDimension * (intent.shadow * 0.060f + breakdown * 0.080f - impact * 0.035f);
+        camera.focalLength *= 1.0f + intent.shadow * 0.030f;
+        camera.yaw *= 1.0f - clamp01(intent.shadow * 0.40f + stability * 0.14f);
+        camera.roll *= 1.0f - clamp01(intent.shadow * 0.76f + stability * 0.12f);
+        camera.pitch = std::max(camera.pitch, 0.045f + intent.shadow * 0.035f);
+        break;
+    }
+
+    if (breakdown > 0.20f && impact < 0.58f) {
+        const float openSectionCap = minimumDimension * (2.46f + metrics.stereoWidth * 0.20f + intent.spacious * 0.14f);
+        camera.cameraDistance = std::min(camera.cameraDistance, openSectionCap);
+        camera.pitch = std::min(camera.pitch, 0.096f + breakdown * 0.018f + intent.spacious * 0.004f);
+        camera.roll *= 1.0f - breakdown * 0.22f;
+    }
+
+    camera.cameraDistance = std::clamp(camera.cameraDistance, minimumDimension * 0.64f, minimumDimension * 3.62f);
+    camera.focalLength = std::clamp(camera.focalLength, minimumDimension * 0.58f, minimumDimension * 2.12f);
+    camera.yaw = std::clamp(camera.yaw, -0.42f, 0.42f);
+    camera.pitch = std::clamp(camera.pitch, -0.28f, 0.28f);
+    camera.roll = std::clamp(camera.roll, -0.20f, 0.20f);
+    camera.center.x = std::clamp(camera.center.x, width * 0.36f, width * 0.64f);
+    camera.center.y = std::clamp(camera.center.y, height * 0.36f, height * 0.64f);
+}
+
 void applyCameraInteraction3D(Camera3D& camera,
                               const InteractionState& interaction,
                               const VisualSettings& settings,
@@ -14718,6 +14892,7 @@ void addObject3DScene(GeometryFrame& frame,
         updateSongIdentityMemory3D(songIdentityMemory, candidateSongIdentity, intent, metrics, time);
     const SongSceneIdentity songIdentity = songIdentitySelection.identity;
     Camera3D camera = makeCamera3D(settings, metrics, intent, songArc, songIdentity, width, height, speed, time);
+    applyEmotionalCameraStaging3D(camera, metrics, settings, intent, songArc, songIdentity, width, height, time);
     applyCameraInteraction3D(camera, interaction, settings, width, height);
     const CameraContinuityStats3D cameraContinuity =
         applyCameraContinuity3D(camera, cameraMemory, metrics, settings, songArc, minimumDimension, time);
