@@ -284,6 +284,41 @@ Vec3 objectRoleCentroid(const GeometryFrame& frame, Object3DRole role)
     return Vec3{total.x * invCount, total.y * invCount, total.z * invCount};
 }
 
+ColorRGBA objectRoleAverageColor(const GeometryFrame& frame, Object3DRole role)
+{
+    ColorRGBA total{};
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role || object.kind == Object3DKind::Link) {
+            continue;
+        }
+        total.r += object.color.r;
+        total.g += object.color.g;
+        total.b += object.color.b;
+        total.a += object.color.a;
+        ++count;
+    }
+    if (count == 0) {
+        return {};
+    }
+    const float invCount = 1.0f / static_cast<float>(count);
+    return ColorRGBA{total.r * invCount, total.g * invCount, total.b * invCount, total.a * invCount};
+}
+
+float objectRoleAverageGlow(const GeometryFrame& frame, Object3DRole role)
+{
+    float total = 0.0f;
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role || object.kind == Object3DKind::Link) {
+            continue;
+        }
+        total += object.glow;
+        ++count;
+    }
+    return count > 0 ? total / static_cast<float>(count) : 0.0f;
+}
+
 float objectRoleVisualSignature(const GeometryFrame& frame, Object3DRole role)
 {
     if (frame.objects3D.empty()) {
@@ -4381,6 +4416,23 @@ void musicalRoleInstrumentScoreFollowsSeparateAudioCues()
     fractureCut.highMid = 0.84f;
     fractureCut.treble = 0.78f;
 
+    AudioMetrics shadowWeight = base();
+    shadowWeight.shadowRole = 0.92f;
+    shadowWeight.spaceRole = 0.26f;
+    shadowWeight.bassRole = 0.20f;
+    shadowWeight.rms = 0.34f;
+    shadowWeight.peak = 0.48f;
+    shadowWeight.bass = 0.26f;
+    shadowWeight.mid = 0.18f;
+    shadowWeight.highMid = 0.10f;
+    shadowWeight.treble = 0.06f;
+    shadowWeight.beat = false;
+    shadowWeight.beatConfidence = 0.08f;
+    shadowWeight.section = ArrangementSection::Breakdown;
+    shadowWeight.sectionConfidence = 0.82f;
+    shadowWeight.style = AudioStyle::Ambient;
+    shadowWeight.styleConfidence = 0.76f;
+
     const GeometryFrame bassSoftFrame = frameFor(bassSoft, 4.0);
     const GeometryFrame bassDrivenFrame = frameFor(bassDriven, 4.0);
     const GeometryFrame drumsLooseFrame = frameFor(drumsLoose, 4.2);
@@ -4391,6 +4443,7 @@ void musicalRoleInstrumentScoreFollowsSeparateAudioCues()
     const GeometryFrame spaceWideFrame = frameFor(spaceWide, 4.6);
     const GeometryFrame fractureSmoothFrame = frameFor(fractureSmooth, 4.8);
     const GeometryFrame fractureCutFrame = frameFor(fractureCut, 4.8);
+    const GeometryFrame shadowWeightFrame = frameFor(shadowWeight, 5.0);
 
     require(objectRoleVisualMass(bassDrivenFrame, Object3DRole::Bass) >
                 objectRoleVisualMass(bassSoftFrame, Object3DRole::Bass) * 1.06f,
@@ -4432,6 +4485,38 @@ void musicalRoleInstrumentScoreFollowsSeparateAudioCues()
     require(objectRoleVisualMass(fractureCutFrame, Object3DRole::Fracture) >
                 objectRoleVisualMass(fractureSmoothFrame, Object3DRole::Fracture) * 1.05f,
             "fracture geometry should visibly sharpen when transient energy rises");
+
+    const ColorRGBA bassColor = objectRoleAverageColor(bassDrivenFrame, Object3DRole::Bass);
+    const ColorRGBA drumColor = objectRoleAverageColor(drumsLockedFrame, Object3DRole::Drums);
+    const ColorRGBA melodyColor = objectRoleAverageColor(melodySingingFrame, Object3DRole::Melody);
+    const ColorRGBA spaceColor = objectRoleAverageColor(spaceWideFrame, Object3DRole::Space);
+    const ColorRGBA fractureColor = objectRoleAverageColor(fractureCutFrame, Object3DRole::Fracture);
+    const ColorRGBA shadowColor = objectRoleAverageColor(shadowWeightFrame, Object3DRole::Shadow);
+    const float bassDrumMaterialSplit = colorDistance(bassColor, drumColor);
+    const float melodySpaceMaterialSplit = colorDistance(melodyColor, spaceColor);
+    const float fractureShadowMaterialSplit = colorDistance(fractureColor, shadowColor);
+    require(bassDrumMaterialSplit > 0.32f &&
+                melodySpaceMaterialSplit > 0.22f &&
+                fractureShadowMaterialSplit > 0.30f,
+            "role material lighting should give different musical parts distinct material color lanes; bassDrum=" +
+                std::to_string(bassDrumMaterialSplit) +
+                " melodySpace=" + std::to_string(melodySpaceMaterialSplit) +
+                " fractureShadow=" + std::to_string(fractureShadowMaterialSplit));
+    require(objectRoleAverageGlow(bassDrivenFrame, Object3DRole::Bass) >
+                objectRoleAverageGlow(melodySingingFrame, Object3DRole::Bass) + 0.04f,
+            "bass material should glow more from low-end pressure than from a melody-led frame; bassDriven=" +
+                std::to_string(objectRoleAverageGlow(bassDrivenFrame, Object3DRole::Bass)) +
+                " melodyBass=" + std::to_string(objectRoleAverageGlow(melodySingingFrame, Object3DRole::Bass)));
+    require(objectRoleAverageGlow(drumsLockedFrame, Object3DRole::Drums) >
+                objectRoleAverageGlow(drumsLooseFrame, Object3DRole::Drums) + 0.04f,
+            "drum material should brighten on confident rhythm instead of sharing a generic scene glow; loose=" +
+                std::to_string(objectRoleAverageGlow(drumsLooseFrame, Object3DRole::Drums)) +
+                " locked=" + std::to_string(objectRoleAverageGlow(drumsLockedFrame, Object3DRole::Drums)));
+    require(objectRoleAverageGlow(fractureCutFrame, Object3DRole::Fracture) >
+                objectRoleAverageGlow(fractureSmoothFrame, Object3DRole::Fracture) + 0.06f,
+            "fracture material should light from transient cuts instead of idle decorative motion; smooth=" +
+                std::to_string(objectRoleAverageGlow(fractureSmoothFrame, Object3DRole::Fracture)) +
+                " cut=" + std::to_string(objectRoleAverageGlow(fractureCutFrame, Object3DRole::Fracture)));
 }
 
 void songSectionsMoveRolesWithDistinctEmotionalDirection()
@@ -4646,6 +4731,25 @@ void songSectionsMoveRolesWithDistinctEmotionalDirection()
     require(objectRoleVisualMass(releaseFrame, Object3DRole::Harmony) >
                 objectRoleVisualMass(dropFrame, Object3DRole::Harmony) * 0.86f,
             "release should restore harmonic material instead of letting the drop erase it");
+    require(objectRoleAverageGlow(dropFrame, Object3DRole::Bass) >
+                objectRoleAverageGlow(grooveFrame, Object3DRole::Bass) + 0.06f,
+            "drop section should light bass material from impact instead of applying the same glow to every role; grooveBassGlow=" +
+                std::to_string(objectRoleAverageGlow(grooveFrame, Object3DRole::Bass)) +
+                " dropBassGlow=" + std::to_string(objectRoleAverageGlow(dropFrame, Object3DRole::Bass)));
+    require(objectRoleAverageGlow(breakdownFrame, Object3DRole::Space) >
+                objectRoleAverageGlow(grooveFrame, Object3DRole::Space) + 0.04f,
+            "breakdown should give the space layer its own luminous depth material; grooveSpaceGlow=" +
+                std::to_string(objectRoleAverageGlow(grooveFrame, Object3DRole::Space)) +
+                " breakdownSpaceGlow=" + std::to_string(objectRoleAverageGlow(breakdownFrame, Object3DRole::Space)));
+    const float releaseHarmonyMaterialShift = colorDistance(objectRoleAverageColor(releaseFrame, Object3DRole::Harmony),
+                                                            objectRoleAverageColor(dropFrame, Object3DRole::Harmony));
+    const float breakdownSpaceMaterialShift = colorDistance(objectRoleAverageColor(breakdownFrame, Object3DRole::Space),
+                                                            objectRoleAverageColor(grooveFrame, Object3DRole::Space));
+    require(releaseHarmonyMaterialShift > 0.10f &&
+                breakdownSpaceMaterialShift > 0.08f,
+            "section emotion should change role materials, not just move the same colors through space; harmonyReleaseShift=" +
+                std::to_string(releaseHarmonyMaterialShift) +
+                " spaceBreakdownShift=" + std::to_string(breakdownSpaceMaterialShift));
 
     require(std::fabs(objectMotionSignature(dropFrame) - objectMotionSignature(breakdownFrame)) > 8.0f &&
                 std::fabs(objectMotionSignature(buildFrame) - objectMotionSignature(releaseFrame)) > 5.0f,
