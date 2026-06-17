@@ -3165,6 +3165,272 @@ void sameModeSongIdentitiesAuthorDistinct3DSetPieces()
             "same visual mode should still produce distinct 3D object grammars for different song identities");
 }
 
+void songIdentitiesAuthorLateStage3DSceneGrammar()
+{
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.94f;
+    settings.lightingGlow = 0.94f;
+    settings.colorImpact = 0.96f;
+    settings.scenePersonality = 0.96f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.96f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.94f;
+
+    AudioMetrics ambient = syntheticMetrics();
+    ambient.rms = 0.18f;
+    ambient.peak = 0.28f;
+    ambient.bass = 0.08f;
+    ambient.lowMid = 0.18f;
+    ambient.mid = 0.24f;
+    ambient.highMid = 0.04f;
+    ambient.treble = 0.05f;
+    ambient.stereoWidth = 0.92f;
+    ambient.spectralFlux = 0.06f;
+    ambient.beat = false;
+    ambient.beatConfidence = 0.04f;
+    ambient.phraseIntensity = 0.56f;
+    ambient.phraseConfidence = 0.80f;
+    ambient.harmonicEnergy = 0.58f;
+    ambient.style = AudioStyle::Ambient;
+    ambient.styleConfidence = 0.92f;
+    ambient.section = ArrangementSection::Breakdown;
+    ambient.sectionConfidence = 0.78f;
+    ambient.spaceRole = 0.92f;
+    ambient.harmonyRole = 0.34f;
+    ambient.bassRole = 0.08f;
+    ambient.drumRole = 0.04f;
+    ambient.fractureRole = 0.04f;
+    ambient.shadowRole = 0.10f;
+    ambient.roleSeparation = 0.78f;
+
+    AudioMetrics techno = syntheticMetrics();
+    techno.rms = 0.50f;
+    techno.peak = 0.74f;
+    techno.bass = 0.56f;
+    techno.lowMid = 0.44f;
+    techno.mid = 0.14f;
+    techno.highMid = 0.06f;
+    techno.treble = 0.08f;
+    techno.stereoWidth = 0.34f;
+    techno.spectralFlux = 0.18f;
+    techno.beat = true;
+    techno.beatConfidence = 0.96f;
+    techno.beatPhase = 0.38f;
+    techno.barConfidence = 0.86f;
+    techno.barPhase = 0.44f;
+    techno.downbeatConfidence = 0.74f;
+    techno.bpm = 128.0f;
+    techno.style = AudioStyle::Techno;
+    techno.styleConfidence = 0.94f;
+    techno.section = ArrangementSection::Groove;
+    techno.sectionConfidence = 0.88f;
+    techno.drumRole = 0.92f;
+    techno.bassRole = 0.32f;
+    techno.spaceRole = 0.12f;
+    techno.fractureRole = 0.18f;
+    techno.shadowRole = 0.08f;
+    techno.roleSeparation = 0.84f;
+
+    AudioMetrics bass = syntheticMetrics();
+    bass.rms = 0.84f;
+    bass.peak = 1.0f;
+    bass.bass = 0.98f;
+    bass.lowMid = 0.78f;
+    bass.mid = 0.18f;
+    bass.highMid = 0.04f;
+    bass.treble = 0.04f;
+    bass.stereoWidth = 0.42f;
+    bass.spectralFlux = 0.34f;
+    bass.onset = 0.82f;
+    bass.beat = true;
+    bass.beatConfidence = 0.94f;
+    bass.dropIntensity = 0.94f;
+    bass.style = AudioStyle::BassHeavy;
+    bass.styleConfidence = 0.94f;
+    bass.section = ArrangementSection::Drop;
+    bass.sectionConfidence = 0.92f;
+    bass.bandOnsets = {0.88f, 0.70f, 0.34f, 0.18f, 0.12f};
+    bass.bassRole = 0.94f;
+    bass.shadowRole = 0.22f;
+    bass.drumRole = 0.26f;
+    bass.melodyRole = 0.08f;
+    bass.spaceRole = 0.12f;
+    bass.convergenceRole = 0.54f;
+    bass.roleSeparation = 0.82f;
+
+    AudioMetrics melodic = syntheticMetrics();
+    melodic.rms = 0.34f;
+    melodic.peak = 0.52f;
+    melodic.bass = 0.16f;
+    melodic.lowMid = 0.22f;
+    melodic.mid = 0.54f;
+    melodic.highMid = 0.60f;
+    melodic.treble = 0.52f;
+    melodic.stereoWidth = 0.58f;
+    melodic.spectralFlux = 0.20f;
+    melodic.keyIndex = 7;
+    melodic.keyMode = MusicalMode::Major;
+    melodic.keyConfidence = 0.94f;
+    melodic.harmonicEnergy = 0.92f;
+    melodic.phraseIntensity = 0.50f;
+    melodic.phraseConfidence = 0.84f;
+    melodic.style = AudioStyle::Bright;
+    melodic.styleConfidence = 0.74f;
+    melodic.melodyRole = 0.92f;
+    melodic.harmonyRole = 0.76f;
+    melodic.bassRole = 0.08f;
+    melodic.fractureRole = 0.10f;
+    melodic.spaceRole = 0.24f;
+    melodic.roleSeparation = 0.84f;
+
+    AudioMetrics breakbeat = syntheticMetrics();
+    breakbeat.rms = 0.56f;
+    breakbeat.peak = 0.76f;
+    breakbeat.bass = 0.32f;
+    breakbeat.lowMid = 0.22f;
+    breakbeat.mid = 0.34f;
+    breakbeat.highMid = 0.84f;
+    breakbeat.treble = 0.88f;
+    breakbeat.stereoWidth = 0.62f;
+    breakbeat.spectralFlux = 0.90f;
+    breakbeat.onset = 0.86f;
+    breakbeat.beat = true;
+    breakbeat.beatConfidence = 0.56f;
+    breakbeat.beatPhase = 0.37f;
+    breakbeat.style = AudioStyle::Bright;
+    breakbeat.styleConfidence = 0.86f;
+    breakbeat.bandOnsets = {0.22f, 0.38f, 0.70f, 0.92f, 0.86f};
+    breakbeat.fractureRole = 0.94f;
+    breakbeat.drumRole = 0.30f;
+    breakbeat.bassRole = 0.10f;
+    breakbeat.melodyRole = 0.16f;
+    breakbeat.spaceRole = 0.12f;
+    breakbeat.roleSeparation = 0.86f;
+
+    AudioMetrics dark = syntheticMetrics();
+    dark.rms = 0.30f;
+    dark.peak = 0.48f;
+    dark.bass = 0.58f;
+    dark.lowMid = 0.50f;
+    dark.mid = 0.14f;
+    dark.highMid = 0.01f;
+    dark.treble = 0.01f;
+    dark.stereoWidth = 0.16f;
+    dark.spectralFlux = 0.05f;
+    dark.beatConfidence = 0.56f;
+    dark.dropIntensity = 0.10f;
+    dark.keyIndex = 10;
+    dark.keyMode = MusicalMode::Minor;
+    dark.keyConfidence = 0.72f;
+    dark.harmonicEnergy = 0.44f;
+    dark.style = AudioStyle::BassHeavy;
+    dark.styleConfidence = 0.64f;
+    dark.section = ArrangementSection::Breakdown;
+    dark.sectionConfidence = 0.76f;
+    dark.shadowRole = 0.94f;
+    dark.bassRole = 0.34f;
+    dark.drumRole = 0.08f;
+    dark.melodyRole = 0.08f;
+    dark.spaceRole = 0.10f;
+    dark.roleSeparation = 0.82f;
+
+    const auto frameFor = [&](const AudioMetrics& metrics) {
+        VisualizerEngine engine;
+        return engine.buildFrame(metrics, settings, 1280.0f, 720.0f, 3.0);
+    };
+
+    const GeometryFrame ambientFrame = frameFor(ambient);
+    const GeometryFrame technoFrame = frameFor(techno);
+    const GeometryFrame bassFrame = frameFor(bass);
+    const GeometryFrame melodicFrame = frameFor(melodic);
+    const GeometryFrame breakFrame = frameFor(breakbeat);
+    const GeometryFrame darkFrame = frameFor(dark);
+
+    require(std::string(bassFrame.songIdentityName) == "Bass Pressure" &&
+                std::string(technoFrame.songIdentityName) == "Techno Architecture" &&
+                std::string(ambientFrame.songIdentityName) == "Ambient Orbit" &&
+                std::string(melodicFrame.songIdentityName) == "Melodic Crystal" &&
+                std::string(breakFrame.songIdentityName) == "Breakbeat Fracture" &&
+                std::string(darkFrame.songIdentityName) == "Dark Monolith",
+            "test profiles should resolve to the six authored song identities; bass=" +
+                std::string(bassFrame.songIdentityName) +
+                " techno=" + std::string(technoFrame.songIdentityName) +
+                " ambient=" + std::string(ambientFrame.songIdentityName) +
+                " melodic=" + std::string(melodicFrame.songIdentityName) +
+                " break=" + std::string(breakFrame.songIdentityName) +
+                " dark=" + std::string(darkFrame.songIdentityName));
+
+    require(objectFamilyCount(bassFrame, {Object3DKind::TunnelRib, Object3DKind::WaveSurface, Object3DKind::Column}) >
+                objectFamilyCount(melodicFrame, {Object3DKind::TunnelRib, Object3DKind::WaveSurface, Object3DKind::Column}) + 8,
+            "bass identity should author pressure shells, gravity waves, and massive columns beyond melodic grammar");
+    require(objectRoleAverageVelocity(bassFrame, Object3DRole::Bass).z < -120.0f,
+            "bass pressure grammar should move bass mass inward through depth; bassVz=" +
+                std::to_string(objectRoleAverageVelocity(bassFrame, Object3DRole::Bass).z));
+    require(objectRoleScaleAxisRatio(bassFrame, Object3DRole::Bass, 2) >
+                objectRoleScaleAxisRatio(melodicFrame, Object3DRole::Bass, 2) + 0.08f,
+            "bass identity should give low-end bodies stronger depth scale than melodic identity");
+
+    require(objectFamilyCount(technoFrame, {Object3DKind::Column, Object3DKind::Cage, Object3DKind::Link}) >
+                objectFamilyCount(ambientFrame, {Object3DKind::Column, Object3DKind::Cage, Object3DKind::Link}) + 10,
+            "techno identity should author sequencer rails, gates, and cages beyond ambient grammar");
+    require(objectRoleAxisSpan(technoFrame, Object3DRole::Drums, 0) > 390.0f &&
+                objectRoleAxisSpan(technoFrame, Object3DRole::Drums, 2) > 430.0f,
+            "techno sequencer grammar should occupy a readable mechanical x/z grid; xSpan=" +
+                std::to_string(objectRoleAxisSpan(technoFrame, Object3DRole::Drums, 0)) +
+                " zSpan=" + std::to_string(objectRoleAxisSpan(technoFrame, Object3DRole::Drums, 2)));
+
+    require(objectFamilyCount(ambientFrame, {Object3DKind::Orbiter, Object3DKind::WaveSurface, Object3DKind::DepthPlane}) >
+                objectFamilyCount(technoFrame, {Object3DKind::Orbiter, Object3DKind::WaveSurface, Object3DKind::DepthPlane}) + 5,
+            "ambient identity should author orbit bodies and soft depth fields beyond techno machinery");
+    require(objectRoleDepthSpan(ambientFrame, Object3DRole::Space) >
+                objectRoleDepthSpan(technoFrame, Object3DRole::Space) + 90.0f,
+            "ambient grammar should make space a deeper scene volume than techno space; ambientSpan=" +
+                std::to_string(objectRoleDepthSpan(ambientFrame, Object3DRole::Space)) +
+                " technoSpan=" + std::to_string(objectRoleDepthSpan(technoFrame, Object3DRole::Space)));
+
+    require(objectFamilyCount(melodicFrame, {Object3DKind::Shard, Object3DKind::Node, Object3DKind::Cage, Object3DKind::Link}) >
+                objectFamilyCount(bassFrame, {Object3DKind::Shard, Object3DKind::Node, Object3DKind::Cage, Object3DKind::Link}) + 8,
+            "melodic identity should author crystal paths and harmonic nodes beyond bass pressure grammar");
+    require(objectRoleCentroid(melodicFrame, Object3DRole::Melody).y <
+                objectRoleCentroid(technoFrame, Object3DRole::Drums).y - 80.0f,
+            "melodic crystal grammar should lift/arc away from the techno drum grid");
+
+    require(objectFamilyCount(breakFrame, {Object3DKind::Shard, Object3DKind::Plate}) >
+                objectFamilyCount(ambientFrame, {Object3DKind::Shard, Object3DKind::Plate}) + 12,
+            "breakbeat identity should author fractured plates and shards beyond ambient orbit grammar");
+    require(objectRoleAxisSpan(breakFrame, Object3DRole::Fracture, 0) >
+                objectRoleAxisSpan(melodicFrame, Object3DRole::Fracture, 0) + 130.0f,
+            "breakbeat grammar should cut wider laterally than melodic incidental fracture; breakX=" +
+                std::to_string(objectRoleAxisSpan(breakFrame, Object3DRole::Fracture, 0)) +
+                " melodicX=" + std::to_string(objectRoleAxisSpan(melodicFrame, Object3DRole::Fracture, 0)));
+
+    require(objectFamilyCount(darkFrame, {Object3DKind::Column, Object3DKind::Anchor, Object3DKind::DepthPlane}) >
+                objectFamilyCount(breakFrame, {Object3DKind::Column, Object3DKind::Anchor, Object3DKind::DepthPlane}) + 4,
+            "dark/minimal identity should author monolith columns, anchor, and depth slab beyond breakbeat cuts");
+    require(objectRoleScaleAxisRatio(darkFrame, Object3DRole::Shadow, 1) >
+                objectRoleScaleAxisRatio(breakFrame, Object3DRole::Shadow, 1) + 0.18f,
+            "dark grammar should make shadow bodies visibly monumental on the vertical axis");
+
+    std::vector<std::array<int, 14>> signatures{
+        objectKindSignature(ambientFrame),
+        objectKindSignature(technoFrame),
+        objectKindSignature(bassFrame),
+        objectKindSignature(melodicFrame),
+        objectKindSignature(breakFrame),
+        objectKindSignature(darkFrame)
+    };
+    std::sort(signatures.begin(), signatures.end());
+    require(std::distance(signatures.begin(), std::unique(signatures.begin(), signatures.end())) == 6,
+            "late-stage identity grammar should leave all six song identities with unique object vocabularies");
+}
+
 void analyzerRolesDriveSeparate3DObjectFamilies()
 {
     VisualizerEngine engine;
@@ -8643,6 +8909,7 @@ int main()
         {"sceneIntentProfilesProduceDistinct3DInterpretations", viz::tests::sceneIntentProfilesProduceDistinct3DInterpretations},
         {"autoSceneProfilesProduceDistinct3DSignatures", viz::tests::autoSceneProfilesProduceDistinct3DSignatures},
         {"sameModeSongIdentitiesAuthorDistinct3DSetPieces", viz::tests::sameModeSongIdentitiesAuthorDistinct3DSetPieces},
+        {"songIdentitiesAuthorLateStage3DSceneGrammar", viz::tests::songIdentitiesAuthorLateStage3DSceneGrammar},
         {"analyzerRolesDriveSeparate3DObjectFamilies", viz::tests::analyzerRolesDriveSeparate3DObjectFamilies},
         {"musicalRoleDistrictsConvergeOnlyWhenEarned", viz::tests::musicalRoleDistrictsConvergeOnlyWhenEarned},
         {"layeredMusicalPartsStayReadableBeforeConvergence", viz::tests::layeredMusicalPartsStayReadableBeforeConvergence},
