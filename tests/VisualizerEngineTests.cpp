@@ -435,6 +435,70 @@ float objectRoleMotionEnergy(const GeometryFrame& frame, Object3DRole role)
     return count > 0 ? total / static_cast<float>(count) : 0.0f;
 }
 
+Vec3 objectRoleAverageVelocity(const GeometryFrame& frame, Object3DRole role)
+{
+    Vec3 total{};
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role || object.kind == Object3DKind::Link) {
+            continue;
+        }
+        total.x += object.velocity.x;
+        total.y += object.velocity.y;
+        total.z += object.velocity.z;
+        ++count;
+    }
+    if (count == 0) {
+        return {};
+    }
+    const float invCount = 1.0f / static_cast<float>(count);
+    return Vec3{total.x * invCount, total.y * invCount, total.z * invCount};
+}
+
+float objectRoleAverageAbsVelocityAxis(const GeometryFrame& frame, Object3DRole role, int axis)
+{
+    float total = 0.0f;
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != role || object.kind == Object3DKind::Link) {
+            continue;
+        }
+        const float value = axis == 0 ? object.velocity.x
+                            : axis == 1 ? object.velocity.y
+                                        : object.velocity.z;
+        total += std::fabs(value);
+        ++count;
+    }
+    return count > 0 ? total / static_cast<float>(count) : 0.0f;
+}
+
+float convergenceArcVolume(const GeometryFrame& frame)
+{
+    float total = 0.0f;
+    int count = 0;
+    for (const Object3D& object : frame.objects3D) {
+        if (object.musicRole != Object3DRole::Convergence || object.kind != Object3DKind::Link) {
+            continue;
+        }
+        const Vec3 delta{object.target.x - object.position.x,
+                         object.target.y - object.position.y,
+                         object.target.z - object.position.z};
+        total += std::fabs(delta.x) * 0.36f +
+                 std::fabs(delta.y) * 0.92f +
+                 std::fabs(delta.z) * 0.78f;
+        ++count;
+    }
+    return count > 0 ? total / static_cast<float>(count) : 0.0f;
+}
+
+int convergenceAccentCount(const GeometryFrame& frame)
+{
+    return static_cast<int>(std::count_if(frame.objects3D.begin(), frame.objects3D.end(), [](const Object3D& object) {
+        return object.musicRole == Object3DRole::Convergence &&
+               object.kind != Object3DKind::Link;
+    }));
+}
+
 float objectRoleDepthSpan(const GeometryFrame& frame, Object3DRole role)
 {
     bool haveObject = false;
@@ -4519,6 +4583,128 @@ void musicalRoleInstrumentScoreFollowsSeparateAudioCues()
                 " cut=" + std::to_string(objectRoleAverageGlow(fractureCutFrame, Object3DRole::Fracture)));
 }
 
+void musicalCounterpointCreatesReadable3DMotionLanes()
+{
+    VisualizerEngine engine;
+    VisualSettings settings;
+    settings.mode = VisualMode::PhaseWeave;
+    settings.palette = Palette::AcidAurora;
+    settings.motionStyle = MotionStyle::Liquid;
+    settings.depth3D = 1.0f;
+    settings.objectDensity3D = 0.96f;
+    settings.lightingGlow = 0.94f;
+    settings.colorImpact = 0.96f;
+    settings.scenePersonality = 0.96f;
+    settings.response3D = 1.0f;
+    settings.motionStability = 0.92f;
+    settings.patternClarity = 0.96f;
+    settings.complexity = 1.30f;
+    settings.intensity = 1.16f;
+    settings.interactiveField = false;
+    settings.environmentReactive = false;
+    settings.qualityScale = 0.94f;
+
+    AudioMetrics layered = syntheticMetrics();
+    layered.rms = 0.54f;
+    layered.peak = 0.80f;
+    layered.bass = 0.60f;
+    layered.lowMid = 0.48f;
+    layered.mid = 0.54f;
+    layered.highMid = 0.42f;
+    layered.treble = 0.34f;
+    layered.stereoWidth = 0.72f;
+    layered.spectralFlux = 0.28f;
+    layered.onset = 0.22f;
+    layered.beat = true;
+    layered.beatConfidence = 0.78f;
+    layered.beatPhase = 0.36f;
+    layered.barConfidence = 0.74f;
+    layered.barPhase = 0.42f;
+    layered.downbeat = false;
+    layered.downbeatConfidence = 0.36f;
+    layered.dropIntensity = 0.10f;
+    layered.phraseBoundary = false;
+    layered.phraseIntensity = 0.36f;
+    layered.phraseConfidence = 0.68f;
+    layered.harmonicEnergy = 0.72f;
+    layered.keyIndex = 6;
+    layered.keyMode = MusicalMode::Minor;
+    layered.keyConfidence = 0.78f;
+    layered.style = AudioStyle::Techno;
+    layered.styleConfidence = 0.80f;
+    layered.section = ArrangementSection::Groove;
+    layered.sectionConfidence = 0.84f;
+    layered.bassRole = 0.76f;
+    layered.drumRole = 0.76f;
+    layered.melodyRole = 0.70f;
+    layered.harmonyRole = 0.64f;
+    layered.spaceRole = 0.58f;
+    layered.fractureRole = 0.46f;
+    layered.shadowRole = 0.42f;
+    layered.convergenceRole = 0.04f;
+    layered.roleSeparation = 0.96f;
+
+    AudioMetrics drop = layered;
+    drop.dropIntensity = 0.88f;
+    drop.phraseBoundary = true;
+    drop.phraseConfidence = 0.92f;
+    drop.phraseIntensity = 0.84f;
+    drop.downbeat = true;
+    drop.downbeatConfidence = 0.90f;
+    drop.convergenceRole = 0.92f;
+    drop.section = ArrangementSection::Drop;
+    drop.sectionConfidence = 0.94f;
+
+    const GeometryFrame separated = engine.buildFrame(layered, settings, 1280.0f, 720.0f, 6.4);
+    const GeometryFrame converged = engine.buildFrame(drop, settings, 1280.0f, 720.0f, 6.9);
+
+    const Vec3 bassVelocity = objectRoleAverageVelocity(separated, Object3DRole::Bass);
+    const Vec3 drumVelocity = objectRoleAverageVelocity(separated, Object3DRole::Drums);
+    const Vec3 melodyVelocity = objectRoleAverageVelocity(separated, Object3DRole::Melody);
+    const Vec3 spaceVelocity = objectRoleAverageVelocity(separated, Object3DRole::Space);
+    const Vec3 shadowVelocity = objectRoleAverageVelocity(separated, Object3DRole::Shadow);
+    const float fractureX = objectRoleAverageAbsVelocityAxis(separated, Object3DRole::Fracture, 0);
+    const float melodyX = objectRoleAverageAbsVelocityAxis(separated, Object3DRole::Melody, 0);
+
+    require(spaceVelocity.z > bassVelocity.z + 8.0f,
+            "counterpoint should push space outward while bass presses in depth; bassVz=" +
+                std::to_string(bassVelocity.z) +
+                " spaceVz=" + std::to_string(spaceVelocity.z));
+    require(melodyVelocity.y < drumVelocity.y - 3.0f,
+            "melody should arc/lift separately from beat-stepped drums; melodyVy=" +
+                std::to_string(melodyVelocity.y) +
+                " drumVy=" + std::to_string(drumVelocity.y));
+    require(fractureX > melodyX * 1.08f,
+            "fracture should cut laterally harder than melodic braid motion; fractureX=" +
+                std::to_string(fractureX) +
+                " melodyX=" + std::to_string(melodyX));
+    require(shadowVelocity.y > melodyVelocity.y + 4.0f,
+            "shadow mass should rise/settle differently from the melodic lift lane; shadowVy=" +
+                std::to_string(shadowVelocity.y) +
+                " melodyVy=" + std::to_string(melodyVelocity.y));
+    require(separated.sceneRoleMotionContrast3D > 0.20f &&
+                separated.sceneRoleLegibility3D > 0.36f,
+            "counterpoint should remain readable as separate 3D role motion, not become one noisy swarm; motionContrast=" +
+                std::to_string(separated.sceneRoleMotionContrast3D) +
+                " legibility=" + std::to_string(separated.sceneRoleLegibility3D));
+
+    require(convergenceAccentCount(converged) >= convergenceAccentCount(separated) + 3,
+            "earned convergence should add readable 3D accent bodies along role relationships; separated=" +
+                std::to_string(convergenceAccentCount(separated)) +
+                " converged=" + std::to_string(convergenceAccentCount(converged)));
+    require(convergenceArcVolume(converged) > convergenceArcVolume(separated) + 10.0f,
+            "earned convergence should add dimensional arcs between role districts, not just more flat connector density; separatedArc=" +
+                std::to_string(convergenceArcVolume(separated)) +
+                " convergedArc=" + std::to_string(convergenceArcVolume(converged)));
+    require(converged.sceneRoleDistrictSpread3D < separated.sceneRoleDistrictSpread3D * 0.94f &&
+                converged.sceneRoleDistrictSpread3D > 0.22f &&
+                converged.sceneRoleLegibility3D > 0.28f,
+            "counterpoint convergence should pull roles together without collapsing the score into an unreadable blob; separatedSpread=" +
+                std::to_string(separated.sceneRoleDistrictSpread3D) +
+                " convergedSpread=" + std::to_string(converged.sceneRoleDistrictSpread3D) +
+                " legibility=" + std::to_string(converged.sceneRoleLegibility3D));
+}
+
 void songSectionsMoveRolesWithDistinctEmotionalDirection()
 {
     VisualizerEngine engine;
@@ -8465,6 +8651,7 @@ int main()
         {"musicalPartsAuthorSeparateMotifFamilies", viz::tests::musicalPartsAuthorSeparateMotifFamilies},
         {"musicalRolesOwnDifferent3DScoreParts", viz::tests::musicalRolesOwnDifferent3DScoreParts},
         {"musicalRoleInstrumentScoreFollowsSeparateAudioCues", viz::tests::musicalRoleInstrumentScoreFollowsSeparateAudioCues},
+        {"musicalCounterpointCreatesReadable3DMotionLanes", viz::tests::musicalCounterpointCreatesReadable3DMotionLanes},
         {"songSectionsMoveRolesWithDistinctEmotionalDirection", viz::tests::songSectionsMoveRolesWithDistinctEmotionalDirection},
         {"songIdentitiesDriveDistinctCameraLanguage", viz::tests::songIdentitiesDriveDistinctCameraLanguage},
         {"musicalRolesSteerCameraComposition", viz::tests::musicalRolesSteerCameraComposition},
